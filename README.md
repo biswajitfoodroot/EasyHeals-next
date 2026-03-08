@@ -1,12 +1,12 @@
 # EasyHeals Next
 
-Independent greenfield codebase for EasyHeals vNext (Next.js + Turso + Drizzle).
+Independent greenfield codebase for EasyHeals vNext (Next.js + Turso + Drizzle + Gemini AI search).
 
 ## Stack
 - Next.js App Router (TypeScript)
 - Turso (libSQL/SQLite)
 - Drizzle ORM + Drizzle Kit
-- Mobile-first UI baseline + SEO primitives
+- Gemini 2.5 Flash for conversational search
 
 ## Local setup
 1. Install dependencies:
@@ -49,7 +49,8 @@ npm run dev
 - Role-aware access control in APIs
 - Hospitals CRUD APIs (`/api/hospitals`, `/api/hospitals/:id`)
 - Taxonomy node CRUD APIs (`/api/taxonomy/nodes`, `/api/taxonomy/nodes/:id`)
-- Admin UI (`/admin/login`, `/admin`) with create flows
+- Professional interactive homepage with chat-style AI search
+- Gemini AI Search API (`/api/search/ai`) using `gemini-2.5-flash`
 - SEO discovery pages (`/hospitals`, `/hospitals/[slug]`, `/treatments`, `/treatments/[slug]`)
 
 ## Seeded admin (local)

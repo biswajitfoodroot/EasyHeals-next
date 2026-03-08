@@ -1,71 +1,132 @@
+import Image from "next/image";
 import Link from "next/link";
 
+import AISearchExperience from "@/components/AISearchExperience";
 import { easyHealsPublicData } from "@/data/easyhealsPublicData";
+
+const socialIcons = ["facebook", "instagram", "linkedin", "youtube", "twitter"];
 
 export default function Home() {
   return (
-    <main className="home-main">
-      <section className="hero hero-split">
-        <div>
-          <p className="eyebrow">EasyHeals Next</p>
-          <h1>Healthcare discovery with faster decisions, cleaner workflows, and better mobile UX.</h1>
+    <main className="home-main premium-home">
+      <section className="hero-panel-pro">
+        <div className="hero-copy">
+          <p className="eyebrow">Smart Healthcare Discovery</p>
+          <h1>Professional, interactive healthcare search with AI assistance.</h1>
           <p>
-            Greenfield platform with independent data model, SEO-first routing, and CRM-ready operations.
+            EasyHeals Next combines chat-driven search, structured treatment navigation, and high-conversion
+            discovery flows for hospitals and patients.
           </p>
-          <div className="cta-row">
+          <div className="hero-actions">
             <Link href="/hospitals" className="cta-primary">
-              Browse Hospitals
+              Explore Hospitals
             </Link>
-            <Link href="/admin" className="cta-secondary">
-              Open Admin
+            <Link href="/treatments" className="cta-secondary">
+              Browse Treatments
             </Link>
           </div>
+          <div className="service-strip">
+            {easyHealsPublicData.services.map((service) => (
+              <span key={service}>{service}</span>
+            ))}
+          </div>
         </div>
-        <div className="hero-panel">
-          <p className="panel-title">Public Data Imported</p>
-          <p>
-            Source: {easyHealsPublicData.source} ({easyHealsPublicData.scrapedOn})
-          </p>
+
+        <div className="hero-visual">
+          <Image
+            unoptimized
+            src="https://easyheals.com/easyHealsLogo.svg"
+            alt="EasyHeals logo"
+            className="logo-art"
+            width={188}
+            height={58}
+          />
+          <div className="badge-row">
+            <Image
+              unoptimized
+              src="https://easyheals.com/downloads/google_play_store.svg"
+              alt="Google Play"
+              width={144}
+              height={48}
+            />
+            <Image
+              unoptimized
+              src="https://easyheals.com/downloads/app_store.svg"
+              alt="App Store"
+              width={132}
+              height={48}
+            />
+          </div>
+          <div className="social-row" aria-label="EasyHeals social channels">
+            {socialIcons.map((icon) => (
+              <Image
+                unoptimized
+                key={icon}
+                src={`https://easyheals.com/social_media/${icon}.svg`}
+                alt={`${icon} icon`}
+                width={24}
+                height={24}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <AISearchExperience />
+
+      <section className="info-grid">
+        <article className="info-card">
+          <h2>Trending Specialties</h2>
+          <div className="chip-grid">
+            {easyHealsPublicData.specialties.slice(0, 8).map((item) => (
+              <span className="chip" key={item}>
+                {item}
+              </span>
+            ))}
+          </div>
+        </article>
+
+        <article className="info-card">
+          <h2>Popular Treatments</h2>
           <ul>
-            {easyHealsPublicData.services.map((item) => (
+            {easyHealsPublicData.treatments.slice(0, 6).map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-        </div>
-      </section>
-
-      <section className="chip-section">
-        <h2>Specialties</h2>
-        <div className="chip-grid">
-          {easyHealsPublicData.specialties.map((item) => (
-            <span className="chip" key={item}>
-              {item}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section className="card-grid" aria-label="Discovery highlights" style={{ marginTop: "1rem" }}>
-        <article className="card">
-          <h2>Treatments</h2>
-          <p>Structured treatment pages with crawlable URLs and metadata-ready detail views.</p>
-          <Link href="/treatments" style={{ color: "#006a6a", fontWeight: 600 }}>
-            View Treatments
-          </Link>
         </article>
-        <article className="card">
-          <h2>Symptoms</h2>
-          <p>Symptom taxonomy is preloaded from public EasyHeals metadata for faster launch content.</p>
-          <Link href="/admin" style={{ color: "#006a6a", fontWeight: 600 }}>
-            Manage Taxonomy
-          </Link>
-        </article>
-        <article className="card">
-          <h2>Contact Defaults</h2>
-          <p>
-            {easyHealsPublicData.contact.phone} | {easyHealsPublicData.contact.email}
-          </p>
-          <p>{easyHealsPublicData.contact.address}</p>
+
+        <article className="info-card contact-card">
+          <h2>Need Human Support?</h2>
+          <div>
+            <Image
+              unoptimized
+              src="https://easyheals.com/contact_info/phone.svg"
+              alt="Phone"
+              width={16}
+              height={16}
+            />
+            <span>{easyHealsPublicData.contact.phone}</span>
+          </div>
+          <div>
+            <Image
+              unoptimized
+              src="https://easyheals.com/contact_info/mail.svg"
+              alt="Email"
+              width={16}
+              height={16}
+            />
+            <span>{easyHealsPublicData.contact.email}</span>
+          </div>
+          <div>
+            <Image
+              unoptimized
+              src="https://easyheals.com/contact_info/address.svg"
+              alt="Address"
+              width={16}
+              height={16}
+            />
+            <span>{easyHealsPublicData.contact.address}</span>
+          </div>
         </article>
       </section>
     </main>

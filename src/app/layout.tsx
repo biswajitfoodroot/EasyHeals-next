@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Sora } from "next/font/google";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
 });
 
@@ -21,14 +22,14 @@ export const metadata: Metadata = {
     template: "%s | EasyHeals Next",
   },
   description:
-    "EasyHeals Next is a mobile-first healthcare discovery and CRM-connected platform for providers and patients.",
-  keywords: ["hospital", "doctor", "appointment", "healthcare", "easyheals"],
+    "EasyHeals Next offers AI-assisted healthcare search across hospitals, doctors, treatments, and symptoms.",
+  keywords: ["hospital", "doctor", "appointment", "healthcare", "ai search", "easyheals"],
   alternates: {
     canonical: "/",
   },
   openGraph: {
     title: "EasyHeals Next",
-    description: "Healthcare discovery, lead management, and appointment operations.",
+    description: "AI-assisted healthcare discovery and operations platform.",
     url: "https://easyheals-next.com",
     siteName: "EasyHeals Next",
     locale: "en_IN",
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "EasyHeals Next",
-    description: "Mobile-first healthcare discovery platform.",
+    description: "Interactive AI healthcare search platform.",
   },
 };
 
@@ -48,10 +49,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${jakarta.variable} ${sora.variable}`}>
         <div className="site-shell">
           <header className="site-header">
-            <p className="brand">EasyHeals Next</p>
+            <Link href="/" className="brand-link">
+              <Image
+                unoptimized
+                src="https://easyheals.com/easyHealsLogo.svg"
+                alt="EasyHeals"
+                width={160}
+                height={46}
+              />
+            </Link>
             <nav className="top-nav" aria-label="Primary navigation">
               <Link href="/hospitals">Hospitals</Link>
               <Link href="/treatments">Treatments</Link>
