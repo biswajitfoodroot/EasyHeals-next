@@ -2,6 +2,8 @@ import { config } from "dotenv";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
+import { easyHealsPublicData } from "@/data/easyhealsPublicData";
+
 config({ path: ".env.local", quiet: true });
 config({ quiet: true });
 
@@ -61,6 +63,14 @@ async function run() {
   }
 
   const hospitalSeed = [
+    {
+      name: "EasyHeals Care Hub Pune",
+      city: "Pune",
+      state: "Maharashtra",
+      phone: easyHealsPublicData.contact.phone,
+      email: easyHealsPublicData.contact.email,
+      addressLine1: easyHealsPublicData.contact.address,
+    },
     { name: "Apollo Chennai", city: "Chennai", state: "Tamil Nadu" },
     { name: "Fortis Bangalore", city: "Bengaluru", state: "Karnataka" },
     { name: "Ruby Hall Pune", city: "Pune", state: "Maharashtra" },
@@ -75,14 +85,30 @@ async function run() {
   }
 
   const taxonomySeed = [
-    { type: "specialty", title: "Cardiology", description: "Heart and vascular treatments" },
-    { type: "specialty", title: "Neurology", description: "Brain and nervous system care" },
-    { type: "treatment", title: "Angioplasty", description: "Coronary artery procedure" },
-    { type: "treatment", title: "Knee Replacement", description: "Orthopedic joint replacement" },
+    ...easyHealsPublicData.services.map((title) => ({
+      type: "service",
+      title,
+      description: "Imported from EasyHeals public services navigation.",
+    })),
+    ...easyHealsPublicData.specialties.map((title) => ({
+      type: "specialty",
+      title,
+      description: "Imported from EasyHeals public specialties metadata.",
+    })),
+    ...easyHealsPublicData.treatments.map((title) => ({
+      type: "treatment",
+      title,
+      description: "Imported from EasyHeals public treatment metadata.",
+    })),
+    ...easyHealsPublicData.symptoms.map((title) => ({
+      type: "symptom",
+      title,
+      description: "Imported from EasyHeals public symptoms metadata.",
+    })),
   ];
 
   for (const item of taxonomySeed) {
-    const slug = slugify(item.title);
+    const slug = slugify(`${item.type}-${item.title}`);
     const exists = await db.select().from(taxonomyNodes).where(eq(taxonomyNodes.slug, slug)).limit(1);
     if (!exists.length) {
       await db.insert(taxonomyNodes).values({ ...item, slug });

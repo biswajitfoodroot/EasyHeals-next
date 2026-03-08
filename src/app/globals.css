@@ -72,6 +72,53 @@ body {
   padding: 1.25rem;
 }
 
+.hero-split {
+  display: grid;
+  gap: 1rem;
+}
+
+.hero-panel {
+  background: #0d3d3d;
+  color: #e8fbf8;
+  border-radius: 0.8rem;
+  padding: 0.9rem;
+}
+
+.hero-panel ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+}
+
+.panel-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.cta-row {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.cta-primary,
+.cta-secondary {
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.55rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.cta-primary {
+  background: #006a6a;
+  color: #fff;
+}
+
+.cta-secondary {
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
 .eyebrow {
   margin: 0;
   font-size: 0.78rem;
@@ -91,6 +138,32 @@ body {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.chip-section {
+  margin-top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  padding: 1rem;
+}
+
+.chip-section h2 {
+  margin: 0 0 0.6rem;
+}
+
+.chip-grid {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #f5fbff;
+  font-size: 0.85rem;
 }
 
 .card-grid {
@@ -125,6 +198,11 @@ body {
 
   .home-main {
     padding-inline: 2rem;
+  }
+
+  .hero-split {
+    grid-template-columns: 1.6fr 1fr;
+    align-items: stretch;
   }
 
   .card-grid {
