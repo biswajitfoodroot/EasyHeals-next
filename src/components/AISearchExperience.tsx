@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
@@ -150,7 +150,7 @@ export default function AISearchExperience() {
                     <div className="mini-chips">
                       {message.payload.taxonomy.slice(0, 8).map((item) => (
                         <span key={item.id}>
-                          {item.title} · {item.type}
+                          {item.title} - {item.type}
                         </span>
                       ))}
                     </div>

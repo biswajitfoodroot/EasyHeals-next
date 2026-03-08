@@ -41,3 +41,5 @@ yarn-error.log*
 next-env.d.ts
 
 devserver.log
+
+devserver4000.log

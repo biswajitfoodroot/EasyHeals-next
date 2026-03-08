@@ -1,19 +1,6 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import Link from "next/link";
-import { Plus_Jakarta_Sans, Sora } from "next/font/google";
 
 import "./globals.css";
-
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
-  subsets: ["latin"],
-});
-
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://easyheals-next.com"),
@@ -49,27 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${jakarta.variable} ${sora.variable}`}>
-        <div className="site-shell">
-          <header className="site-header">
-            <Link href="/" className="brand-link">
-              <Image
-                unoptimized
-                src="https://easyheals.com/easyHealsLogo.svg"
-                alt="EasyHeals"
-                width={160}
-                height={46}
-              />
-            </Link>
-            <nav className="top-nav" aria-label="Primary navigation">
-              <Link href="/hospitals">Hospitals</Link>
-              <Link href="/treatments">Treatments</Link>
-              <Link href="/admin">Admin</Link>
-            </nav>
-          </header>
-          {children}
-        </div>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

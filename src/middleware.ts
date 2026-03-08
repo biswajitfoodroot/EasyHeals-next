@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/session";
+const SESSION_COOKIE = "easyheals_next_session";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
