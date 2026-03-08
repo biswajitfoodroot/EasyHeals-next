@@ -33,6 +33,22 @@ export const users = sqliteTable(
   (table) => [uniqueIndex("users_email_idx").on(table.email)],
 );
 
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: id(),
+    sessionToken: text("session_token").notNull().unique(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
+      sql`(unixepoch() * 1000)`,
+    ),
+  },
+  (table) => [uniqueIndex("sessions_user_idx").on(table.userId)],
+);
+
 export const userRoleMap = sqliteTable(
   "user_role_map",
   {
@@ -53,6 +69,7 @@ export const userRoleMap = sqliteTable(
 export const hospitals = sqliteTable("hospitals", {
   id: id(),
   name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
   city: text("city").notNull(),
   state: text("state"),
   country: text("country").notNull().default("India"),

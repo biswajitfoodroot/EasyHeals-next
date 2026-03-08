@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import "./globals.css";
@@ -52,9 +53,9 @@ export default function RootLayout({
           <header className="site-header">
             <p className="brand">EasyHeals Next</p>
             <nav className="top-nav" aria-label="Primary navigation">
-              <a href="#discovery">Discovery</a>
-              <a href="#providers">Providers</a>
-              <a href="#operations">Operations</a>
+              <Link href="/hospitals">Hospitals</Link>
+              <Link href="/treatments">Treatments</Link>
+              <Link href="/admin">Admin</Link>
             </nav>
           </header>
           {children}

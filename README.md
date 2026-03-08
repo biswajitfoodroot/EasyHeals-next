@@ -25,7 +25,11 @@ npm run db:generate
 ```bash
 npm run db:migrate
 ```
-5. Run locally:
+5. Seed base data (roles, admin user, hospitals, taxonomy):
+```bash
+npm run db:seed
+```
+6. Run locally:
 ```bash
 npm run dev
 ```
@@ -36,12 +40,22 @@ npm run dev
 - `npm run typecheck` run TypeScript checks
 - `npm run db:generate` generate migration SQL from schema
 - `npm run db:migrate` apply migrations
+- `npm run db:seed` seed initial data
 - `npm run db:push` push schema directly (non-prod only)
 - `npm run db:studio` open Drizzle Studio
 
-## API foundation
-- `GET /api/health` service health probe
-- `GET /api/leads` list latest leads (role aware)
-- `POST /api/leads` create lead with validation + audit log
+## Implemented now
+- Real session-based auth (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`)
+- Role-aware access control in APIs
+- Hospitals CRUD APIs (`/api/hospitals`, `/api/hospitals/:id`)
+- Taxonomy node CRUD APIs (`/api/taxonomy/nodes`, `/api/taxonomy/nodes/:id`)
+- Admin UI (`/admin/login`, `/admin`) with create flows
+- SEO discovery pages (`/hospitals`, `/hospitals/[slug]`, `/treatments`, `/treatments/[slug]`)
 
-Current auth mode is bootstrap header auth (`x-user-id`, `x-user-role`) for local phase-1 development.
+## Seeded admin (local)
+- Email: `admin@easyheals-next.com`
+- Password: `ChangeMe123!`
+
+Change seeded credentials through `.env.local`:
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-import type { AuthContext } from "@/lib/auth";
+import type { RoleCode } from "@/lib/auth";
 
-export function ensureRole(auth: AuthContext, allowedRoles: AuthContext["role"][]) {
-  if (allowedRoles.includes(auth.role)) {
+export function ensureRole(role: RoleCode, allowedRoles: RoleCode[]) {
+  if (allowedRoles.includes(role)) {
     return null;
   }
 
@@ -11,7 +11,7 @@ export function ensureRole(auth: AuthContext, allowedRoles: AuthContext["role"][
     {
       error: "Forbidden",
       code: "RBAC_FORBIDDEN",
-      message: `Role ${auth.role} cannot perform this action`,
+      message: `Role ${role} cannot perform this action`,
     },
     { status: 403 },
   );

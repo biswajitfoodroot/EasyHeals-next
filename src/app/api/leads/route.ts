@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { db } from "@/db/client";
 import { leads } from "@/db/schema";
-import { getAuthContext } from "@/lib/auth";
+import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
 
@@ -18,8 +18,10 @@ const createLeadSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const auth = getAuthContext(req);
-  const forbidden = ensureRole(auth, ["owner", "admin", "advisor", "viewer"]);
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
+  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor", "viewer"]);
   if (forbidden) return forbidden;
 
   const rows = await db.select().from(leads).orderBy(desc(leads.createdAt)).limit(50);
@@ -27,8 +29,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = getAuthContext(req);
-  const forbidden = ensureRole(auth, ["owner", "admin", "advisor"]);
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
+  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
   if (forbidden) return forbidden;
 
   const payload = await req.json();
