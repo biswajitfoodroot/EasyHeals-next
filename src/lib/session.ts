@@ -13,6 +13,7 @@ export async function createSession(userId: string) {
   const sessionToken = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
+  await db.delete(sessions).where(eq(sessions.userId, userId));
   await db.insert(sessions).values({ sessionToken, userId, expiresAt });
 
   return {

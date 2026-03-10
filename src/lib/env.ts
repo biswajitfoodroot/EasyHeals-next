@@ -7,14 +7,34 @@ const envSchema = z.object({
   TURSO_AUTH_TOKEN: z.string().min(1),
   GEMINI_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().optional().default("gemini-2.5-flash"),
+  GOOGLE_AI_API_KEY: z.string().optional().default(""),
+  GOOGLE_PLACES_API_KEY: z.string().optional().default(""),
+  GOOGLE_SEARCH_API_KEY: z.string().optional().default(""),
+  GOOGLE_SEARCH_CX: z.string().optional().default(""),
+  JINA_API_KEY: z.string().optional().default(""),
+  MSG91_AUTH_KEY: z.string().optional().default(""),
+  MSG91_TEMPLATE_ID: z.string().optional().default(""),
 });
 
-export const env = envSchema.parse({
+const parsed = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
   APP_BASE_URL: process.env.APP_BASE_URL,
   TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY,
+  GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
+  GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,
+  GOOGLE_SEARCH_CX: process.env.GOOGLE_SEARCH_CX,
+  JINA_API_KEY: process.env.JINA_API_KEY,
+  MSG91_AUTH_KEY: process.env.MSG91_AUTH_KEY,
+  MSG91_TEMPLATE_ID: process.env.MSG91_TEMPLATE_ID,
 });
+
+export const env = {
+  ...parsed,
+  GOOGLE_AI_API_KEY: parsed.GOOGLE_AI_API_KEY || parsed.GEMINI_API_KEY,
+};
+
 

@@ -15,6 +15,34 @@
       "when": 1772958638352,
       "tag": "0001_kind_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772969917145,
+      "tag": "0002_modern_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1772975273294,
+      "tag": "0003_nappy_absorbing_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1772978135195,
+      "tag": "0004_smiling_the_renegades",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1773030112552,
+      "tag": "0005_blue_smart_ingestion",
+      "breakpoints": true
     }
   ]
 }

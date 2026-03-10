@@ -1,6 +1,26 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
+import { Bricolage_Grotesque, DM_Sans, DM_Serif_Display } from "next/font/google";
 
 import "./globals.css";
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  variable: "--font-dmsans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const dmSerif = DM_Serif_Display({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  display: "swap",
+  weight: "400",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://easyheals-next.com"),
@@ -36,7 +56,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable}`}>{children}</body>
     </html>
   );
 }
+

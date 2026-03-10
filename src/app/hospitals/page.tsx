@@ -1,43 +1,39 @@
-import { asc } from "drizzle-orm";
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { db } from "@/db/client";
-import { hospitals } from "@/db/schema";
+import { DirectorySearchList } from "@/components/profiles/DirectorySearchList";
+import { listHospitalsDirectory } from "@/lib/profile-data";
 import { buildMetadata } from "@/lib/seo";
 
+export const revalidate = 3600;
+
 export const metadata: Metadata = buildMetadata({
-  title: "Hospitals",
-  description: "Browse top private hospitals by city and specialty focus.",
+  title: "Private Hospitals Across India",
+  description: "Discover verified private hospitals with intelligent filters, map-ready profiles, and doctor affiliations.",
   path: "/hospitals",
 });
 
 export default async function HospitalsPage() {
-  const rows = await db.select().from(hospitals) .orderBy(asc(hospitals.name)).limit(200);
+  const rows = await listHospitalsDirectory(360);
+  const cityOptions = Array.from(new Set(rows.map((item) => item.city))).sort((a, b) => a.localeCompare(b));
 
   return (
-    <main className="home-main">
-      <section className="hero">
-        <p className="eyebrow">Discovery</p>
-        <h1>Hospitals</h1>
-        <p>SEO-ready hospital listings with city discovery and profile-level URLs.</p>
-      </section>
-
-      <section className="card-grid" style={{ marginTop: "1rem" }}>
-        {rows.map((hospital) => (
-          <article key={hospital.id} className="card">
-            <h2>{hospital.name}</h2>
-            <p>
-              {hospital.city}
-              {hospital.state ? `, ${hospital.state}` : ""}
-            </p>
-            <Link href={`/hospitals/${hospital.slug}`} style={{ color: "#006a6a", fontWeight: 600 }}>
-              View Profile
-            </Link>
-          </article>
-        ))}
-      </section>
-    </main>
+    <DirectorySearchList
+      kind="hospital"
+      title="Private Hospitals Across India"
+      description="Search verified private hospitals by city and specialty, then open profile pages with map directions and affiliated doctors."
+      cityOptions={cityOptions}
+      items={rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        city: row.city,
+        state: row.state,
+        specialties: row.specialties,
+        rating: row.rating,
+        verified: row.verified,
+        subtitle: row.description,
+        url: `/hospitals/${row.slug}`,
+      }))}
+    />
   );
 }
 
