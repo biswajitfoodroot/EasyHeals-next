@@ -2293,7 +2293,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                             
                             return (
                             <div key={key} className="bg-white border border-amber-200 rounded-xl p-3 space-y-2">
-                              <p className="text-sm font-semibold text-slate-800">"{item.name}" <span className="text-slate-400 text-xs font-normal">in {item.city}</span></p>
+                  <p className="text-sm font-semibold text-slate-800">"{item.name}" <span className="text-slate-400 text-xs font-normal">in {item.city}</span></p>
                               
                               {/* Search field */}
                               <div className="pb-2 border-b border-amber-100">
@@ -2308,7 +2308,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                               
                               <div className="space-y-1.5 max-h-96 overflow-y-auto">
                                 {/* Show search results if searching */}
-                                {searchQuery.trim().length > 1 ? (
+                                {searchQuery.trim().length > 0 ? (
                                   <>
                                     {isSearching ? (
                                       <p className="text-xs text-slate-400 py-2">Searching...</p>
@@ -2338,7 +2338,15 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                   </>
                                 ) : (
                                   <>
-                                    <p className="text-xs font-semibold text-slate-600 px-1">AI Suggested Matches</p>
+                                    <div className="flex items-center justify-between px-1 pt-1">
+                                      <p className="text-xs font-semibold text-slate-600">AI Suggested Matches</p>
+                                      <button 
+                                        onClick={() => onSearchAmbiguousHospitals(key, " ")} 
+                                        className="text-[10px] text-teal-600 font-bold hover:underline uppercase"
+                                      >
+                                        Browse All
+                                      </button>
+                                    </div>
                                     {item.candidates.map((c) => (
                                       <div key={c.id} className="flex items-center justify-between gap-2 px-1.5 py-1 hover:bg-slate-50 rounded">
                                         <div className="min-w-0">
