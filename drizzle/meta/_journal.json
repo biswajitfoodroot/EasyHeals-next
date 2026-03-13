@@ -43,6 +43,13 @@
       "when": 1773030112552,
       "tag": "0005_blue_smart_ingestion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1773394648299,
+      "tag": "0006_safe_colleen_wing",
+      "breakpoints": true
     }
   ]
 }

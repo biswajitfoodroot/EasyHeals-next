@@ -3,8 +3,9 @@ import { z } from "zod";
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_BASE_URL: z.string().url().default("http://localhost:4000"),
-  TURSO_DATABASE_URL: z.string().min(1),
-  TURSO_AUTH_TOKEN: z.string().min(1),
+  // Required at runtime; allow empty string during Next.js static build phase
+  TURSO_DATABASE_URL: z.string().default(""),
+  TURSO_AUTH_TOKEN: z.string().default(""),
   GEMINI_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().optional().default("gemini-2.5-flash"),
   GOOGLE_AI_API_KEY: z.string().optional().default(""),
