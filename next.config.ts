@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Prevent Next.js from bundling packages with native binaries.
+  // @libsql/client ships .node files; bundling them breaks Vercel builds.
+  serverExternalPackages: ["@libsql/client"],
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },
