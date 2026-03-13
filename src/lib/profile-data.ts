@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, like, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { doctorHospitalAffiliations, doctors, hospitals } from "@/db/schema";
+import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, taxonomyNodes } from "@/db/schema";
+import { enrichDoctorProfile } from "@/lib/doctor-enrich";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 
 export async function listHospitalsDirectory(limit = 300) {
@@ -21,7 +22,7 @@ export async function listHospitalsDirectory(limit = 300) {
       isActive: hospitals.isActive,
     })
     .from(hospitals)
-    .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true), eq(hospitals.type, "hospital")))
+    .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true)))
     .orderBy(desc(hospitals.verified), desc(hospitals.rating), asc(hospitals.name))
     .limit(limit);
 
@@ -104,6 +105,23 @@ export async function getHospitalProfileBySlug(slug: string) {
     .orderBy(desc(doctorHospitalAffiliations.isPrimary), asc(doctors.fullName))
     .limit(100);
 
+  const packagesRows = await db
+    .select({
+      id: hospitalListingPackages.id,
+      packageName: hospitalListingPackages.packageName,
+      procedureName: hospitalListingPackages.procedureName,
+      department: hospitalListingPackages.department,
+      priceMin: hospitalListingPackages.priceMin,
+      priceMax: hospitalListingPackages.priceMax,
+      currency: hospitalListingPackages.currency,
+      lengthOfStay: hospitalListingPackages.lengthOfStay,
+      inclusions: hospitalListingPackages.inclusions,
+    })
+    .from(hospitalListingPackages)
+    .where(and(eq(hospitalListingPackages.hospitalId, hospital.id), eq(hospitalListingPackages.isActive, true)))
+    .orderBy(asc(hospitalListingPackages.packageName))
+    .limit(50);
+
   const relatedRows = await db
     .select({
       id: hospitals.id,
@@ -158,6 +176,17 @@ export async function getHospitalProfileBySlug(slug: string) {
         }),
       },
     },
+    packages: packagesRows.map((row) => ({
+      id: row.id,
+      packageName: row.packageName,
+      procedureName: row.procedureName,
+      department: row.department,
+      priceMin: row.priceMin,
+      priceMax: row.priceMax,
+      currency: row.currency,
+      lengthOfStay: row.lengthOfStay,
+      inclusions: Array.isArray((row.inclusions as unknown)) ? (row.inclusions as unknown as string[]) : [],
+    })),
     doctors: affiliations.map((row) => ({
       id: row.doctorId,
       slug: row.doctorSlug,
@@ -199,6 +228,15 @@ export async function getDoctorProfileBySlug(slug: string) {
     .limit(1);
 
   if (!doctor) return null;
+
+  // First-time visit: auto-enrich from AI (Google Search Grounding via Gemini)
+  // Subsequent visits use cached data from the DB (aiEnrichedAt is set)
+  if (!doctor.aiEnrichedAt) {
+    await enrichDoctorProfile(doctor.id, doctor.fullName, doctor.city);
+    // Refetch to get updated fields (bio, qualifications, aiReviewSummary, etc.)
+    const [enriched] = await db.select().from(doctors).where(eq(doctors.id, doctor.id)).limit(1);
+    if (enriched) Object.assign(doctor, enriched);
+  }
 
   const affiliationRows = await db
     .select({
@@ -317,3 +355,126 @@ export async function getDoctorProfileBySlug(slug: string) {
   };
 }
 
+export async function getTreatmentProfileBySlug(slug: string) {
+  const [node] = await db
+    .select()
+    .from(taxonomyNodes)
+    .where(and(eq(taxonomyNodes.slug, slug), eq(taxonomyNodes.isActive, true)))
+    .limit(1);
+
+  if (!node) return null;
+
+  const [allHospitals, allDoctors] = await Promise.all([
+    db
+      .select({
+        id: hospitals.id,
+        slug: hospitals.slug,
+        name: hospitals.name,
+        city: hospitals.city,
+        state: hospitals.state,
+        rating: hospitals.rating,
+        reviewCount: hospitals.reviewCount,
+        specialties: hospitals.specialties,
+        addressLine1: hospitals.addressLine1,
+        latitude: hospitals.latitude,
+        longitude: hospitals.longitude,
+        verified: hospitals.verified,
+      })
+      .from(hospitals)
+      .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true)))
+      .orderBy(desc(hospitals.verified), desc(hospitals.rating), asc(hospitals.name))
+      .limit(300),
+    db
+      .select({
+        id: doctors.id,
+        slug: doctors.slug,
+        fullName: doctors.fullName,
+        specialization: doctors.specialization,
+        specialties: doctors.specialties,
+        city: doctors.city,
+        state: doctors.state,
+        rating: doctors.rating,
+        reviewCount: doctors.reviewCount,
+        verified: doctors.verified,
+        yearsOfExperience: doctors.yearsOfExperience,
+        consultationFee: doctors.consultationFee,
+      })
+      .from(doctors)
+      .where(eq(doctors.isActive, true))
+      .orderBy(desc(doctors.verified), desc(doctors.rating), asc(doctors.fullName))
+      .limit(300),
+  ]);
+
+  const title = node.title.toLowerCase();
+
+  const relatedHospitals = allHospitals
+    .filter((h) =>
+      parseStringArray(h.specialties).some((s) => s.toLowerCase().includes(title) || title.includes(s.toLowerCase())),
+    )
+    .slice(0, 12)
+    .map((h) => ({
+      id: h.id,
+      slug: h.slug,
+      name: h.name,
+      city: h.city,
+      state: h.state,
+      rating: h.rating ?? 0,
+      reviewCount: h.reviewCount ?? 0,
+      specialties: parseStringArray(h.specialties),
+      verified: Boolean(h.verified),
+      profileUrl: `/hospitals/${h.slug}`,
+      directionsUrl: buildDirectionsUrl({
+        latitude: h.latitude,
+        longitude: h.longitude,
+        address: formatHospitalLocation({ addressLine1: h.addressLine1, city: h.city, state: h.state }),
+      }),
+    }));
+
+  const relatedDoctors = allDoctors
+    .filter((d) => {
+      const spec = (d.specialization ?? "").toLowerCase();
+      const specs = parseStringArray(d.specialties).map((s) => s.toLowerCase());
+      return spec.includes(title) || title.includes(spec) || specs.some((s) => s.includes(title) || title.includes(s));
+    })
+    .slice(0, 12)
+    .map((d) => ({
+      id: d.id,
+      slug: d.slug,
+      fullName: d.fullName,
+      specialization: d.specialization,
+      specialties: parseStringArray(d.specialties),
+      city: d.city,
+      state: d.state,
+      rating: d.rating ?? 0,
+      reviewCount: d.reviewCount ?? 0,
+      verified: Boolean(d.verified),
+      yearsOfExperience: d.yearsOfExperience,
+      consultationFee: d.consultationFee,
+      profileUrl: `/doctors/${d.slug}`,
+    }));
+
+  return {
+    treatment: {
+      id: node.id,
+      slug: node.slug,
+      title: node.title,
+      type: node.type,
+      description: node.description,
+    },
+    relatedHospitals,
+    relatedDoctors,
+  };
+}
+
+export async function listAllSlugs() {
+  const [hospitalSlugs, doctorSlugs, treatmentSlugs] = await Promise.all([
+    db.select({ slug: hospitals.slug }).from(hospitals).where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true))),
+    db.select({ slug: doctors.slug }).from(doctors).where(eq(doctors.isActive, true)),
+    db.select({ slug: taxonomyNodes.slug }).from(taxonomyNodes).where(eq(taxonomyNodes.isActive, true)),
+  ]);
+  return {
+    hospitals: hospitalSlugs.map((r) => r.slug),
+    doctors: doctorSlugs.map((r) => r.slug),
+    treatments: treatmentSlugs.map((r) => r.slug),
+  };
+}

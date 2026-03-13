@@ -22,14 +22,18 @@ import {
   ingestionFieldConfidences,
   ingestionResearchQueue,
   doctors,
+  hospitals,
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
+import { env } from "@/lib/env";
 import {
   fetchWebsiteSource,
   extractStructuredFromSources,
   fetchGoogleProfileData,
   isGoogleProfileUrl,
   chooseBestDoctorMatch,
+  IngestionProgress,
+  CrawledPage,
   type WebsiteSourceResult,
 } from "@/lib/ingestion";
 import { ensureRole } from "@/lib/rbac";
@@ -61,27 +65,58 @@ export async function GET(req: NextRequest) {
 
   const jobId = req.nextUrl.searchParams.get("jobId")?.trim();
 
-  if (jobId) {
-    const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
-    if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  try {
+    if (jobId) {
+      const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
+      if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-    const [sources, hospitalCandidates, doctorCandidates, serviceCandidates, packageCandidates, fieldConfidences] =
-      await Promise.all([
-        db.select().from(ingestionSources).where(eq(ingestionSources.jobId, jobId)),
-        db.select().from(ingestionHospitalCandidates).where(eq(ingestionHospitalCandidates.jobId, jobId)),
-        db.select().from(ingestionDoctorCandidates).where(eq(ingestionDoctorCandidates.jobId, jobId)),
-        db.select().from(ingestionServiceCandidates).where(eq(ingestionServiceCandidates.jobId, jobId)),
-        db.select().from(ingestionPackageCandidates).where(eq(ingestionPackageCandidates.jobId, jobId)),
-        db.select().from(ingestionFieldConfidences).where(eq(ingestionFieldConfidences.jobId, jobId)),
-      ]);
+      const [sources, hospitalCandidatesRaw, doctorCandidatesRaw, serviceCandidates, packageCandidates, fieldConfidences] =
+        await Promise.all([
+          db.select().from(ingestionSources).where(eq(ingestionSources.jobId, jobId)),
+          db
+            .select()
+            .from(ingestionHospitalCandidates)
+            .leftJoin(hospitals, eq(ingestionHospitalCandidates.matchHospitalId, hospitals.id))
+            .where(eq(ingestionHospitalCandidates.jobId, jobId)),
+          db
+            .select()
+            .from(ingestionDoctorCandidates)
+            .leftJoin(doctors, eq(ingestionDoctorCandidates.matchDoctorId, doctors.id))
+            .where(eq(ingestionDoctorCandidates.jobId, jobId)),
+          db.select().from(ingestionServiceCandidates).where(eq(ingestionServiceCandidates.jobId, jobId)),
+          db.select().from(ingestionPackageCandidates).where(eq(ingestionPackageCandidates.jobId, jobId)),
+          db.select().from(ingestionFieldConfidences).where(eq(ingestionFieldConfidences.jobId, jobId)),
+        ]);
 
-    return NextResponse.json({
-      data: { job, sources, hospitalCandidates, doctorCandidates, serviceCandidates, packageCandidates, fieldConfidences },
-    });
+      // Flatten candidates for simpler frontend consumption
+      const flattenedHospitals = hospitalCandidatesRaw.map((row) => ({
+        ...row.ingestion_hospital_candidates,
+        matchHospitalName: row.hospitals?.name,
+      }));
+      const flattenedDoctors = doctorCandidatesRaw.map((row) => ({
+        ...row.ingestion_doctor_candidates,
+        matchDoctorName: row.doctors?.fullName,
+      }));
+
+      return NextResponse.json({
+        data: {
+          job,
+          sources,
+          hospitalCandidates: flattenedHospitals,
+          doctorCandidates: flattenedDoctors,
+          serviceCandidates,
+          packageCandidates,
+          fieldConfidences,
+        },
+      });
+    }
+
+    const jobs = await db.select().from(ingestionJobs).orderBy(desc(ingestionJobs.createdAt)).limit(20);
+    return NextResponse.json({ data: { jobs } });
+  } catch (err: any) {
+    console.error("INGESTION_GET_ERROR:", err);
+    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
   }
-
-  const jobs = await db.select().from(ingestionJobs).orderBy(desc(ingestionJobs.createdAt)).limit(20);
-  return NextResponse.json({ data: { jobs } });
 }
 
 // ─── POST ──────────────────────────────────────────────────────────────────────
@@ -120,9 +155,62 @@ async function handleDirectScrape(auth: { userId: string }, data: z.infer<typeof
     targetHospitalId: targetHospitalId || undefined,
   };
 
+  const isTargeted = Boolean(targetHospitalId);
+
+  // 1. Initial Job record
+  const [job] = await db.insert(ingestionJobs).values({
+    requestedByUserId: auth.userId,
+    status: "collecting_sources",
+    sourceUrl,
+    searchQuery: hints.hospitalName ?? null,
+    targetCity: hints.city ?? null,
+    runMode: isTargeted ? "targeted_update" : "website_only",
+    summary: {
+      targetHospitalId: hints.targetHospitalId ?? null,
+      currentTask: "Initializing...",
+      percent: 0,
+      warnings: [],
+    },
+    startedAt: new Date(),
+    updatedAt: new Date(),
+  }).returning();
+
+  const jobId = job.id;
+
+  // Progress callback for DB updates
+  const onProgress = async (p: IngestionProgress) => {
+    console.log(`[Job ${jobId}] ${p.stage}: ${p.message} (${p.percent ?? 0}%)`);
+    await db.update(ingestionJobs).set({
+      status: p.stage === 'finished' ? 'done' : p.stage,
+      summary: {
+        ...(job.summary as any),
+        currentTask: p.message,
+        percent: p.percent ?? (p.stage === 'fetching' ? 10 : p.stage === 'extracting' ? 80 : 100),
+      },
+      updatedAt: new Date(),
+    }).where(eq(ingestionJobs.id, jobId));
+
+    // Checkpoint: Save individual pages as they come
+    if (p.stage === 'fetching' && p.data?.page) {
+      const pg = p.data.page as CrawledPage;
+      await db.insert(ingestionSources).values({
+        jobId,
+        sourceType: "website",
+        sourceUrl: pg.url,
+        title: pg.url,
+        rawContent: pg.text,
+        confidence: 1.0,
+      }).onConflictDoUpdate({
+        target: [ingestionSources.jobId, ingestionSources.sourceUrl],
+        set: { rawContent: pg.text, updatedAt: new Date() }
+      }).catch(() => null);
+    }
+  };
+
   try {
     // ── Google Maps path ──────────────────────────────────────────────────
     if (isGoogleProfileUrl(sourceUrl)) {
+      await onProgress({ stage: 'fetching', message: "Fetching Google Profile...", percent: 20 });
       const profile = await fetchGoogleProfileData({ sourceUrl, hospitalName: hints.hospitalName, city: hints.city });
       if (!profile) {
         return NextResponse.json({ error: "Google Profile fetch returned no data.", code: "GOOGLE_PROFILE_EMPTY", retryable: true }, { status: 422 });
@@ -132,26 +220,16 @@ async function handleDirectScrape(auth: { userId: string }, data: z.infer<typeof
         websiteUrl: profile.website ?? sourceUrl,
         websiteText: [profile.name, profile.formattedAddress, profile.openingHours.join(", ")].filter(Boolean).join("\n"),
         searchSnippets: [], hints, googleProfile: profile, crawledPages: [],
+        onProgress,
       });
 
-      const job = await saveJobAndCandidates(auth.userId, sourceUrl, hints, extracted, { mode: "google_profile", pagesVisited: 0, warnings: [], blockedStatus: null });
-      return NextResponse.json({ data: { jobId: job.id, summary: { doctorsFound: extracted.doctors.length, servicesFound: extracted.services.length, packagesFound: extracted.packages.length, procedureCostsFound: extracted.procedureCosts.length, confidence: extracted.confidence, warnings: [] } } });
+      const finalJob = await saveJobAndCandidates(auth.userId, sourceUrl, hints, extracted, { mode: "google_profile", pagesVisited: 0, warnings: [], blockedStatus: null }, jobId);
+      return NextResponse.json({ data: { jobId: finalJob.id, summary: finalJob.summary } });
     }
 
     // ── Website scrape path ────────────────────────────────────────────────
-    let sourceResult: WebsiteSourceResult;
-    try {
-      sourceResult = await fetchWebsiteSource(sourceUrl);
-    } catch (err) {
-      const e = err as Record<string, unknown>;
-      return NextResponse.json({
-        error: "Website fetch failed",
-        message: err instanceof Error ? err.message : "Could not access the website.",
-        code: typeof e.code === "string" ? e.code : "WEBSITE_FETCH_FAILED",
-        hint: typeof e.hint === "string" ? e.hint : "Check the URL is correct and publicly reachable.",
-        retryable: typeof e.retryable === "boolean" ? e.retryable : false,
-      }, { status: 422 });
-    }
+    const useBrowserAutomation = env.ENABLE_BROWSER_AUTOMATION === "true";
+    const sourceResult = await fetchWebsiteSource(sourceUrl, { useBrowserAutomation, onProgress });
 
     let googleProfile = null;
     if (hints.hospitalName) {
@@ -165,34 +243,31 @@ async function handleDirectScrape(auth: { userId: string }, data: z.infer<typeof
       hints,
       googleProfile,
       crawledPages: sourceResult.crawledPages,
+      onProgress,
     });
 
-    const job = await saveJobAndCandidates(auth.userId, sourceUrl, hints, extracted, {
+    const finalJob = await saveJobAndCandidates(auth.userId, sourceUrl, hints, extracted, {
       mode: sourceResult.mode,
       pagesVisited: sourceResult.crawledPages.length + 1,
       warnings: sourceResult.warnings,
       blockedStatus: sourceResult.blockedStatus,
-    });
+    }, jobId);
 
     return NextResponse.json({
       data: {
-        jobId: job.id,
-        summary: {
-          pagesScraped: sourceResult.crawledPages.length + 1,
-          doctorPagesFound: sourceResult.crawledPages.filter(p => p.category === "doctors").length,
-          doctorsFound: extracted.doctors.length,
-          servicesFound: extracted.services.length,
-          packagesFound: extracted.packages.length,
-          procedureCostsFound: extracted.procedureCosts.length,
-          confidence: extracted.confidence,
-          notes: extracted.notes,
-          warnings: sourceResult.warnings,
-        },
+        jobId: finalJob.id,
+        summary: finalJob.summary,
       },
     });
   } catch (err) {
-    console.error("[ingestion/jobs POST]", err);
-    return NextResponse.json({ error: "Internal server error.", message: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    console.error(`[Job ${jobId}] Failed:`, err);
+    await db.update(ingestionJobs).set({
+      status: "error",
+      errorMessage: err instanceof Error ? err.message : String(err),
+      updatedAt: new Date(),
+    }).where(eq(ingestionJobs.id, jobId));
+
+    return NextResponse.json({ error: "Scrape failed", message: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
 
@@ -221,12 +296,12 @@ async function saveJobAndCandidates(
   hints: { hospitalName?: string; city?: string; targetHospitalId?: string },
   extracted: Awaited<ReturnType<typeof extractStructuredFromSources>>,
   crawlMeta: { mode: string; pagesVisited: number; warnings: string[]; blockedStatus: number | null },
+  existingJobId?: string,
 ) {
   const h = extracted.hospital;
   const isTargeted = Boolean(hints.targetHospitalId);
 
   // ── Pre-fetch existing doctors for matching (targeted mode only) ──────────
-  // This is what was missing — without this, matchDoctorId was always null.
   let existingDoctors: Array<{ id: string; fullName: string; city: string | null }> = [];
   if (hints.targetHospitalId) {
     existingDoctors = await db
@@ -236,8 +311,7 @@ async function saveJobAndCandidates(
       .catch(() => []);
   }
 
-  // ── Job record ─────────────────────────────────────────────────────────────
-  const [job] = await db.insert(ingestionJobs).values({
+  const jobValues = {
     requestedByUserId: userId,
     status: "done",
     sourceUrl,
@@ -260,11 +334,24 @@ async function saveJobAndCandidates(
     startedAt: new Date(),
     completedAt: new Date(),
     updatedAt: new Date(),
-  }).returning();
+  };
+
+  let jobId = existingJobId;
+  let jobObj: any;
+
+  if (jobId) {
+    await db.update(ingestionJobs).set(jobValues).where(eq(ingestionJobs.id, jobId));
+    const [row] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
+    jobObj = row;
+  } else {
+    const [row] = await db.insert(ingestionJobs).values(jobValues).returning();
+    jobObj = row;
+    jobId = row.id;
+  }
 
   // ── Source record ──────────────────────────────────────────────────────────
   await db.insert(ingestionSources).values({
-    jobId: job.id,
+    jobId: jobId!,
     sourceType: isGoogleProfileUrl(sourceUrl) ? "google_profile" : "website",
     sourceUrl,
     title: h.name ?? sourceUrl,
@@ -276,7 +363,7 @@ async function saveJobAndCandidates(
 
   // ── Hospital candidate ─────────────────────────────────────────────────────
   const [hospitalCandidate] = await db.insert(ingestionHospitalCandidates).values({
-    jobId: job.id,
+    jobId: jobId!,
     name: h.name,
     normalizedName: h.name.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim(),
     city: h.city ?? hints.city ?? null,
@@ -326,14 +413,14 @@ async function saveJobAndCandidates(
     const doctorRows = extracted.doctors.map(doc => {
       const matchResult = existingDoctors.length > 0
         ? chooseBestDoctorMatch({
-            candidateName: doc.fullName,
-            candidateCity: hints.city ?? null,
-            options: existingDoctors,
-          })
+          candidateName: doc.fullName,
+          candidateCity: hints.city ?? null,
+          options: existingDoctors,
+        })
         : { action: "create" as const, matchDoctorId: null, confidence: 0.5, reason: "No existing doctors to match." };
 
       return {
-        jobId: job.id,
+        jobId: jobId!,
         hospitalCandidateId,
         fullName: doc.fullName,
         normalizedName: doc.fullName.toLowerCase().replace(/[^a-z0-9]/g, " ").trim(),
@@ -369,7 +456,7 @@ async function saveJobAndCandidates(
   if (extracted.services.length > 0) {
     await db.insert(ingestionServiceCandidates).values(
       extracted.services.map(svc => ({
-        jobId: job.id,
+        jobId: jobId!,
         hospitalCandidateId,
         serviceName: svc.name,
         category: svc.category ?? null,
@@ -390,7 +477,7 @@ async function saveJobAndCandidates(
   if (extracted.packages.length > 0) {
     await db.insert(ingestionPackageCandidates).values(
       extracted.packages.map(pkg => ({
-        jobId: job.id,
+        jobId: jobId!,
         hospitalCandidateId,
         packageName: pkg.packageName,
         procedureName: pkg.procedureName ?? null,
@@ -421,7 +508,7 @@ async function saveJobAndCandidates(
       extracted.procedureCosts
         .filter(pc => pc.priceMin !== null || pc.priceMax !== null) // only store if we have a price
         .map(pc => ({
-          jobId: job.id,
+          jobId: jobId!,
           hospitalCandidateId,
           packageName: pc.procedureName,   // stored as packageName for table compat
           procedureName: pc.procedureName,
@@ -447,7 +534,7 @@ async function saveJobAndCandidates(
   if (extracted.fieldConfidences.length > 0) {
     await db.insert(ingestionFieldConfidences).values(
       extracted.fieldConfidences.slice(0, 500).map(fc => ({
-        jobId: job.id,
+        jobId: jobId!,
         entityType: fc.entityType,
         entityId: fc.entityRef,
         fieldKey: fc.fieldKey,
@@ -459,5 +546,5 @@ async function saveJobAndCandidates(
     ).catch((e: Error) => console.warn("[ingestion] fieldConfidences insert:", e.message));
   }
 
-  return job;
+  return jobObj;
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const id = () =>
   text("id")
@@ -21,8 +21,12 @@ export const users = sqliteTable(
     id: id(),
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
-    passwordHash: text("password_hash").notNull(),
+    passwordHash: text("password_hash"),
+    googleId: text("google_id"),
+    googleAvatar: text("google_avatar"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
       sql`(unixepoch() * 1000)`,
     ),
@@ -30,7 +34,10 @@ export const users = sqliteTable(
       sql`(unixepoch() * 1000)`,
     ),
   },
-  (table) => [uniqueIndex("users_email_idx").on(table.email)],
+  (table) => [
+    uniqueIndex("users_email_idx").on(table.email),
+    index("users_google_id_idx").on(table.googleId),
+  ],
 );
 
 export const sessions = sqliteTable(
@@ -46,7 +53,7 @@ export const sessions = sqliteTable(
       sql`(unixepoch() * 1000)`,
     ),
   },
-  (table) => [uniqueIndex("sessions_user_idx").on(table.userId)],
+  (table) => [index("sessions_user_idx").on(table.userId)],
 );
 
 export const userRoleMap = sqliteTable(
@@ -264,6 +271,8 @@ export const doctors = sqliteTable("doctors", {
   reviewCount: integer("review_count").notNull().default(0),
   verified: integer("verified", { mode: "boolean" }).notNull().default(false),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  aiEnrichedAt: integer("ai_enriched_at", { mode: "timestamp_ms" }),
+  aiReviewSummary: text("ai_review_summary"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
     sql`(unixepoch() * 1000)`,
   ),
@@ -336,6 +345,9 @@ export const ingestionSources = sqliteTable("ingestion_sources", {
   structuredPayload: text("structured_payload", { mode: "json" }).$type<Record<string, unknown> | null>(),
   confidence: real("confidence"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
+    sql`(unixepoch() * 1000)`,
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(
     sql`(unixepoch() * 1000)`,
   ),
 });

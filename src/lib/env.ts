@@ -14,6 +14,9 @@ const envSchema = z.object({
   JINA_API_KEY: z.string().optional().default(""),
   MSG91_AUTH_KEY: z.string().optional().default(""),
   MSG91_TEMPLATE_ID: z.string().optional().default(""),
+  // PHASE 3: Browser automation
+  BROWSERLESS_API_KEY: z.string().optional().default(""),
+  ENABLE_BROWSER_AUTOMATION: z.enum(["true", "false"]).optional().default("false"),
 });
 
 const parsed = envSchema.parse({
@@ -30,6 +33,8 @@ const parsed = envSchema.parse({
   JINA_API_KEY: process.env.JINA_API_KEY,
   MSG91_AUTH_KEY: process.env.MSG91_AUTH_KEY,
   MSG91_TEMPLATE_ID: process.env.MSG91_TEMPLATE_ID,
+  BROWSERLESS_API_KEY: process.env.BROWSERLESS_API_KEY,
+  ENABLE_BROWSER_AUTOMATION: process.env.ENABLE_BROWSER_AUTOMATION,
 });
 
 export const env = {

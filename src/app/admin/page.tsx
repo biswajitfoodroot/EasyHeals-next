@@ -1,5 +1,6 @@
 import { desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import AdminDashboardClient from "@/app/admin/AdminDashboardClient";
 import { db } from "@/db/client";
@@ -18,10 +19,12 @@ export default async function AdminDashboardPage() {
   ]);
 
   return (
-    <AdminDashboardClient
-      me={{ fullName: auth.fullName, email: auth.email, role: auth.role }}
-      hospitals={hospitalRows}
-      nodes={nodeRows}
-    />
+    <Suspense>
+      <AdminDashboardClient
+        me={{ fullName: auth.fullName, email: auth.email, role: auth.role }}
+        hospitals={hospitalRows}
+        nodes={nodeRows}
+      />
+    </Suspense>
   );
 }

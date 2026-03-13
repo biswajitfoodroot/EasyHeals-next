@@ -19,6 +19,8 @@ async function run() {
     { code: "admin", label: "Admin" },
     { code: "advisor", label: "Advisor" },
     { code: "viewer", label: "Viewer" },
+    { code: "hospital_admin", label: "Hospital Admin" },
+    { code: "doctor", label: "Doctor" },
   ];
 
   for (const role of roleSeed) {

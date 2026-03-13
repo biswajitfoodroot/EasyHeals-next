@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { HospitalProfileClient } from "@/components/profiles/HospitalProfileClient";
 import { getHospitalProfileBySlug } from "@/lib/profile-data";
-import { buildMetadata } from "@/lib/seo";
+import { absoluteUrl, buildBreadcrumbJsonLd, buildHospitalJsonLd, buildMetadata } from "@/lib/seo";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -22,10 +22,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 
   const hospital = profile.hospital;
+  const specs = hospital.specialties.slice(0, 3).join(", ");
 
   return buildMetadata({
-    title: `${hospital.name} - Hospital Profile`,
-    description: `${hospital.name} in ${hospital.city}${hospital.state ? `, ${hospital.state}` : ""}. View affiliated doctors, location, and services.`,
+    title: `${hospital.name} – ${hospital.city}${hospital.state ? `, ${hospital.state}` : ""} | EasyHeals`,
+    description: hospital.description
+      ? hospital.description.slice(0, 155)
+      : `${hospital.name} in ${hospital.city}${hospital.state ? `, ${hospital.state}` : ""}${specs ? `. Specialties: ${specs}` : ""}. Book appointment, view doctors and packages.`,
     path: `/hospitals/${hospital.slug}`,
   });
 }
@@ -38,6 +41,24 @@ export default async function HospitalDetailPage({ params }: Params) {
     notFound();
   }
 
-  return <HospitalProfileClient data={profile} />;
-}
+  const { hospital } = profile;
 
+  const jsonLd = [
+    buildHospitalJsonLd(hospital),
+    buildBreadcrumbJsonLd([
+      { name: "Home", url: absoluteUrl("/") },
+      { name: "Hospitals", url: absoluteUrl("/hospitals") },
+      { name: hospital.name, url: absoluteUrl(`/hospitals/${hospital.slug}`) },
+    ]),
+  ];
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <HospitalProfileClient data={profile} />
+    </>
+  );
+}

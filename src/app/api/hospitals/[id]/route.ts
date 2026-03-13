@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { doctorHospitalAffiliations, doctors, hospitals } from "@/db/schema";
+import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals } from "@/db/schema";
+
 import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
@@ -224,23 +225,29 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
 
-  const [updated] = await db
-    .update(hospitals)
-    .set({ isActive: false, updatedAt: new Date() })
+  // Verify hospital exists first
+  const [existing] = await db
+    .select({ id: hospitals.id, name: hospitals.name })
+    .from(hospitals)
     .where(eq(hospitals.id, id))
-    .returning();
+    .limit(1);
 
-  if (!updated) {
+  if (!existing) {
     return NextResponse.json({ error: "Hospital not found" }, { status: 404 });
   }
 
+  // Hard delete — remove affiliations, packages, then hospital
+  await db.delete(doctorHospitalAffiliations).where(eq(doctorHospitalAffiliations.hospitalId, id));
+  await db.delete(hospitalListingPackages).where(eq(hospitalListingPackages.hospitalId, id));
+  await db.delete(hospitals).where(eq(hospitals.id, id));
+
   await writeAuditLog({
     actorUserId: auth.userId,
-    action: "hospital.deactivate",
+    action: "hospital.delete",
     entityType: "hospital",
     entityId: id,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
-    changes: { isActive: false },
+    changes: { deleted: true, name: existing.name },
   });
 
   return NextResponse.json({ ok: true });

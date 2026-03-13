@@ -1,40 +1,63 @@
-import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { db } from "@/db/client";
-import { taxonomyNodes } from "@/db/schema";
-import { buildMetadata } from "@/lib/seo";
+import { TreatmentProfileClient } from "@/components/profiles/TreatmentProfileClient";
+import { getTreatmentProfileBySlug } from "@/lib/profile-data";
+import { absoluteUrl, buildBreadcrumbJsonLd, buildMetadata, buildTreatmentJsonLd } from "@/lib/seo";
 
 type Params = { params: Promise<{ slug: string }> };
 
+export const revalidate = 3600;
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
+  const profile = await getTreatmentProfileBySlug(slug);
+
+  if (!profile) {
+    return buildMetadata({
+      title: "Treatment Not Found",
+      description: "The requested treatment page is unavailable.",
+      path: `/treatments/${slug}`,
+    });
+  }
+
+  const { treatment } = profile;
 
   return buildMetadata({
-    title: `Treatment ${slug}`,
-    description: "Treatment overview page with related discovery context.",
-    path: `/treatments/${slug}`,
+    title: `${treatment.title} – Hospitals & Doctors in India | EasyHeals`,
+    description: treatment.description
+      ? treatment.description.slice(0, 155)
+      : `Find top hospitals and specialist doctors for ${treatment.title} in India. Compare costs, view profiles and book appointments on EasyHeals.`,
+    path: `/treatments/${treatment.slug}`,
   });
 }
 
 export default async function TreatmentDetailPage({ params }: Params) {
   const { slug } = await params;
+  const profile = await getTreatmentProfileBySlug(slug);
 
-  const rows = await db.select().from(taxonomyNodes).where(eq(taxonomyNodes.slug, slug)).limit(1);
-  if (!rows.length) {
+  if (!profile) {
     notFound();
   }
 
-  const node = rows[0];
+  const { treatment } = profile;
+
+  const jsonLd = [
+    buildTreatmentJsonLd(treatment),
+    buildBreadcrumbJsonLd([
+      { name: "Home", url: absoluteUrl("/") },
+      { name: "Treatments", url: absoluteUrl("/treatments") },
+      { name: treatment.title, url: absoluteUrl(`/treatments/${treatment.slug}`) },
+    ]),
+  ];
 
   return (
-    <main className="home-main">
-      <section className="hero">
-        <p className="eyebrow">Treatment Detail</p>
-        <h1>{node.title}</h1>
-        <p>{node.description ?? "Detailed treatment information will be added in upcoming phases."}</p>
-      </section>
-    </main>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <TreatmentProfileClient data={profile} />
+    </>
   );
 }

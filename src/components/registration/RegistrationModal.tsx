@@ -27,6 +27,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
   const [otpId, setOtpId] = useState("");
   const [debugOtp, setDebugOtp] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -54,6 +55,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
   }
 
   async function sendOtp() {
+    setError(null);
     setSendingOtp(true);
 
     try {
@@ -67,28 +69,37 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
         otpId?: string;
         sent?: boolean;
         debugOtp?: string;
+        error?: string;
       };
 
       if (!response.ok || !data.otpId) {
-        throw new Error("OTP send failed");
+        setError(data.error ?? "Could not send OTP. Please check your mobile number.");
+        return;
       }
 
       setOtpId(data.otpId);
       setDebugOtp(data.debugOtp ?? null);
     } catch {
-      alert("Could not send OTP. Please retry.");
+      setError("Network error. Please check your connection and retry.");
     } finally {
       setSendingOtp(false);
     }
   }
 
   async function completeRegistration() {
+    setError(null);
     setSubmitting(true);
 
     try {
+      // Normalise website: add https:// if missing
+      let website = form.website.trim() || undefined;
+      if (website && !/^https?:\/\//i.test(website)) {
+        website = `https://${website}`;
+      }
+
       const payload: Record<string, unknown> = {
         otpId,
-        otp: form.otp,
+        otp: form.otp.trim(),
         phone: form.phone,
         email: form.email,
         contactName: form.contactName,
@@ -102,7 +113,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
           name: form.name,
           city: form.city,
           type: form.type,
-          website: form.website || undefined,
+          website,
         };
       }
 
@@ -112,27 +123,44 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
         body: JSON.stringify(payload),
       });
 
-      const data = (await response.json()) as { success?: boolean; dashboardUrl?: string };
+      const data = (await response.json()) as {
+        success?: boolean;
+        dashboardUrl?: string;
+        error?: string;
+        details?: { fieldErrors?: Record<string, string[]> };
+      };
+
       if (!response.ok || !data.success) {
-        throw new Error("Registration failed");
+        // Show field-level errors if available, otherwise show top-level error
+        if (data.details?.fieldErrors) {
+          const msgs = Object.entries(data.details.fieldErrors)
+            .map(([field, errs]) => `${field}: ${errs.join(", ")}`)
+            .join(" | ");
+          setError(msgs || data.error || "Validation failed.");
+        } else {
+          setError(data.error ?? "Registration failed. Please check your details.");
+        }
+        return;
       }
 
       setSuccess(data.dashboardUrl ?? "/admin");
     } catch {
-      alert("Registration failed. Please validate details and OTP.");
+      setError("Network error. Please check your connection and retry.");
     } finally {
       setSubmitting(false);
     }
   }
 
   function nextStep() {
+    setError(null);
+
     if (step === 1 && (!form.name.trim() || !form.city.trim())) {
-      alert("Please enter hospital name and city.");
+      setError("Please enter hospital name and city.");
       return;
     }
 
     if (step === 2 && (!form.contactName.trim() || !form.email.trim())) {
-      alert("Please enter contact name and email.");
+      setError("Please enter contact name and email.");
       return;
     }
 
@@ -146,6 +174,7 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
     setOtpId("");
     setSuccess(null);
     setDebugOtp(null);
+    setError(null);
     onClose();
   }
 
@@ -161,6 +190,12 @@ export function RegistrationModal({ isOpen, onClose }: RegistrationModalProps) {
             Close
           </button>
         </div>
+
+        {error ? (
+          <div className={styles.regError}>
+            <strong>⚠ </strong>{error}
+          </div>
+        ) : null}
 
         {success ? (
           <div className={styles.successBox}>

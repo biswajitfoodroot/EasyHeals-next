@@ -40,7 +40,7 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #00b896, #00d4b0);
+  background: linear-gradient(135deg, #1B8A4A, #22a85c);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -55,7 +55,7 @@
 }
 
 .brand strong b {
-  color: #4dffd8;
+  color: #6ee8a0;
 }
 
 .navPill {
@@ -86,7 +86,7 @@
 .navPill small {
   border-radius: 999px;
   padding: 3px 8px;
-  background: linear-gradient(90deg, #00b896, #00d4b0);
+  background: linear-gradient(90deg, #1B8A4A, #22a85c);
   color: #fff;
   font-size: 10px;
   font-weight: 700;
@@ -118,7 +118,7 @@
   border: none;
   padding: 0 18px;
   color: #fff;
-  background: #00b896;
+  background: #1B8A4A;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 13px;
   font-weight: 700;
@@ -152,7 +152,7 @@
   height: 600px;
   top: -15%;
   right: -10%;
-  background: radial-gradient(circle, #00b896, transparent);
+  background: radial-gradient(circle, #1B8A4A, transparent);
 }
 
 .orbTwo {
@@ -207,7 +207,7 @@
 
 .heroCopy h1 em {
   font-style: italic;
-  background: linear-gradient(90deg, #4dffd8, #00b896, #4dffd8);
+  background: linear-gradient(90deg, #6ee8a0, #1B8A4A, #6ee8a0);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -228,7 +228,7 @@
   border-radius: 999px;
   border: 1px solid rgba(0, 184, 150, 0.25);
   background: rgba(0, 184, 150, 0.12);
-  color: #00b896;
+  color: #1B8A4A;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -316,8 +316,8 @@
 }
 
 .tabActive {
-  color: #00b896 !important;
-  border-bottom: 2px solid #00b896 !important;
+  color: #1B8A4A !important;
+  border-bottom: 2px solid #1B8A4A !important;
   background: rgba(0, 184, 150, 0.06) !important;
 }
 
@@ -338,7 +338,7 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #00b896, #00d4b0);
+  background: linear-gradient(135deg, #1B8A4A, #22a85c);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -422,7 +422,7 @@
 }
 
 .chatInputRow button:last-child {
-  background: linear-gradient(135deg, #00b896, #00d4b0);
+  background: linear-gradient(135deg, #1B8A4A, #22a85c);
   border-color: transparent;
 }
 
@@ -465,7 +465,7 @@
   border-radius: 999px;
   padding: 2px 8px;
   background: rgba(0, 184, 150, 0.2);
-  color: #00b896;
+  color: #1B8A4A;
   font-size: 11px;
   font-weight: 700;
 }
@@ -494,7 +494,7 @@
 }
 
 .intentBadge strong {
-  color: #00b896;
+  color: #1B8A4A;
 }
 
 .intentBadge em {
@@ -588,7 +588,7 @@
   margin-left: auto;
   border-radius: 999px;
   background: rgba(0, 184, 150, 0.15);
-  color: #00b896;
+  color: #1B8A4A;
   padding: 3px 8px;
   font-size: 10px;
   font-weight: 700;
@@ -611,7 +611,7 @@
 
 .tagHighlight {
   background: rgba(0, 184, 150, 0.15) !important;
-  color: #00b896 !important;
+  color: #1B8A4A !important;
 }
 
 .resultFoot {
@@ -662,7 +662,7 @@
 .resultActions button:first-child,
 .resultActions a:first-child {
   background: rgba(0, 184, 150, 0.2);
-  color: #00d4b0;
+  color: #22a85c;
   border-color: rgba(0, 184, 150, 0.2);
 }
 
@@ -724,8 +724,8 @@
 .sectionHeader span {
   display: inline-flex;
   border-radius: 999px;
-  background: #e8fbf7;
-  color: #00b896;
+  background: #e6f5ec;
+  color: #1B8A4A;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 11px;
   font-weight: 700;
@@ -760,18 +760,40 @@
   background: #fff;
   min-height: 110px;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   text-decoration: none;
   color: #040d1a;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+
+.quickGrid a:hover,
+.quickGrid button:hover {
+  box-shadow: 0 4px 16px rgba(27, 138, 74, 0.14);
+  transform: translateY(-2px);
 }
 
 .quickGrid button {
-  background: #040d1a;
+  background: linear-gradient(135deg, #E8401C 0%, #f5582f 100%);
   color: #fff;
+  border-color: #E8401C;
+}
+
+.quickIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #e6f5ec;
+  color: #1B8A4A;
 }
 
 .smartLayout {
@@ -864,11 +886,40 @@
   min-height: 60px;
   font-family: var(--font-bricolage), sans-serif;
   font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+.areaButtons button:hover {
+  box-shadow: 0 2px 12px rgba(27, 138, 74, 0.12);
+}
+
+.areaIcon {
+  display: flex;
+  align-items: center;
+  color: #1B8A4A;
+}
+
+.smartViewBtn {
+  border-radius: 999px;
+  border: 1.5px solid #1B8A4A;
+  background: #e6f5ec;
+  color: #1B8A4A;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .areaActive {
-  border-color: #00b896 !important;
-  background: #e8fbf7 !important;
+  border-color: #1B8A4A !important;
+  background: #e6f5ec !important;
 }
 
 .symptomPanel {
@@ -893,7 +944,7 @@
   margin-top: 12px;
   border: none;
   border-radius: 999px;
-  background: #00b896;
+  background: #1B8A4A;
   color: #fff;
   padding: 8px 14px;
   font-weight: 700;
@@ -911,7 +962,7 @@
 }
 
 .registerSection span {
-  color: #00b896;
+  color: #1B8A4A;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 11px;
   font-weight: 700;
@@ -934,7 +985,7 @@
 .registerSection > button {
   border: none;
   border-radius: 999px;
-  background: #00b896;
+  background: #1B8A4A;
   color: #fff;
   padding: 10px 16px;
   font-family: var(--font-bricolage), sans-serif;
@@ -1046,16 +1097,16 @@
 }
 
 .fieldActive {
-  border-color: #00b896 !important;
-  background: #e8fbf7 !important;
-  color: #0a7e67;
+  border-color: #1B8A4A !important;
+  background: #e6f5ec !important;
+  color: #136836;
 }
 
 .aiHint {
-  border-left: 3px solid #00b896;
+  border-left: 3px solid #1B8A4A;
   border-radius: 10px;
-  background: #effcf8;
-  color: #226254;
+  background: #e6f5ec;
+  color: #136836;
   padding: 10px 12px;
   font-size: 13px;
 }
@@ -1076,8 +1127,8 @@
 }
 
 .inlineButtons button:last-child {
-  background: #00b896;
-  border-color: #00b896;
+  background: #1B8A4A;
+  border-color: #1B8A4A;
   color: #fff;
 }
 
@@ -1104,8 +1155,8 @@
 }
 
 .matchSelected {
-  border-color: #00b896 !important;
-  background: #e8fbf7 !important;
+  border-color: #1B8A4A !important;
+  background: #e6f5ec !important;
 }
 
 .responseText {
@@ -1142,7 +1193,7 @@
   margin-top: 12px;
   display: inline-block;
   border-radius: 10px;
-  background: #00b896;
+  background: #1B8A4A;
   color: #fff;
   text-decoration: none;
   padding: 8px 12px;
@@ -1274,3 +1325,127 @@
 }
 
 
+
+/* ── "Did you mean?" banner ──────────────────────────────────────────────── */
+.didYouMean {
+  margin: 8px 10px 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.didYouMean strong {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.didYouMeanSub {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.didYouMeanBtn {
+  margin-left: auto;
+  border-radius: 8px;
+  background: #1B8A4A;
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.didYouMeanBtn:hover {
+  background: #136836;
+}
+
+.didYouMeanDismiss {
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ── Language pill ───────────────────────────────────────────────────────── */
+.langPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(27, 138, 74, 0.2);
+  border: 1px solid rgba(27, 138, 74, 0.4);
+  color: #6ee8a0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  letter-spacing: 0.04em;
+}
+
+.lowConfidencePill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+}
+
+/* ── Voice mic button ────────────────────────────────────────────────────── */
+.voiceMicBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.voiceMicBtn:hover {
+  background: rgba(27, 138, 74, 0.2);
+  color: #6ee8a0;
+}
+
+.voiceMicBtn.voiceActive {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+  animation: micPulse 0.8s ease infinite alternate;
+}
+
+@keyframes micPulse {
+  from { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  to   { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+/* ── Registration error banner ───────────────────────────────────────────── */
+.regError {
+  margin: 0 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+  font-size: 13px;
+  padding: 10px 14px;
+  line-height: 1.4;
+}

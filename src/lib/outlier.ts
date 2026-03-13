@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/db/client";
 import { contributions, hospitals } from "@/db/schema";
 import { env } from "@/lib/env";
+import { loadThresholds } from "@/lib/outlier-config";
 
 export type OutlierRecommendation = "auto_approve" | "pending_review" | "auto_reject";
 
@@ -83,6 +84,8 @@ export async function scoreContribution(
   contributorId?: string,
   targetType: "hospital" | "doctor" = "hospital",
 ): Promise<OutlierScore> {
+  const cfg = loadThresholds();
+
   let score = 0;
   const flags: string[] = [];
 
@@ -100,7 +103,7 @@ export async function scoreContribution(
   // Rule 2: Fee outlier.
   if (field.includes("fee") || field.includes("price")) {
     const fee = toNumber(newValue);
-    if (fee !== null && (fee > 50000 || fee < 100)) {
+    if (fee !== null && (fee > cfg.feeOutlierMax || fee < cfg.feeOutlierMin)) {
       score += 35;
       flags.push("fee_statistical_outlier");
     }
@@ -119,7 +122,7 @@ export async function scoreContribution(
         ),
       );
 
-    if (Number(count) >= 20) {
+    if (Number(count) >= cfg.massEditBurstLimit) {
       score += 40;
       flags.push("mass_edit_burst");
     }
@@ -147,16 +150,16 @@ export async function scoreContribution(
   }
 
   // Rule 5: Semantic plausibility check with Gemini.
-  if (score < 70) {
+  if (score < cfg.autoRejectMinScore) {
     const suspicious = await isSemanticallySuspicious(fieldChanged, oldValue, newValue, targetType);
     if (suspicious) {
-      score += 25;
+      score += cfg.semanticSuspiciousWeight;
       flags.push("ai_semantic_suspicious");
     }
   }
 
   // Trust modifier.
-  if (trustScore > 80) {
+  if (trustScore > cfg.autoApproveMinTrust) {
     score = Math.max(0, score - 20);
     if (score === 0) {
       flags.push("trusted_contributor_bonus");
@@ -164,8 +167,8 @@ export async function scoreContribution(
   }
 
   let recommendation: OutlierRecommendation = "pending_review";
-  if (score < 20 && trustScore > 80) recommendation = "auto_approve";
-  if (score >= 70) recommendation = "auto_reject";
+  if (score < cfg.autoApproveMaxScore && trustScore > cfg.autoApproveMinTrust) recommendation = "auto_approve";
+  if (score >= cfg.autoRejectMinScore) recommendation = "auto_reject";
 
   return {
     score,

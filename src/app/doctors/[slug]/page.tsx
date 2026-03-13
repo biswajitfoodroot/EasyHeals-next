@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { DoctorProfileClient } from "@/components/profiles/DoctorProfileClient";
 import { getDoctorProfileBySlug } from "@/lib/profile-data";
-import { buildMetadata } from "@/lib/seo";
+import { absoluteUrl, buildBreadcrumbJsonLd, buildDoctorJsonLd, buildMetadata } from "@/lib/seo";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -22,10 +22,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 
   const doctor = profile.doctor;
+  const location = [doctor.city, doctor.state].filter(Boolean).join(", ");
 
   return buildMetadata({
-    title: `${doctor.fullName} - Doctor Profile`,
-    description: `${doctor.fullName}${doctor.specialization ? `, ${doctor.specialization}` : ""}${doctor.city ? ` in ${doctor.city}` : ""}. View affiliated hospitals and consultation details.`,
+    title: `Dr. ${doctor.fullName}${doctor.specialization ? ` – ${doctor.specialization}` : ""}${location ? ` in ${location}` : ""} | EasyHeals`,
+    description: doctor.bio
+      ? doctor.bio.slice(0, 155)
+      : `${doctor.fullName}${doctor.specialization ? `, ${doctor.specialization}` : ""}${location ? ` in ${location}` : ""}. View consultation details, affiliated hospitals and book appointment.`,
     path: `/doctors/${doctor.slug}`,
   });
 }
@@ -38,5 +41,24 @@ export default async function DoctorDetailPage({ params }: Params) {
     notFound();
   }
 
-  return <DoctorProfileClient data={profile} />;
+  const { doctor } = profile;
+
+  const jsonLd = [
+    buildDoctorJsonLd(doctor),
+    buildBreadcrumbJsonLd([
+      { name: "Home", url: absoluteUrl("/") },
+      { name: "Doctors", url: absoluteUrl("/doctors") },
+      { name: doctor.fullName, url: absoluteUrl(`/doctors/${doctor.slug}`) },
+    ]),
+  ];
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <DoctorProfileClient data={profile} />
+    </>
+  );
 }

@@ -285,6 +285,37 @@ async function generateAssistant(params: {
   }
 }
 
+// In-memory post-filter after the broad parallel query (generic so full row shape is preserved)
+function hospitalRows_filterByIntent<T extends { city: string; name: string; description: string | null; specialties: unknown }>(
+  rows: T[],
+  cityFilter: string | undefined,
+  _intent: Awaited<ReturnType<typeof extractSearchIntent>>,
+  terms: string[],
+): T[] {
+  if (!cityFilter && terms.length === 0) return rows;
+  return rows.filter((row) => {
+    if (cityFilter && !row.city.toLowerCase().includes(cityFilter.toLowerCase())) return false;
+    if (terms.length === 0) return true;
+    const text = `${row.name} ${row.city} ${row.description ?? ""} ${normalizeSpecialties(row.specialties).join(" ")}`.toLowerCase();
+    return terms.some((term) => text.includes(term));
+  });
+}
+
+function doctorRows_filterByIntent<T extends { city: string | null; name: string; description: string | null; specialties: unknown }>(
+  rows: T[],
+  cityFilter: string | undefined,
+  _intent: Awaited<ReturnType<typeof extractSearchIntent>>,
+  terms: string[],
+): T[] {
+  if (!cityFilter && terms.length === 0) return rows;
+  return rows.filter((row) => {
+    if (cityFilter && row.city && !row.city.toLowerCase().includes(cityFilter.toLowerCase())) return false;
+    if (terms.length === 0) return true;
+    const text = `${row.name} ${row.city ?? ""} ${row.description ?? ""} ${normalizeSpecialties(row.specialties).join(" ")}`.toLowerCase();
+    return terms.some((term) => text.includes(term));
+  });
+}
+
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
 
@@ -300,95 +331,83 @@ export async function POST(req: NextRequest) {
     }
 
     const { query, city, page, limit, history = [] } = parsed.data;
-    const intent = await extractSearchIntent(query);
-    const cityFilter = city ?? intent.location ?? undefined;
 
+    // ── Parallel: run Gemini intent extraction + broad DB queries simultaneously ──
+    // Broad queries use the raw query string; intent result refines ranking in-memory.
+    const broadQ = `%${query.trim()}%`;
+    const broadCityFilter = city ? `%${city}%` : undefined;
+
+    const [intent, hospitalRowsBroad, doctorRowsBroad] = await Promise.all([
+      extractSearchIntent(query),
+      db
+        .select({
+          id: hospitals.id,
+          type: hospitals.type,
+          name: hospitals.name,
+          slug: hospitals.slug,
+          city: hospitals.city,
+          state: hospitals.state,
+          rating: hospitals.rating,
+          verified: hospitals.verified,
+          communityVerified: hospitals.communityVerified,
+          specialties: hospitals.specialties,
+          source: hospitals.source,
+          description: hospitals.description,
+          phone: hospitals.phone,
+        })
+        .from(hospitals)
+        .where(
+          and(
+            eq(hospitals.isActive, true),
+            eq(hospitals.isPrivate, true),
+            broadCityFilter ? like(hospitals.city, broadCityFilter) : undefined,
+            or(
+              like(hospitals.name, broadQ),
+              like(hospitals.description, broadQ),
+              like(hospitals.specialties, broadQ),
+              like(hospitals.city, broadQ),
+            ),
+          ),
+        )
+        .orderBy(asc(hospitals.name))
+        .limit(160),
+      db
+        .select({
+          id: doctors.id,
+          name: doctors.fullName,
+          slug: doctors.slug,
+          city: doctors.city,
+          state: doctors.state,
+          rating: doctors.rating,
+          verified: doctors.verified,
+          specialties: doctors.specialties,
+          description: doctors.bio,
+          phone: doctors.phone,
+        })
+        .from(doctors)
+        .where(
+          and(
+            eq(doctors.isActive, true),
+            broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
+            or(
+              like(doctors.fullName, broadQ),
+              like(doctors.specialization, broadQ),
+              like(doctors.specialties, broadQ),
+              like(doctors.bio, broadQ),
+              like(doctors.city, broadQ),
+            ),
+          ),
+        )
+        .orderBy(asc(doctors.fullName))
+        .limit(160),
+    ]);
+
+    const cityFilter = city ?? intent.location ?? undefined;
     const terms = buildTerms(query, intent);
 
-    const hospitalTokenConditions: SQL[] = terms.map((term) =>
-      or(
-        like(hospitals.name, `%${term}%`),
-        like(hospitals.description, `%${term}%`),
-        like(hospitals.specialties, `%${term}%`),
-        like(hospitals.addressLine1, `%${term}%`),
-        like(hospitals.city, `%${term}%`),
-      )!,
-    );
-
-    const doctorTokenConditions: SQL[] = terms.map((term) =>
-      or(
-        like(doctors.fullName, `%${term}%`),
-        like(doctors.specialization, `%${term}%`),
-        like(doctors.specialties, `%${term}%`),
-        like(doctors.bio, `%${term}%`),
-        like(doctors.city, `%${term}%`),
-      )!,
-    );
-
-    const hospitalRows = await db
-      .select({
-        id: hospitals.id,
-        type: hospitals.type,
-        name: hospitals.name,
-        slug: hospitals.slug,
-        city: hospitals.city,
-        state: hospitals.state,
-        rating: hospitals.rating,
-        verified: hospitals.verified,
-        communityVerified: hospitals.communityVerified,
-        specialties: hospitals.specialties,
-        source: hospitals.source,
-        description: hospitals.description,
-        phone: hospitals.phone,
-      })
-      .from(hospitals)
-      .where(
-        and(
-          eq(hospitals.isActive, true),
-          eq(hospitals.isPrivate, true),
-          eq(hospitals.type, "hospital"),
-          cityFilter ? like(hospitals.city, `%${cityFilter}%`) : undefined,
-          hospitalTokenConditions.length > 0
-            ? or(...hospitalTokenConditions)
-            : or(
-                like(hospitals.name, `%${intent.translatedQuery}%`),
-                like(hospitals.description, `%${intent.translatedQuery}%`),
-                like(hospitals.specialties, `%${intent.translatedQuery}%`),
-              ),
-        ),
-      )
-      .orderBy(asc(hospitals.name))
-      .limit(140);
-
-    const doctorRows = await db
-      .select({
-        id: doctors.id,
-        name: doctors.fullName,
-        slug: doctors.slug,
-        city: doctors.city,
-        state: doctors.state,
-        rating: doctors.rating,
-        verified: doctors.verified,
-        specialties: doctors.specialties,
-        description: doctors.bio,
-        phone: doctors.phone,
-      })
-      .from(doctors)
-      .where(
-        and(
-          eq(doctors.isActive, true),
-          cityFilter ? like(doctors.city, `%${cityFilter}%`) : undefined,
-          doctorTokenConditions.length > 0
-            ? or(...doctorTokenConditions)
-            : or(
-                like(doctors.fullName, `%${intent.translatedQuery}%`),
-                like(doctors.specialization, `%${intent.translatedQuery}%`),
-                like(doctors.specialties, `%${intent.translatedQuery}%`),
-              ),
-        ),
-      )
-      .orderBy(asc(doctors.fullName))
-      .limit(140);
+    // Re-filter broad results using intent-aware terms (city-aware, specialty-aware)
+    const hospitalRows = hospitalRows_filterByIntent(hospitalRowsBroad, cityFilter, intent, terms);
+    const doctorRows = doctorRows_filterByIntent(doctorRowsBroad, cityFilter, intent, terms);
 
     let ranked = [
       ...hospitalRows.map<SearchResultItem>((row) => ({

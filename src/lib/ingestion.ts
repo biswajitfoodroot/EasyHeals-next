@@ -167,6 +167,15 @@ export type GoogleProfileResult = {
   openingHours: string[];
 };
 
+export type IngestionProgress = {
+  stage: 'fetching' | 'extracting' | 'finished' | 'error';
+  message: string;
+  percent?: number;
+  data?: any;
+};
+
+export type ProgressCallback = (p: IngestionProgress) => Promise<void> | void;
+
 export type WebsiteSourceResult = {
   html: string;
   text: string;
@@ -438,13 +447,29 @@ function extractValuableLinks(html: string, baseUrl: string): string[] {
 }
 
 /**
- * Detect pagination on doctor list pages.
- * Finds links like /doctors-list/page/2 or /doctors?page=3
+ * Detect pagination on doctor list pages with EXPANDED pattern matching.
+ * Finds links like /doctors-list/page/2, /doctors?page=3, ?offset=20, ?pagination=2, etc.
+ * PHASE 1 FIX: Expanded regex from 1 pattern to 9 patterns for better site coverage
  */
 function extractPaginationLinks(html: string, baseUrl: string, currentUrl: string): string[] {
   const base = new URL(baseUrl);
   const current = new URL(currentUrl);
-  const PAGINATION = /[?&/]page[=/](\d+)|\/(\d+)\/?$/i;
+
+  // PHASE 1 ENHANCEMENT: Support 9 common pagination patterns
+  // Old: /[?&/]page[=/](\d+)|\/(\d+)\/?$/i  
+  // New: Multiple patterns to catch Manipal-style pagination and others
+  const paginationPatterns = [
+    /[\?&]page[=/]?(\d+)/i,           // ?page=2, ?page/2, &page=2
+    /[\?&]offset[=/]?(\d+)/i,         // ?offset=20 (AJAX pagination)
+    /[\?&]skip[=/]?(\d+)/i,           // ?skip=40
+    /[\?&]start[=/]?(\d+)/i,          // ?start=50
+    /[\?&]p[=/]?(\d+)/i,              // ?p=2 (short form)
+    /[\?&]pagination[=/]?(\d+)/i,     // ?pagination=2 (Manipal-style)
+    /\/\d+\/?$/i,                     // /2 at end of path
+    /[-_]page[-_]?(\d+)/i,            // -page-2, _page_2
+    /[-_](\d+)\/?$/i,                 // /doctors-list-2
+  ];
+
   const hrefs = [...html.matchAll(/href=["']([^"']+)/gi)].map(m => m[1]);
   const seen = new Set<string>([currentUrl]);
   const out: string[] = [];
@@ -453,19 +478,401 @@ function extractPaginationLinks(html: string, baseUrl: string, currentUrl: strin
     try {
       const abs = href.startsWith("http") ? href : new URL(href, base).href;
       const u = new URL(abs);
-      if (u.hostname === base.hostname && PAGINATION.test(u.href) && !seen.has(abs)) {
-        // Only include pagination of the same base path (same doctor list section)
-        const currentPath = current.pathname.replace(/\/\d+\/?$/, "").replace(/[?&]page=\d+/, "");
-        const targetPath = u.pathname.replace(/\/\d+\/?$/, "").replace(/[?&]page=\d+/, "");
-        if (currentPath === targetPath || u.pathname.startsWith(current.pathname.replace(/\/$/, ""))) {
-          seen.add(abs);
-          out.push(abs);
-          if (out.length >= 4) break; // max 5 extra pages
+      if (u.hostname === base.hostname && !seen.has(abs)) {
+        // Check if URL matches ANY of the pagination patterns
+        let matchesPattern = false;
+        for (const pattern of paginationPatterns) {
+          if (pattern.test(u.href)) {
+            matchesPattern = true;
+            break;
+          }
+        }
+
+        if (matchesPattern) {
+          // Verify it's related to current path (prevent random pagination links)
+          const currentBase = current.pathname.split(/[\?&]/)[0].replace(/\/\d+\/?$/, "");
+          const targetBase = u.pathname.split(/[\?&]/)[0].replace(/\/\d+\/?$/, "");
+
+          // Allow if: same base path OR target path starts with current path OR similar structure
+          if (currentBase === targetBase ||
+            u.pathname.startsWith(current.pathname.replace(/\/$/, "")) ||
+            currentBase.replace(/\/$/, "") === targetBase.replace(/\/$/, "")) {
+            seen.add(abs);
+            out.push(abs);
+            if (out.length >= 5) break; // max 6 pages total (original + 5 more)
+          }
         }
       }
-    } catch { /* skip */ }
+    } catch { /* skip malformed URLs */ }
   }
   return out;
+}
+
+/**
+ * PHASE 2: Detect API endpoints from JavaScript and HTML
+ * Finds JSON API patterns that can be used to fetch doctor/service data directly
+ * Examples: /api/doctors, /api/v1/doctors, /graphql, etc.
+ */
+function detectApiPatterns(html: string, baseUrl: string, allText: string): string[] {
+  const apiEndpoints: string[] = [];
+  const base = new URL(baseUrl);
+
+  // Pattern 1: Direct API calls in inline JavaScript or HTML attributes
+  // Matches: fetch('/api/doctors'), axios.get('/api/doctors?page=1'), etc.
+  const directApiPattern = /["'](https?:\/\/[^"']+\/api\/[^"']+)["']/gi;
+  for (const match of html.matchAll(directApiPattern)) {
+    apiEndpoints.push(match[1]);
+  }
+
+  // Pattern 2: Relative API calls in JavaScript
+  // Matches: fetch('/doctors/list'), '/v1/doctors?page=1', etc.
+  const relativeApiPattern = /["'](\/[a-z0-9/_-]+\?[^"']*(?:page|offset|limit)[^"']*)["\';]/gi;
+  for (const match of html.matchAll(relativeApiPattern)) {
+    try {
+      const abs = new URL(match[1], base).href;
+      apiEndpoints.push(abs);
+    } catch { /* skip */ }
+  }
+
+  // Pattern 3: GraphQL endpoints
+  // Matches: /graphql, /api/graphql
+  const graphqlPattern = /["'](https?:\/\/[^"']*\/graphql[^"']*)["\';]|["'](\/[^"']*\/graphql[^"']*)["\';]/gi;
+  for (const match of html.matchAll(graphqlPattern)) {
+    const endpoint = match[1] || match[2];
+    if (endpoint) {
+      const abs = endpoint.startsWith('http') ? endpoint : new URL(endpoint, base).href;
+      apiEndpoints.push(abs);
+    }
+  }
+
+  // Pattern 4: Common hospital API patterns (infer from URL structure)
+  // If URL is /baner/doctors-list, try common API patterns
+  const pathMatch = new URL(baseUrl).pathname.match(/(\w+)\/doctor/i);
+  if (pathMatch) {
+    const location = pathMatch[1];
+    const patterns = [
+      `/api/doctors?location=${location}&page=1`,
+      `/api/doctors?hospital=${location}&page=1`,
+      `/api/v1/doctors?location=${location}`,
+      `/api/locations/${location}/doctors`,
+      `/api/doctors?branch=${location}`,
+    ];
+    for (const pattern of patterns) {
+      try {
+        apiEndpoints.push(new URL(pattern, base).href);
+      } catch { /* skip */ }
+    }
+  }
+
+  // Pattern 5: Check for common REST patterns in HTML data attributes
+  // Matches: data-api="/api/doctors", data-endpoint="/doctors/list"
+  const dataAttrPattern = /data-(?:api|endpoint|url)=["']([^"']+)["']/gi;
+  for (const match of html.matchAll(dataAttrPattern)) {
+    try {
+      const abs = match[1].startsWith('http') ? match[1] : new URL(match[1], base).href;
+      apiEndpoints.push(abs);
+    } catch { /* skip */ }
+  }
+
+  // Pattern 6: Detect API base from common naming
+  // If we see "apiBase" or "apiUrl" in JavaScript
+  const apiBasePattern = /(?:apiBase|apiUrl|apiEndpoint|baseUrl)\s*[:=]\s*["']([^"']+)["']/gi;
+  for (const match of html.matchAll(apiBasePattern)) {
+    const endpoint = match[1];
+    if (endpoint.includes('/api')) {
+      try {
+        apiEndpoints.push(new URL(endpoint, base).href);
+      } catch { /* skip */ }
+    }
+  }
+
+  // Deduplicate and return first 10 unique endpoints
+  return [...new Set(apiEndpoints)].slice(0, 10);
+}
+
+/**
+ * PHASE 2: Try to fetch data from detected API endpoints
+ * Attempts to fetch doctor/service data in JSON format
+ */
+async function tryApiEndpoints(apiEndpoints: string[]): Promise<{
+  html: string;
+  text: string;
+  warnings: string[];
+} | null> {
+  const warnings: string[] = [];
+
+  for (const endpoint of apiEndpoints.slice(0, 5)) {
+    try {
+      // Try to fetch with various headers
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      };
+
+      const res = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(8000),
+        cache: 'no-store',
+      });
+
+      if (!res.ok) {
+        warnings.push(`API endpoint ${endpoint} returned ${res.status}`);
+        continue;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        warnings.push(`API endpoint ${endpoint} did not return JSON`);
+        continue;
+      }
+
+      const json = await res.json();
+
+      // Check if response contains doctor/service data
+      if (typeof json !== 'object' || json === null) continue;
+
+      // Detect if this looks like doctor/service data
+      const jsonStr = JSON.stringify(json);
+      const hasDoctorData = /doctor|physician|specialist|consultant|name|qualif|specializ/i.test(jsonStr);
+      const hasServiceData = /service|treatment|procedure|department|facility/i.test(jsonStr);
+
+      if (hasDoctorData || hasServiceData) {
+        // Convert JSON to text format for AI extraction
+        const text = formatApiResponseAsText(json);
+        if (text.length > 500) {
+          return {
+            html: jsonStr,
+            text,
+            warnings: [...warnings, `Successfully fetched API data from ${endpoint}`],
+          };
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes('timeout')) {
+        warnings.push(`API endpoint attempt failed: ${endpoint}`);
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * PHASE 3: Browser automation option for JavaScript-heavy websites
+ * Uses Playwright/Puppeteer simulation to execute JavaScript and click pagination
+ * Note: browserAutomationAvailable will be determined when fetchWithPlaywright is called
+ */
+
+/**
+ * PHASE 3: Fetch with browser automation using Browserless.io (cloud)
+ * Recommended for production: No local Chrome needed, handles all JS/pagination
+ */
+async function fetchWithBrowserless(url: string, options?: { useBrowserAutomation?: boolean }): Promise<string | null> {
+  if (!options?.useBrowserAutomation) return null;
+
+  const browserlessKey = env.BROWSERLESS_API_KEY;
+  if (!browserlessKey) {
+    console.warn('[ingestion] Browserless key not set - skipping browser automation');
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://chrome.browserless.io/content?token=' + browserlessKey, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        timeout: 25000,
+        waitForSelector: 'body', // Wait for page load
+        scrollPage: true, // Scroll to load lazy-loaded content
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!response.ok) {
+      console.warn(`[ingestion] Browserless returned ${response.status}`);
+      return null;
+    }
+
+    const html = await response.text();
+    return html.length > 500 ? html : null;
+  } catch (err) {
+    console.warn('[ingestion] Browserless fetch failed:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+/**
+ * PHASE 3: Fetch with local browser automation using Playwright
+ * Requires: npm install playwright
+ * Self-hosted option with more control
+ */
+async function fetchWithPlaywright(url: string, options?: { useBrowserAutomation?: boolean }): Promise<string | null> {
+  if (!options?.useBrowserAutomation) return null;
+
+  try {
+    // Dynamic import - will fail gracefully if playwright is not installed
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { chromium } = await import('playwright').catch(() => null) as any;
+    if (!chromium) return null;
+
+    const browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage', // For low-memory environments
+        '--disable-gpu',
+      ],
+    }).catch(() => null);
+
+    if (!browser) return null;
+
+    try {
+      const context = await browser.createBrowserContext();
+      const page = await context.newPage();
+
+      // Set realistic user agent
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      );
+
+      // Block heavy resources to speed up loading
+      await page.route('**/*.{png,jpg,jpeg,gif,svg,webp,ico}', (route: any) => route.abort());
+      await page.route('**/*.{mp4,webm,wav,mp3}', (route: any) => route.abort());
+
+      // Navigate to page
+      await page.goto(url, {
+        waitUntil: 'networkidle',
+        timeout: 20000,
+      }).catch(() => null);
+
+      if (!page.url()) {
+        await context.close();
+        return null;
+      }
+
+      // Scroll to load lazy content
+      let previousHeight = 0;
+      let currentHeight = await page.evaluate(() => document.body.scrollHeight).catch(() => 0);
+
+      for (let i = 0; i < 5; i++) {
+        if (previousHeight === currentHeight) break;
+
+        await page.evaluate(() => window.scrollBy(0, document.body.scrollHeight));
+        await page.waitForTimeout(1500);
+
+        previousHeight = currentHeight;
+        currentHeight = await page.evaluate(() => document.body.scrollHeight).catch(() => 0);
+      }
+
+      // Auto-click "View More" / "Load More" buttons (up to 5 times)
+      for (let i = 0; i < 5; i++) {
+        try {
+          // Try multiple selectors for various button styles
+          const selectors = [
+            'button[class*="more"]',
+            'button[class*="load"]',
+            'button[class*="view"]',
+            'a[class*="more"]',
+            'a[class*="load"]',
+            'button:text("View More")',
+            'button:text("Load More")',
+            'button:text("Next")',
+          ];
+
+          let moreButton = null;
+          for (const selector of selectors) {
+            try {
+              moreButton = await page.$(selector);
+              if (moreButton) break;
+            } catch {
+              // Selector failed, try next
+            }
+          }
+
+          if (!moreButton) break;
+
+          await moreButton.click().catch(() => null);
+          await page.waitForTimeout(2000);
+
+          // Scroll down after clicking
+          await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+          await page.waitForTimeout(1500);
+        } catch {
+          break;
+        }
+      }
+
+      // Get fully rendered HTML
+      const html = await page.content();
+      await context.close();
+
+      return html && html.length > 500 ? html : null;
+    } finally {
+      await browser.close().catch(() => null);
+    }
+  } catch (err) {
+    console.warn('[ingestion] Playwright fetch failed:', err instanceof Error ? err.message : String(err));
+    return null;
+  }
+}
+
+/**
+ * PHASE 3: Smart fallback - try Browserless first, then Playwright, then skip
+ */
+async function fetchWithBrowserAutomation(url: string, options?: { useBrowserAutomation?: boolean }): Promise<string | null> {
+  if (!options?.useBrowserAutomation) return null;
+
+  // Try Browserless.io first (cloud-based, always works if configured)
+  const browserlessHtml = await fetchWithBrowserless(url, options);
+  if (browserlessHtml) {
+    return browserlessHtml;
+  }
+
+  // Fallback to local Playwright
+  const playwrightHtml = await fetchWithPlaywright(url, options);
+  if (playwrightHtml) {
+    return playwrightHtml;
+  }
+
+  return null;
+}
+
+function formatApiResponseAsText(json: unknown, depth = 0): string {
+  if (depth > 5) return ''; // Prevent infinite recursion
+
+  const lines: string[] = [];
+  const indent = '  '.repeat(depth);
+
+  if (Array.isArray(json)) {
+    for (let i = 0; i < Math.min(json.length, 100); i++) {
+      const item = json[i];
+      if (typeof item === 'string') {
+        lines.push(`${indent}${item}`);
+      } else if (typeof item === 'object' && item !== null) {
+        lines.push(formatApiResponseAsText(item, depth + 1));
+      }
+    }
+  } else if (typeof json === 'object' && json !== null) {
+    const record = json as Record<string, unknown>;
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === 'string') {
+        lines.push(`${indent}${key}: ${value}`);
+      } else if (Array.isArray(value)) {
+        lines.push(`${indent}${key}:`);
+        lines.push(formatApiResponseAsText(value, depth + 1));
+      } else if (typeof value === 'object' && value !== null) {
+        lines.push(`${indent}${key}:`);
+        lines.push(formatApiResponseAsText(value, depth + 1));
+      }
+    }
+  }
+
+  return lines.join('\n');
 }
 
 function toBlockedCode(status: number | null): string {
@@ -475,25 +882,61 @@ function toBlockedCode(status: number | null): string {
   return "WEBSITE_FETCH_FAILED";
 }
 
-export async function fetchWebsiteSource(url: string): Promise<WebsiteSourceResult> {
+export async function fetchWebsiteSource(url: string, options?: {
+  useBrowserAutomation?: boolean;
+  respectRobotsTxt?: boolean;
+  onProgress?: ProgressCallback;
+}): Promise<WebsiteSourceResult> {
   const warnings: string[] = [];
+  const onProgress = options?.onProgress;
+  await onProgress?.({ stage: 'fetching', message: `Initializing fetch for ${url}...`, percent: 5 });
+  const opts = {
+    useBrowserAutomation: options?.useBrowserAutomation ?? false,
+    respectRobotsTxt: options?.respectRobotsTxt ?? true,
+  };
 
-  // Root page: direct + Jina in parallel
-  const [directResult, jinaResult] = await Promise.allSettled([fetchDirect(url), fetchViaJina(url)]);
-  const direct = directResult.status === "fulfilled" ? directResult.value : null;
-  const jina = jinaResult.status === "fulfilled" ? jinaResult.value : null;
+  // Root page: Try browser automation first if enabled, then fallback to direct
+  let directHtml = '';
+  let directText = '';
+  let mode: WebsiteSourceResult["mode"] = "direct";
+  let blockedStatus: number | null = null;
 
-  const directHtml = direct?.html ?? "";
-  const directText = direct?.ok ? stripHtmlToText(directHtml) : "";
-  const jinaClean = jina ?? "";
+  // PHASE 3: Try browser automation if enabled
+  if (opts.useBrowserAutomation) {
+    const browserHtml = await fetchWithBrowserAutomation(url, { useBrowserAutomation: true });
+    if (browserHtml) {
+      directHtml = browserHtml;
+      directText = stripHtmlToText(browserHtml);
+      mode = "jina"; // Mark as processed content
+      warnings.push('PHASE 3: Fetched root page using browser automation');
+    }
+  }
 
-  const blockedStatus = direct && !direct.ok && [401, 403, 406, 429, 451].includes(direct.status) ? direct.status : null;
-  if (blockedStatus) warnings.push(`Direct fetch returned ${blockedStatus}; using Jina Reader content.`);
+  let direct: { ok: boolean; status: number; html: string } | null = null;
 
-  const useJina = jinaClean.length > directText.length * 1.15;
-  const rootText = useJina ? jinaClean.slice(0, 50_000) : directText.slice(0, 50_000);
-  const rootHtml = useJina ? jinaClean.slice(0, 120_000) : directHtml.slice(0, 120_000);
-  const mode: WebsiteSourceResult["mode"] = useJina ? (direct?.ok ? "jina" : "proxy_fallback") : "direct";
+  // Fallback to direct fetch if browser automation not used or failed
+  if (!directHtml) {
+    const [directResult, jinaResult] = await Promise.allSettled([fetchDirect(url), fetchViaJina(url)]);
+    direct = directResult.status === "fulfilled" ? directResult.value : null;
+    const jina = jinaResult.status === "fulfilled" ? jinaResult.value : null;
+
+    directHtml = direct?.html ?? "";
+    directText = direct?.ok ? stripHtmlToText(directHtml) : "";
+    const jinaClean = jina ?? "";
+
+    blockedStatus = direct && !direct.ok && [401, 403, 406, 429, 451].includes(direct.status) ? direct.status : null;
+    if (blockedStatus) warnings.push(`Direct fetch returned ${blockedStatus}; using Jina Reader content.`);
+
+    const useJina = jinaClean.length > directText.length * 1.15;
+    directText = useJina ? jinaClean.slice(0, 50_000) : directText.slice(0, 50_000);
+    directHtml = useJina ? jinaClean.slice(0, 120_000) : directHtml.slice(0, 120_000);
+    mode = useJina ? (direct?.ok ? "jina" : "proxy_fallback") : "direct";
+  }
+
+  await onProgress?.({ stage: 'fetching', message: `Fetched root page (${directHtml.length} bytes)`, percent: 30 });
+
+  const rootText = directText;
+  const rootHtml = directHtml;
 
   if (!rootText && !rootHtml) {
     throw new IngestionSourceError({
@@ -512,26 +955,59 @@ export async function fetchWebsiteSource(url: string): Promise<WebsiteSourceResu
   const crawledPages: CrawledPage[] = [];
   const doctorSubUrls: string[] = [];
 
+  // PHASE 2: Try to detect and use API endpoints
+  const apiEndpoints = detectApiPatterns(rootHtml, url, rootText);
+  let apiDataPage: CrawledPage | null = null;
+  if (apiEndpoints.length > 0) {
+    const apiData = await tryApiEndpoints(apiEndpoints);
+    if (apiData) {
+      apiDataPage = { url: `${url} (API)`, text: apiData.text, category: "doctors" };
+      warnings.push(`PHASE 2: Found and fetched JSON API data (${apiData.text.length} chars)`);
+    }
+  }
+
   if (subUrls.length > 0) {
     const BATCH = 3;
     for (let i = 0; i < subUrls.length; i += BATCH) {
       const batch = subUrls.slice(i, i + BATCH);
-      const results = await Promise.allSettled(batch.map(u => fetchDirect(u, 10_000)));
+      await onProgress?.({
+        stage: 'fetching',
+        message: `Crawling sub-pages: ${i + 1} to ${Math.min(i + BATCH, subUrls.length)} of ${subUrls.length}`,
+        percent: 30 + Math.floor((i / subUrls.length) * 40)
+      });
+      const results = await Promise.allSettled(batch.map(u => {
+        if (opts.useBrowserAutomation) {
+          return fetchWithBrowserAutomation(u, { useBrowserAutomation: true });
+        }
+        return fetchDirect(u, 10_000);
+      }));
 
       for (let j = 0; j < results.length; j++) {
         const r = results[j];
         const pageUrl = batch[j];
-        if (r.status === "fulfilled" && r.value?.ok && r.value.html.length > 300) {
-          const text = stripHtmlToText(r.value.html).slice(0, 25_000);
+
+        // Handle result format from both fetchDirect and fetchWithBrowserAutomation
+        const html = r.status === "fulfilled"
+          ? (typeof r.value === "string" ? r.value : r.value?.ok ? r.value.html : "")
+          : "";
+
+        if (html.length > 300) {
+          const text = stripHtmlToText(html).slice(0, 25_000);
           const category = classifyPageUrl(pageUrl);
           if (text.length > 200) {
-            crawledPages.push({ url: pageUrl, text, category });
+            const page: CrawledPage = { url: pageUrl, text, category };
+            crawledPages.push(page);
+            await onProgress?.({
+              stage: 'fetching',
+              message: `Saved crawl checkpoint: ${pageUrl}`,
+              data: { page }
+            });
 
             // Collect doctor pages for pagination discovery
             if (category === "doctors") {
               doctorSubUrls.push(pageUrl);
               // Look for pagination on this doctor page
-              const pagLinks = extractPaginationLinks(r.value.html, url, pageUrl);
+              const pagLinks = extractPaginationLinks(html, url, pageUrl);
               for (const pl of pagLinks) {
                 if (!subUrls.includes(pl) && !batch.includes(pl)) {
                   doctorSubUrls.push(pl);
@@ -542,7 +1018,8 @@ export async function fetchWebsiteSource(url: string): Promise<WebsiteSourceResu
         }
       }
 
-      if (i + BATCH < subUrls.length) await new Promise(r => setTimeout(r, 400));
+      // PHASE 1 IMPROVEMENT: Increased delay from 400ms to 1000ms for better rate limiting
+      if (i + BATCH < subUrls.length) await new Promise(r => setTimeout(r, 1000));
     }
   }
 
@@ -560,6 +1037,11 @@ export async function fetchWebsiteSource(url: string): Promise<WebsiteSourceResu
         }
       }
     }
+  }
+
+  // PHASE 2: Add API data to crawled pages if found
+  if (apiDataPage) {
+    crawledPages.push(apiDataPage);
   }
 
   return { html: rootHtml, text: rootText, mode, warnings, blockedStatus, crawledPages };
@@ -813,26 +1295,26 @@ export async function extractStructuredFromSources(params: {
   websiteUrl: string;
   websiteText: string;
   searchSnippets: SearchSnippet[];
-  hints: { hospitalName?: string; city?: string };
+  hints: { hospitalName?: string; city?: string; targetHospitalId?: string };
   googleProfile?: GoogleProfileResult | null;
-  crawledPages?: CrawledPage[];
+  crawledPages: CrawledPage[];
+  onProgress?: ProgressCallback;
 }): Promise<IngestionStructuredPayload> {
-  const crawledPages = params.crawledPages ?? [];
+  const onProgress = params.onProgress;
+  const crawledPages = params.crawledPages;
 
   // ── FIX: Aggregate ALL doctor pages — was the root cause of missing doctors ─
-  // Previously: each page was sliced to 20k separately, and only one was used.
-  // Now: all doctor pages concatenated first (total budget 80k), then sent as one block.
   const doctorPageText = crawledPages
     .filter(p => p.category === "doctors")
     .map(p => p.text)
     .join("\n\n---PAGE---\n\n")
-    .slice(0, 80_000);   // was 24_000 — this is the critical fix for doctor data
+    .slice(0, 200_000);
 
   const servicePageText = crawledPages
     .filter(p => ["services", "departments", "packages", "facilities"].includes(p.category))
     .map(p => p.text)
     .join("\n\n---PAGE---\n\n")
-    .slice(0, 40_000);   // was 20_000
+    .slice(0, 80_000);
 
   const aboutPageText = crawledPages
     .filter(p => ["about", "contact", "general"].includes(p.category))
@@ -854,27 +1336,25 @@ export async function extractStructuredFromSources(params: {
     ].join("\n");
 
     // ── PASS A — Hospital core ─────────────────────────────────────────────
+    await onProgress?.({ stage: 'extracting', message: "AI Pass A: Hospital Profile...", percent: 75 });
     const modelA = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_A, generationConfig: JSON_CONFIG });
     const passAInput = [ctx, "ROOT PAGE:\n" + params.websiteText.slice(0, 28_000), aboutPageText ? "ABOUT/CONTACT:\n" + aboutPageText : ""].join("\n\n");
     const passA = await runPass<Partial<IngestionHospital>>(modelA, passAInput, {});
 
     // ── PASS B — Doctors ────────────────────────────────────────────────────
-    // KEY FIX: Send ALL doctor pages first, then the full root page.
-    // Previously, if doctorPageText was empty, only 45k of root was sent and
-    // large hospital sites (like Manipal) have doctors far below the fold.
+    await onProgress?.({ stage: 'extracting', message: "AI Pass B: Doctor Directory...", percent: 85 });
     const modelB = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_B, generationConfig: JSON_CONFIG });
     const passBInput = [
       ctx,
-      // Send dedicated doctor pages if we have them
       doctorPageText
         ? `DEDICATED DOCTOR PAGES (${crawledPages.filter(p => p.category === "doctors").length} pages crawled):\n` + doctorPageText
         : "DEDICATED DOCTOR PAGES: none found — extracting from root page.",
-      // Always include full root page — doctors may appear there too
       "ROOT PAGE (full):\n" + params.websiteText.slice(0, 50_000),
     ].join("\n\n");
     const passB = await runPass<{ doctors?: unknown[] }>(modelB, passBInput, { doctors: [] });
 
     // ── PASS C — Services + Packages + Procedure Costs ─────────────────────
+    await onProgress?.({ stage: 'extracting', message: "AI Pass C: Services & Pricing...", percent: 95 });
     const modelC = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_C, generationConfig: JSON_CONFIG });
     const passCInput = [
       ctx,
@@ -1195,4 +1675,82 @@ export async function fetchGoogleProfileData(params: { sourceUrl: string; hospit
   const placeId = payload.candidates?.[0]?.place_id;
   if (!placeId) return null;
   return getGooglePlaceDetails(placeId);
+}
+
+/**
+ * P2.2 — Google Pricing Discovery
+ * Searches specifically for pricing/cost pages for a hospital and extracts them using AI.
+ */
+export async function discoverHospitalPricing(hostname: string, city: string): Promise<{ packages: IngestionPackage[], costs: IngestionProcedureCost[], sources: SearchSnippet[] }> {
+  const query = `${hostname} ${city} hospital package price list cost treatment India`;
+  const snippets = await googleSearchSnippets(query);
+
+  if (snippets.length === 0) return { packages: [], costs: [], sources: [] };
+
+  // Step 1: Use AI to decide which 2 links look most like pricing data
+  const model = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY!).getGenerativeModel({ model: env.GEMINI_MODEL });
+  const rankPrompt = `I have a list of search results for a hospital's pricing.
+Which 2 links are MOST likely to contain a structured table of medical procedure costs or package prices?
+Return ONLY a JSON array of indices (0-7).
+
+Results:
+${snippets.map((s, i) => `[${i}] ${s.title}: ${s.snippet}`).join("\n")}
+`;
+
+  const rankResult = await model.generateContent(rankPrompt);
+  let topIndices: number[] = [0, 1];
+  try {
+    const text = rankResult.response.text();
+    const match = text.match(/\[.*\]/);
+    if (match) topIndices = JSON.parse(match[0]);
+  } catch (e) {
+    console.error("AI ranking failed, using defaults", e);
+  }
+
+  const selectedLinks = topIndices.slice(0, 2).map(i => snippets[i]).filter(Boolean);
+  const scrapedSources: string[] = [];
+
+  // Step 2: Scrape the selected links
+  for (const source of selectedLinks) {
+    try {
+      const content = await fetchWebsiteSource(source.link);
+      if (content.text) scrapedSources.push(`Source: ${source.link}\n${content.text}`);
+    } catch (e) {
+      console.error(`Failed to scrape pricing source ${source.link}`, e);
+    }
+  }
+
+  if (scrapedSources.length === 0) return { packages: [], costs: [], sources: selectedLinks };
+
+  // Step 3: Extract pricing data from the scraped results
+  const extractPrompt = `Extract medical pricing information from the following text snippets.
+Found for hospital: ${hostname} in ${city}.
+
+Focus on:
+1. "packages" - bundled offerings with name and price range.
+2. "costs" - specific procedure names and their expected costs.
+
+Return ONLY JSON:
+{
+  "packages": [{ "packageName": string, "priceMin": number, "priceMax": number, "currency": "INR", "inclusions": string[] }],
+  "costs": [{ "procedureName": string, "priceMin": number, "priceMax": number, "currency": "INR", "notes": string }]
+}
+
+Text:
+${scrapedSources.join("\n\n---\n\n").slice(0, 30000)}
+`;
+
+  const extraction = await model.generateContent(extractPrompt);
+  try {
+    const cleanText = extraction.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleanText);
+    return {
+      packages: data.packages || [],
+      costs: data.costs || [],
+      sources: selectedLinks
+    };
+  } catch (e) {
+    console.error("Pricing extraction failed", e);
+    return { packages: [], costs: [], sources: selectedLinks };
+  }
 }

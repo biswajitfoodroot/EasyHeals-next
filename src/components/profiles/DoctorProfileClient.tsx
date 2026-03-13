@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import { EditHistoryDrawer } from "@/components/profiles/EditHistoryDrawer";
+import { useTranslations } from "@/i18n/LocaleContext";
+import AppointmentModal from "@/components/AppointmentModal";
+import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import styles from "@/components/profiles/profiles.module.css";
+import type { SearchResult } from "@/components/phase1/types";
 
 type HospitalAffiliation = {
   affiliationId: string;
@@ -51,6 +54,7 @@ type DoctorPayload = {
   rating: number;
   reviewCount: number;
   verified: boolean;
+  aiReviewSummary?: string | null;
 };
 
 type NearbyDoctor = {
@@ -75,22 +79,18 @@ type DoctorProfileClientProps = {
   };
 };
 
-const tabs = [
-  { key: "overview", label: "Overview" },
-  { key: "affiliations", label: "Affiliations" },
-  { key: "services", label: "Services" },
-  { key: "reviews", label: "Reviews" },
-  { key: "location", label: "Location" },
-] as const;
+const TABS = ["overview", "affiliations", "services", "reviews", "location"] as const;
+type TabKey = (typeof TABS)[number];
 
 function valueOrFallback(value: string | null | undefined, fallback = "Not available") {
   return value && value.trim() ? value : fallback;
 }
 
 export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
-  const [tab, setTab] = useState<(typeof tabs)[number]["key"]>("overview");
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyField, setHistoryField] = useState<string | null>(null);
+  const { t } = useTranslations();
+  const [tab, setTab] = useState<TabKey>("overview");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [contributeOpen, setContributeOpen] = useState(false);
 
   const heroMeta = useMemo(
     () =>
@@ -107,10 +107,31 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
 
   const primaryHospital = data.affiliations.find((item) => item.isPrimary) ?? data.affiliations[0] ?? null;
 
-  function openHistory(field: string) {
-    setHistoryField(field);
-    setHistoryOpen(true);
-  }
+  const contributeTarget: SearchResult = {
+    id: data.doctor.id,
+    type: "doctor",
+    name: data.doctor.fullName,
+    slug: data.doctor.slug,
+    city: data.doctor.city ?? "",
+    state: data.doctor.state,
+    rating: data.doctor.rating,
+    verified: data.doctor.verified,
+    communityVerified: true,
+    specialties: data.doctor.specialties,
+    source: "db",
+    score: data.doctor.rating,
+    description: data.doctor.bio ?? null,
+    profileUrl: `/doctors/${data.doctor.slug}`,
+    phone: data.doctor.phone,
+  };
+
+  const tabLabels: Record<TabKey, string> = {
+    overview: t("doctor.tabOverview"),
+    affiliations: t("doctor.tabAffiliations"),
+    services: t("doctor.tabServices"),
+    reviews: t("doctor.tabReviews"),
+    location: t("doctor.tabLocation"),
+  };
 
   return (
     <main className={styles.page}>
@@ -126,7 +147,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         <header className={styles.hero}>
           <div className={styles.heroTop}>
             <div>
-              <span className={styles.kicker}>Doctor Profile</span>
+              <span className={styles.kicker}>{t("doctor.kicker")}</span>
               <h1 className={styles.title}>{data.doctor.fullName}</h1>
               <p className={styles.subtitle}>{heroMeta}</p>
               <div className={styles.heroBadges}>
@@ -137,32 +158,33 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
             </div>
 
             <div className={styles.actions}>
+              <button type="button" className={styles.primaryAction} onClick={() => setModalOpen(true)}>
+                {t("common.bookAppointment")}
+              </button>
               {data.doctor.phone ? (
-                <a className={styles.primaryAction} href={`tel:${data.doctor.phone}`}>
-                  Call Doctor
-                </a>
+                <a href={`tel:${data.doctor.phone}`}>{t("common.callNow")}</a>
               ) : null}
               {primaryHospital ? (
                 <a href={primaryHospital.hospital.directionsUrl} target="_blank" rel="noreferrer">
-                  Get Directions
+                  {t("common.getDirections")}
                 </a>
               ) : null}
-              <button type="button" onClick={() => openHistory("")}>View Edit History</button>
+              <button type="button" onClick={() => setContributeOpen(true)}>{t("common.suggestEdit")}</button>
             </div>
           </div>
         </header>
 
         <div className={styles.tabs} role="tablist" aria-label="Doctor profile tabs">
-          {tabs.map((item) => (
+          {TABS.map((key) => (
             <button
-              key={item.key}
+              key={key}
               type="button"
               role="tab"
-              aria-selected={tab === item.key}
-              className={tab === item.key ? styles.tabActive : ""}
-              onClick={() => setTab(item.key)}
+              aria-selected={tab === key}
+              className={tab === key ? styles.tabActive : ""}
+              onClick={() => setTab(key)}
             >
-              {item.label}
+              {tabLabels[key]}
             </button>
           ))}
         </div>
@@ -179,7 +201,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 field="phone"
                 label="Phone"
                 value={valueOrFallback(data.doctor.phone, "")}
-                onOpenHistory={openHistory}
+
               />
               <InlineFieldEditor
                 targetType="doctor"
@@ -187,7 +209,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 field="specialization"
                 label="Specialization"
                 value={valueOrFallback(data.doctor.specialization, "")}
-                onOpenHistory={openHistory}
+
               />
               <InlineFieldEditor
                 targetType="doctor"
@@ -196,7 +218,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 label="Qualifications"
                 value={data.doctor.qualifications.join(", ")}
                 multiline
-                onOpenHistory={openHistory}
+
               />
               <InlineFieldEditor
                 targetType="doctor"
@@ -204,7 +226,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 field="consultationFee"
                 label="Consultation Fee"
                 value={data.doctor.consultationFee ? String(data.doctor.consultationFee) : ""}
-                onOpenHistory={openHistory}
+
               />
             </article>
 
@@ -242,14 +264,14 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                     ))}
                   </div>
                   <div className={styles.profileCardFooter}>
-                    <Link href={item.hospital.profileUrl}>Open Hospital</Link>
+                    <Link href={item.hospital.profileUrl}>{t("common.open")}</Link>
                     <a href={item.hospital.directionsUrl} target="_blank" rel="noreferrer">
-                      Directions
+                      {t("common.directions")}
                     </a>
                   </div>
                 </article>
               ))}
-              {data.affiliations.length === 0 ? <p>No hospital affiliations yet.</p> : null}
+              {data.affiliations.length === 0 ? <p>{t("doctor.noAffiliations")}</p> : null}
             </div>
           </section>
         ) : null}
@@ -277,7 +299,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                       {item.state ? `, ${item.state}` : ""}
                     </p>
                     <div className={styles.profileCardFooter}>
-                      <Link href={item.profileUrl}>View Profile</Link>
+                      <Link href={item.profileUrl}>{t("common.viewProfile")}</Link>
                     </div>
                   </article>
                 ))}
@@ -288,13 +310,18 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
 
         {tab === "reviews" ? (
           <section className={styles.panel}>
-            <h2>Ratings</h2>
+            <h2>{t("doctor.ratingsTitle")}</h2>
             <p>
               Current score: <strong>{data.doctor.rating.toFixed(1)} / 5</strong> from {data.doctor.reviewCount.toLocaleString("en-IN")} reviews.
             </p>
-            <p>
-              This phase includes aggregate score visibility and trust cues. Verified patient review workflow is scheduled in the next phase.
-            </p>
+            {data.doctor.aiReviewSummary ? (
+              <div style={{ marginTop: "12px", padding: "14px 16px", borderRadius: "12px", border: "1px solid rgba(77,255,216,0.2)", background: "rgba(0,184,150,0.06)" }}>
+                <p style={{ margin: "0 0 6px", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em", color: "#4dffd8" }}>{t("doctor.aiReviewSummary")}</p>
+                <p style={{ margin: 0, lineHeight: 1.6 }}>{data.doctor.aiReviewSummary}</p>
+              </div>
+            ) : (
+              <p>Verified patient review workflow is scheduled in the next phase.</p>
+            )}
           </section>
         ) : null}
 
@@ -311,9 +338,9 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                   </p>
                   <div className={styles.profileCardFooter}>
                     <a href={item.hospital.directionsUrl} target="_blank" rel="noreferrer">
-                      Get Directions
+                      {t("common.getDirections")}
                     </a>
-                    <Link href={item.hospital.profileUrl}>Hospital Profile</Link>
+                    <Link href={item.hospital.profileUrl}>{t("hospital.kicker")}</Link>
                   </div>
                 </article>
               ))}
@@ -323,24 +350,27 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
       </section>
 
       <div className={styles.mobileBar}>
+        <button type="button" className={styles.mobilePrimary} onClick={() => setModalOpen(true)}>
+          {t("common.bookAppointment")}
+        </button>
         {data.doctor.phone ? (
-          <a className={styles.mobilePrimary} href={`tel:${data.doctor.phone}`}>
-            Call Doctor
-          </a>
-        ) : null}
-        {primaryHospital ? (
-          <a href={primaryHospital.hospital.directionsUrl} target="_blank" rel="noreferrer">
-            Get Directions
-          </a>
+          <a href={`tel:${data.doctor.phone}`}>{t("common.callNow")}</a>
         ) : null}
       </div>
 
-      <EditHistoryDrawer
-        open={historyOpen}
-        targetType="doctor"
-        targetId={data.doctor.id}
-        field={historyField}
-        onClose={() => setHistoryOpen(false)}
+      <AppointmentModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        doctorName={data.doctor.fullName}
+        hospitalId={primaryHospital?.hospital.id}
+        hospitalName={primaryHospital?.hospital.name}
+        source="doctor_profile"
+      />
+
+      <ContributeModal
+        isOpen={contributeOpen}
+        target={contributeTarget}
+        onClose={() => setContributeOpen(false)}
       />
     </main>
   );

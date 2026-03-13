@@ -11,7 +11,7 @@ type InlineFieldEditorProps = {
   label: string;
   value: string;
   multiline?: boolean;
-  onOpenHistory: (field: string) => void;
+  onOpenHistory?: (field: string) => void;
 };
 
 function toContributionValue(field: string, value: string): unknown {
@@ -96,9 +96,9 @@ export function InlineFieldEditor({
           <button type="button" onClick={() => setOpen((prev) => !prev)} aria-label={`Edit ${label}`}>
             ? Edit
           </button>
-          <button type="button" onClick={() => onOpenHistory(field)}>
-            History
-          </button>
+          {onOpenHistory ? (
+            <button type="button" onClick={() => onOpenHistory(field)}>History</button>
+          ) : null}
         </div>
       </div>
 

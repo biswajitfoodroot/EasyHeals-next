@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "User is inactive" }, { status: 403 });
   }
 
-  const ok = await bcrypt.compare(parsed.data.password, user.passwordHash);
+  const ok = user.passwordHash ? await bcrypt.compare(parsed.data.password, user.passwordHash) : false;
   if (!ok) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }

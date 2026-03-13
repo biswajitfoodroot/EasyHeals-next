@@ -4,11 +4,14 @@ import { z } from "zod";
 
 import { db } from "@/db/client";
 import { contributions, contributorTrust, doctors, hospitals } from "@/db/schema";
+import { requireAuth } from "@/lib/auth";
+import { writeAuditLog } from "@/lib/audit";
 import { scoreContribution } from "@/lib/outlier";
 
 const contributionSchema = z.object({
   targetType: z.enum(["hospital", "doctor", "lab"]),
   targetId: z.string().min(3),
+  // contributorId is ignored — always derived from server-side session
   contributorId: z.string().optional(),
   changeType: z.string().min(3).max(40).default("update"),
   fieldChanged: z.string().min(2).max(80),
@@ -89,6 +92,10 @@ function normalizeDoctorPatch(field: string, value: unknown): Record<string, unk
 }
 
 export async function POST(req: NextRequest) {
+  // Require authentication — Google Sign-In (contributor) or any internal role
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const payload = await req.json();
     const parsed = contributionSchema.safeParse(payload);
@@ -100,8 +107,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { targetType, targetId, contributorId, fieldChanged, oldValue, newValue, changeType } =
-      parsed.data;
+    const { targetType, targetId, fieldChanged, oldValue, newValue, changeType } = parsed.data;
+    // Always use server-side userId — never trust client-sent contributorId
+    const contributorId = auth.userId;
 
     const normalizedTargetType = targetType === "lab" ? "hospital" : targetType;
 
@@ -234,6 +242,22 @@ export async function POST(req: NextRequest) {
         });
       }
     }
+
+    // Write audit log for crowd edit submission
+    await writeAuditLog({
+      actorUserId: contributorId,
+      action: `crowd.edit.${outlier.recommendation}`,
+      entityType: normalizedTargetType,
+      entityId: targetId,
+      changes: {
+        fieldChanged,
+        oldValue: oldValue ?? null,
+        newValue,
+        outlierScore: outlier.score,
+        outlierFlags: outlier.flags,
+        contributionId: saved.id,
+      },
+    });
 
     return NextResponse.json({
       status: outlier.recommendation,

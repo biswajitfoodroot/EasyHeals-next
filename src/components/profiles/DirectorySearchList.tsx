@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 
+import { useTranslations } from "@/i18n/LocaleContext";
 import styles from "@/components/profiles/profiles.module.css";
 
 type DirectoryItem = {
@@ -26,6 +27,7 @@ type DirectorySearchListProps = {
 };
 
 export function DirectorySearchList({ kind, title, description, items, cityOptions }: DirectorySearchListProps) {
+  const { t } = useTranslations();
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
 
@@ -42,7 +44,7 @@ export function DirectorySearchList({ kind, title, description, items, cityOptio
   return (
     <main className={styles.directoryPage}>
       <section className={styles.directoryHero}>
-        <span className={styles.kicker}>{kind === "hospital" ? "Hospital Directory" : "Doctor Directory"}</span>
+        <span className={styles.kicker}>{kind === "hospital" ? t("hospital.kicker") : t("doctor.kicker")}</span>
         <h1>{title}</h1>
         <p>{description}</p>
 
@@ -50,11 +52,11 @@ export function DirectorySearchList({ kind, title, description, items, cityOptio
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={kind === "hospital" ? "Search hospital, specialty, city" : "Search doctor, specialty, city"}
+            placeholder={kind === "hospital" ? t("hospital.searchPlaceholder") : t("doctor.searchPlaceholder")}
             aria-label="Search listings"
           />
           <select value={city} onChange={(event) => setCity(event.target.value)} aria-label="Filter city">
-            <option value="all">All Cities</option>
+            <option value="all">{t("common.allCities")}</option>
             {cityOptions.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -78,12 +80,12 @@ export function DirectorySearchList({ kind, title, description, items, cityOptio
                 <span key={`${item.id}-${specialty}`}>{specialty}</span>
               ))}
             </div>
-            <p>{item.verified ? "Verified" : "Community"} · Rating {item.rating.toFixed(1)}</p>
-            <Link href={item.url}>View Profile</Link>
+            <p>{item.verified ? t("common.verified") : t("common.communityVerified")} · Rating {item.rating.toFixed(1)}</p>
+            <Link href={item.url}>{t("common.viewProfile")}</Link>
           </article>
         ))}
 
-        {filtered.length === 0 ? <p>No matches found for this filter.</p> : null}
+        {filtered.length === 0 ? <p>{t("common.noResults")}</p> : null}
       </section>
     </main>
   );

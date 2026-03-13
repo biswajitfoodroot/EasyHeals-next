@@ -38,33 +38,47 @@ function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim().slice(0, 80);
 }
 
-export async function POST(req: NextRequest, { params }: { params: { jobId: string } }) {
+/** Skip candidates that are already processed or explicitly rejected/deleted */
+function shouldSkip(applyStatus: string, reviewStatus: string | null): boolean {
+  const SKIP_APPLY = ["rejected", "deleted", "skipped", "applied"];
+  const SKIP_REVIEW = ["rejected", "deleted"];
+  return SKIP_APPLY.includes(applyStatus) || SKIP_REVIEW.includes(reviewStatus ?? "");
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
   const forbidden = ensureRole(auth.role, ["owner", "admin"]);
   if (forbidden) return forbidden;
 
-  const { jobId } = params;
+  const { jobId } = await params;
 
   // ── Load job ───────────────────────────────────────────────────────────────
   const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   if (job.status === "applied") return NextResponse.json({ error: "Job already applied." }, { status: 409 });
 
-  // ── Load all APPROVED candidates ───────────────────────────────────────────
-  const [approvedHospitals, approvedDoctors, approvedServices, allPackages] = await Promise.all([
-    db.select().from(ingestionHospitalCandidates).where(and(eq(ingestionHospitalCandidates.jobId, jobId), eq(ingestionHospitalCandidates.applyStatus, "approved"))),
-    db.select().from(ingestionDoctorCandidates).where(and(eq(ingestionDoctorCandidates.jobId, jobId), eq(ingestionDoctorCandidates.applyStatus, "approved"))),
-    db.select().from(ingestionServiceCandidates).where(and(eq(ingestionServiceCandidates.jobId, jobId), eq(ingestionServiceCandidates.applyStatus, "approved"))),
-    db.select().from(ingestionPackageCandidates).where(and(eq(ingestionPackageCandidates.jobId, jobId), eq(ingestionPackageCandidates.applyStatus, "approved"))),
+  // ── Load ALL candidates for this job, filter in-memory via shouldSkip ──────
+  // FIX: Previously filtered by applyStatus="approved" which missed "draft" candidates.
+  // Now loads all and skips only rejected/deleted/skipped/applied.
+  const [allHospitals, allDoctors, allServices, allPackages] = await Promise.all([
+    db.select().from(ingestionHospitalCandidates).where(eq(ingestionHospitalCandidates.jobId, jobId)),
+    db.select().from(ingestionDoctorCandidates).where(eq(ingestionDoctorCandidates.jobId, jobId)),
+    db.select().from(ingestionServiceCandidates).where(eq(ingestionServiceCandidates.jobId, jobId)),
+    db.select().from(ingestionPackageCandidates).where(eq(ingestionPackageCandidates.jobId, jobId)),
   ]);
 
+  const eligibleHospitals = allHospitals.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
+  const eligibleDoctors = allDoctors.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
+  const eligibleServices = allServices.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
+  const eligiblePackagesAll = allPackages.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
+
   // Separate packages from procedure costs (procedure costs have rawPayload.type = "procedure_cost")
-  const approvedPackages = allPackages.filter(p => {
+  const eligiblePackages = eligiblePackagesAll.filter(p => {
     const raw = p.rawPayload as Record<string, unknown> | null;
     return !raw?.type || raw.type !== "procedure_cost";
   });
-  const approvedProcedureCosts = allPackages.filter(p => {
+  const eligibleProcedureCosts = eligiblePackagesAll.filter(p => {
     const raw = p.rawPayload as Record<string, unknown> | null;
     return raw?.type === "procedure_cost";
   });
@@ -75,6 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
   let packagesApplied = 0;
   let servicesApplied = 0;
   let procedureCostsApplied = 0;
+  let skippedCount = 0;
 
   // Map from candidateHospitalCandidateId → real DB hospitalId
   const hospitalIdMap = new Map<string, string>();
@@ -93,14 +108,14 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
   }
 
   // ── 1. Apply hospital candidates ───────────────────────────────────────────
-  for (const candidate of approvedHospitals) {
+  for (const candidate of eligibleHospitals) {
     try {
       let realHospitalId: string;
 
       if (candidate.matchHospitalId) {
         // ── UPDATE existing hospital branch ────────────────────────────────
         // Only update fields that have new data — don't overwrite with nulls
-        const updateSet: Record<string, unknown> = { updatedAt: new Date() };
+        const updateSet: Partial<typeof hospitals.$inferInsert> = { updatedAt: new Date() };
         if (candidate.phone) updateSet.phone = candidate.phone;
         if (candidate.contactNumbers?.length) updateSet.phones = candidate.contactNumbers;
         if (candidate.email) updateSet.email = candidate.email;
@@ -115,7 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         // Merge facilities (keyFacilities → facilities column)
         if (candidate.keyFacilities?.length) updateSet.facilities = candidate.keyFacilities;
 
-        await db.update(hospitals).set(updateSet as Parameters<typeof db.update>[0] & object).where(eq(hospitals.id, candidate.matchHospitalId));
+        await db.update(hospitals).set(updateSet).where(eq(hospitals.id, candidate.matchHospitalId));
         realHospitalId = candidate.matchHospitalId;
         hospitalsApplied++;
       } else {
@@ -131,15 +146,36 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         // Check if a matching hospital already exists (by slug OR city+name)
         const [existingBySlug] = await db.select({ id: hospitals.id })
           .from(hospitals).where(eq(hospitals.slug, slug)).limit(1);
-        const [existingByCityName] = !existingBySlug
-          ? await db.select({ id: hospitals.id }).from(hospitals)
-              .where(and(eq(hospitals.city, candidateCity), eq(hospitals.name, candidate.name))).limit(1)
-          : [existingBySlug];
 
-        if (existingBySlug || existingByCityName) {
+        // Exact name + city match
+        let matchRow = existingBySlug;
+        if (!matchRow) {
+          const [byCityName] = await db.select({ id: hospitals.id }).from(hospitals)
+            .where(and(eq(hospitals.city, candidateCity), eq(hospitals.name, candidate.name))).limit(1);
+          matchRow = byCityName;
+        }
+
+        // Fuzzy match: same city + phone match OR website match
+        if (!matchRow && (candidate.phone || candidate.website)) {
+          const allInCity = await db.select({ id: hospitals.id, name: hospitals.name, website: hospitals.website, phone: hospitals.phone, phones: hospitals.phones })
+            .from(hospitals).where(eq(hospitals.city, candidateCity));
+
+          for (const h of allInCity) {
+            const sameWebsite = candidate.website && h.website && (h.website.includes(candidate.website) || candidate.website.includes(h.website));
+            const samePhone = candidate.phone && (h.phone === candidate.phone || h.phones?.includes(candidate.phone));
+            const nameOverlap = candidate.name.split(' ').filter(w => w.length > 3).some(w => h.name.includes(w));
+
+            if ((sameWebsite || samePhone) && nameOverlap) {
+              matchRow = h;
+              break;
+            }
+          }
+        }
+
+        if (matchRow) {
           // Already exists — update it
-          const existId = (existingBySlug ?? existingByCityName).id;
-          const patchSet: Record<string, unknown> = { updatedAt: new Date() };
+          const existId = matchRow.id;
+          const patchSet: Partial<typeof hospitals.$inferInsert> = { updatedAt: new Date() };
           if (candidate.phone) patchSet.phone = candidate.phone;
           if (candidate.contactNumbers?.length) patchSet.phones = candidate.contactNumbers;
           if (candidate.email) patchSet.email = candidate.email;
@@ -148,7 +184,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
           if (candidate.specialties?.length) patchSet.specialties = candidate.specialties;
           if (candidate.keyFacilities?.length) patchSet.facilities = candidate.keyFacilities;
           if (candidate.operatingHours) patchSet.workingHours = candidate.operatingHours;
-          await db.update(hospitals).set(patchSet as Parameters<typeof db.update>[0] & object).where(eq(hospitals.id, existId));
+          await db.update(hospitals).set(patchSet).where(eq(hospitals.id, existId));
           realHospitalId = existId;
         } else {
           // New hospital branch — insert
@@ -194,14 +230,14 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
   }
 
   // ── 2. Apply doctor candidates ─────────────────────────────────────────────
-  for (const candidate of approvedDoctors) {
+  for (const candidate of eligibleDoctors) {
     try {
       const hospitalId = resolveHospitalId(candidate.hospitalCandidateId);
       let realDoctorId: string;
 
       if (candidate.matchDoctorId) {
         // ── UPDATE existing doctor record ──────────────────────────────────
-        const updateSet: Record<string, unknown> = { updatedAt: new Date() };
+        const updateSet: Partial<typeof doctors.$inferInsert> = { updatedAt: new Date() };
         if (candidate.specialization) updateSet.specialization = candidate.specialization;
         if (candidate.phone) updateSet.phone = candidate.phone;
         if (candidate.email) updateSet.email = candidate.email;
@@ -212,7 +248,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
         if (candidate.qualifications?.length) updateSet.qualifications = candidate.qualifications;
         if (candidate.languages?.length) updateSet.languages = candidate.languages;
 
-        await db.update(doctors).set(updateSet as Parameters<typeof db.update>[0] & object).where(eq(doctors.id, candidate.matchDoctorId));
+        await db.update(doctors).set(updateSet).where(eq(doctors.id, candidate.matchDoctorId));
         realDoctorId = candidate.matchDoctorId;
       } else {
         // ── CREATE new doctor ──────────────────────────────────────────────
@@ -235,7 +271,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
           feeMax: candidate.feeMax ?? null,
           consultationHours: candidate.schedule ?? null,
           city: candidate.hospitalCandidateId
-            ? (approvedHospitals.find(h => h.id === candidate.hospitalCandidateId)?.city ?? jobTargetCity ?? null)
+            ? (allHospitals.find((h: typeof allHospitals[0]) => h.id === candidate.hospitalCandidateId)?.city ?? jobTargetCity ?? null)
             : jobTargetCity ?? null,
           verified: false,
           isActive: true,
@@ -282,7 +318,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
   }
 
   // ── 3. Services → append to hospitals.facilities ───────────────────────────
-  for (const candidate of approvedServices) {
+  for (const candidate of eligibleServices) {
     try {
       const hospitalId = resolveHospitalId(candidate.hospitalCandidateId);
       if (hospitalId) {
@@ -304,7 +340,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
   }
 
   // ── 4. Packages → hospital_listing_packages ────────────────────────────────
-  for (const candidate of approvedPackages) {
+  for (const candidate of eligiblePackages) {
     try {
       const hospitalId = resolveHospitalId(candidate.hospitalCandidateId);
       if (hospitalId) {
@@ -338,7 +374,7 @@ export async function POST(req: NextRequest, { params }: { params: { jobId: stri
 
   // ── 5. Procedure costs → hospital_listing_packages (source=cost_data) ──────
   // Stored separately so the frontend can do cross-hospital cost comparison
-  for (const candidate of approvedProcedureCosts) {
+  for (const candidate of eligibleProcedureCosts) {
     try {
       const hospitalId = resolveHospitalId(candidate.hospitalCandidateId);
       if (hospitalId && (candidate.priceMin !== null || candidate.priceMax !== null)) {

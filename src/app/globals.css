@@ -1,15 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #eef5f7;
-  --ink: #10232f;
-  --muted: #476174;
+  --bg: #f3f7f4;
+  --ink: #0d1f15;
+  --muted: #4a6357;
   --surface: #ffffff;
-  --line: #d5e1e7;
-  --primary: #0b7172;
-  --secondary: #ea5f24;
-  --font-sans: var(--font-jakarta);
-  --font-display: var(--font-sora);
+  --line: #d0e4d8;
+  --primary: #1B8A4A;
+  --primary-dark: #136836;
+  --primary-light: #e6f5ec;
+  --secondary: #E8401C;
+  --secondary-light: #fff2ee;
+  --accent: #7B1FA2;
+  --accent-light: #f5eaff;
+  --font-sans: var(--font-dmsans);
+  --font-display: var(--font-bricolage);
 }
 
 * {
@@ -20,8 +25,8 @@ body {
   margin: 0;
   color: var(--ink);
   background:
-    radial-gradient(circle at 4% 0%, #dff2f2 0%, transparent 44%),
-    radial-gradient(circle at 98% 10%, #ffe8dc 0%, transparent 38%),
+    radial-gradient(circle at 4% 0%, #d4f0e0 0%, transparent 44%),
+    radial-gradient(circle at 98% 10%, #fde8e2 0%, transparent 38%),
     var(--bg);
   font-family: var(--font-sans), sans-serif;
 }
@@ -121,7 +126,7 @@ body {
 
 .cta-primary {
   color: #fff;
-  background: linear-gradient(120deg, #0b7172 0%, #0a8e8f 100%);
+  background: linear-gradient(120deg, #1B8A4A 0%, #22a85c 100%);
 }
 
 .cta-secondary {
@@ -140,9 +145,9 @@ body {
 .service-strip span {
   border-radius: 999px;
   padding: 0.34rem 0.62rem;
-  border: 1px solid #bee3e4;
-  background: #edfbfb;
-  color: #0d5354;
+  border: 1px solid #b8ddc8;
+  background: #e8f5ee;
+  color: #136836;
   font-size: 0.8rem;
 }
 
@@ -242,7 +247,7 @@ body {
 
 .bubble.user {
   justify-self: end;
-  background: #0f7f80;
+  background: #1B8A4A;
   color: #fff;
   max-width: 88%;
 }
@@ -351,7 +356,7 @@ body {
 .search-form button {
   border: none;
   border-radius: 0.7rem;
-  background: linear-gradient(120deg, #ea5f24 0%, #ff7b3f 100%);
+  background: linear-gradient(120deg, #E8401C 0%, #f5582f 100%);
   color: #fff;
   font-weight: 700;
   padding: 0.62rem 0.9rem;

@@ -1,10 +1,11 @@
-﻿import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { hospitalAccounts, hospitals, otpVerifications } from "@/db/schema";
+import { hospitalAccounts, hospitals, otpVerifications, roles, userRoleMap, users } from "@/db/schema";
+import { createSession, setSessionCookie } from "@/lib/session";
 import { slugify } from "@/lib/strings";
 
 const requestSchema = z.object({
@@ -22,7 +23,17 @@ const requestSchema = z.object({
       state: z.string().max(80).optional(),
       addressLine1: z.string().max(240).optional(),
       type: z.string().max(40).default("hospital"),
-      website: z.string().url().optional(),
+      website: z
+        .string()
+        .optional()
+        .transform((v) => {
+          if (!v) return undefined;
+          const trimmed = v.trim();
+          if (!trimmed) return undefined;
+          if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`;
+          return trimmed;
+        })
+        .pipe(z.string().url().optional()),
     })
     .optional(),
 });
@@ -126,6 +137,7 @@ export async function POST(req: NextRequest) {
       finalHospitalId = created.id;
     }
 
+    // Check for existing hospital_accounts
     const existingAccount = await db
       .select({ id: hospitalAccounts.id })
       .from(hospitalAccounts)
@@ -139,6 +151,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Create hospital_accounts entry
     await db.insert(hospitalAccounts).values({
       hospitalId: finalHospitalId,
       email,
@@ -149,22 +162,75 @@ export async function POST(req: NextRequest) {
       packageTier: "free",
     });
 
+    // Update hospital claim status
     await db
       .update(hospitals)
-      .set({
-        claimed: true,
-        regStatus: "active",
-        packageTier: "free",
-        updatedAt: new Date(),
-      })
+      .set({ claimed: true, regStatus: "active", packageTier: "free", updatedAt: new Date() })
       .where(eq(hospitals.id, finalHospitalId));
 
+    // Delete used OTP
     await db.delete(otpVerifications).where(eq(otpVerifications.id, otpId));
+
+    // ── Create portal user account ─────────────────────────────────────────
+    // Check if a user account already exists with this email
+    const existingUser = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    let userId: string;
+
+    if (existingUser.length) {
+      userId = existingUser[0].id;
+      // Update entity linking in case it was missing
+      await db
+        .update(users)
+        .set({ entityType: "hospital", entityId: finalHospitalId, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+    } else {
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          fullName: contactName,
+          email,
+          entityType: "hospital",
+          entityId: finalHospitalId,
+          isActive: true,
+        })
+        .returning({ id: users.id });
+
+      userId = newUser.id;
+    }
+
+    // Assign hospital_admin role
+    const roleRow = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(eq(roles.code, "hospital_admin"))
+      .limit(1);
+
+    if (roleRow.length) {
+      // upsert — ignore if already has this role
+      const existingRoleMap = await db
+        .select({ id: userRoleMap.id })
+        .from(userRoleMap)
+        .where(and(eq(userRoleMap.userId, userId), eq(userRoleMap.roleId, roleRow[0].id)))
+        .limit(1);
+
+      if (!existingRoleMap.length) {
+        await db.insert(userRoleMap).values({ userId, roleId: roleRow[0].id });
+      }
+    }
+
+    // Create session and set cookie → auto-login
+    const { sessionToken, expiresAt } = await createSession(userId);
+    await setSessionCookie(sessionToken, expiresAt);
 
     return NextResponse.json({
       success: true,
       hospitalId: finalHospitalId,
-      dashboardUrl: `/admin/hospital/${finalHospitalId}`,
+      dashboardUrl: "/portal/hospital?welcome=1",
     });
   } catch (error) {
     return NextResponse.json(
@@ -176,5 +242,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-

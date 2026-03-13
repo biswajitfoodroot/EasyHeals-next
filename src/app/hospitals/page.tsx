@@ -13,7 +13,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function HospitalsPage() {
-  const rows = await listHospitalsDirectory(360);
+  const rows = await listHospitalsDirectory(1000);
   const cityOptions = Array.from(new Set(rows.map((item) => item.city))).sort((a, b) => a.localeCompare(b));
 
   return (

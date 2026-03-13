@@ -6,13 +6,15 @@ import { db } from "@/db/client";
 import { roles, sessions, userRoleMap, users } from "@/db/schema";
 import { SESSION_COOKIE } from "@/lib/session";
 
-export type RoleCode = "owner" | "admin" | "advisor" | "viewer";
+export type RoleCode = "owner" | "admin" | "advisor" | "viewer" | "hospital_admin" | "doctor" | "contributor";
 
 export type AuthContext = {
   userId: string;
   email: string;
   fullName: string;
   role: RoleCode;
+  entityType: string | null;
+  entityId: string | null;
 };
 
 async function findSession(sessionToken: string): Promise<AuthContext | null> {
@@ -22,6 +24,8 @@ async function findSession(sessionToken: string): Promise<AuthContext | null> {
       email: users.email,
       fullName: users.fullName,
       roleCode: roles.code,
+      entityType: users.entityType,
+      entityId: users.entityId,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -35,7 +39,8 @@ async function findSession(sessionToken: string): Promise<AuthContext | null> {
   }
 
   const record = row[0];
-  const role = ["owner", "admin", "advisor", "viewer"].includes(record.roleCode)
+  const validRoles: RoleCode[] = ["owner", "admin", "advisor", "viewer", "hospital_admin", "doctor", "contributor"];
+  const role = validRoles.includes(record.roleCode as RoleCode)
     ? (record.roleCode as RoleCode)
     : "viewer";
 
@@ -44,6 +49,8 @@ async function findSession(sessionToken: string): Promise<AuthContext | null> {
     email: record.email,
     fullName: record.fullName,
     role,
+    entityType: record.entityType ?? null,
+    entityId: record.entityId ?? null,
   };
 }
 

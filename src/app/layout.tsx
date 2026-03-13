@@ -1,6 +1,10 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import { Bricolage_Grotesque, DM_Sans, DM_Serif_Display } from "next/font/google";
+import { cookies } from "next/headers";
 
+import { LocaleProvider } from "@/i18n/LocaleContext";
+import type { Locale } from "@/i18n/translations";
+import { SiteNav } from "@/components/SiteNav";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -25,39 +29,49 @@ const dmSerif = DM_Serif_Display({
 export const metadata: Metadata = {
   metadataBase: new URL("https://easyheals-next.com"),
   title: {
-    default: "EasyHeals Next",
-    template: "%s | EasyHeals Next",
+    default: "EasyHeals",
+    template: "%s | EasyHeals",
   },
   description:
-    "EasyHeals Next offers AI-assisted healthcare search across hospitals, doctors, treatments, and symptoms.",
+    "EasyHeals offers AI-assisted healthcare search across hospitals, doctors, treatments, and symptoms.",
   keywords: ["hospital", "doctor", "appointment", "healthcare", "ai search", "easyheals"],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "EasyHeals Next",
+    title: "EasyHeals",
     description: "AI-assisted healthcare discovery and operations platform.",
     url: "https://easyheals-next.com",
-    siteName: "EasyHeals Next",
+    siteName: "EasyHeals",
     locale: "en_IN",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "EasyHeals Next",
+    title: "EasyHeals",
     description: "Interactive AI healthcare search platform.",
   },
 };
 
-export default function RootLayout({
+const VALID_LOCALES = new Set<Locale>(["en", "hi", "mr", "ta", "bn"]);
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const rawLocale = cookieStore.get("easyheals_locale")?.value ?? "en";
+  const initialLocale: Locale = VALID_LOCALES.has(rawLocale as Locale) ? (rawLocale as Locale) : "en";
+
   return (
-    <html lang="en">
-      <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable}`}>{children}</body>
+    <html lang={initialLocale}>
+      <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable}`}>
+        <LocaleProvider initialLocale={initialLocale}>
+          <SiteNav />
+          {children}
+        </LocaleProvider>
+      </body>
     </html>
   );
 }
-

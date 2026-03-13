@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { quickPrompts } from "@/components/phase1/data";
 import styles from "@/components/phase1/phase1.module.css";
@@ -45,6 +45,8 @@ export function ChatSearch({
   const [followUps, setFollowUps] = useState<string[]>(quickPrompts);
   const [clarifyQuestion, setClarifyQuestion] = useState<string | null>(null);
   const [modelLabel, setModelLabel] = useState("Gemini AI · Multilingual");
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
 
   const languageLabel = useMemo(() => languages[langIndex], [langIndex]);
 
@@ -118,6 +120,44 @@ export function ChatSearch({
     void runQuery(input);
   }
 
+  function toggleVoice() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+
+    const SR =
+      (typeof window !== "undefined" &&
+        ((window as unknown as Record<string, unknown>).SpeechRecognition ||
+          (window as unknown as Record<string, unknown>).webkitSpeechRecognition)) ||
+      null;
+
+    if (!SR) {
+      setModelLabel("Voice input not supported in this browser");
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec = new (SR as any)();
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.lang = "en-IN";
+
+    rec.onresult = (event: { results: { [key: number]: { [key: number]: { transcript: string } } } }) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      void runQuery(transcript);
+    };
+
+    rec.onerror = () => setListening(false);
+    rec.onend = () => setListening(false);
+
+    rec.start();
+    recognitionRef.current = rec as { stop: () => void };
+    setListening(true);
+  }
+
   return (
     <section className={styles.chatCard}>
       <div className={styles.chatTabs} role="tablist" aria-label="Search mode">
@@ -173,6 +213,15 @@ export function ChatSearch({
           placeholder="Type symptoms, doctor name, or ask anything..."
           required
         />
+        <button
+          type="button"
+          className={`${styles.voiceMicBtn} ${listening ? styles.voiceActive : ""}`}
+          onClick={toggleVoice}
+          aria-label={listening ? "Stop voice input" : "Start voice input"}
+          title={listening ? "Listening… click to stop" : "Voice input"}
+        >
+          {listening ? "🔴" : "🎤"}
+        </button>
         <button type="button" onClick={() => setLangIndex((prev) => (prev + 1) % languages.length)}>
           {languageLabel}
         </button>

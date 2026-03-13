@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MonogramAvatar } from "@/components/MonogramAvatar";
 import styles from "@/components/phase1/phase1.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -8,24 +9,18 @@ type ResultCardProps = {
   onContribute: (result: SearchResult) => void;
 };
 
-function avatarLabel(name: string) {
-  const chunks = name
-    .split(" ")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "");
-
-  return chunks.join("") || "EH";
-}
-
 export function ResultCard({ result, onContribute }: ResultCardProps) {
   const isDoctor = result.type === "doctor";
 
   return (
     <article className={styles.resultCard}>
       <div className={styles.resultHead}>
-        <div className={styles.resultIcon}>{isDoctor ? avatarLabel(result.name) : "??"}</div>
+        <MonogramAvatar
+          name={result.name}
+          specialty={isDoctor ? result.specialties[0] : undefined}
+          size={40}
+          borderRadius="12px"
+        />
         <div>
           <h4>{result.name}</h4>
           <p>

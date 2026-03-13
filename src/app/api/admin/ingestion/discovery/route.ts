@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { ingestionResearchQueue } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
-import { googleSearchSnippets, isGoogleProfileUrl } from "@/lib/ingestion";
+import { isGoogleProfileUrl } from "@/lib/ingestion";
 import { ensureRole } from "@/lib/rbac";
 
 const createQueueSchema = z.object({
@@ -32,7 +32,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: { query: null, results: [], queue } });
   }
 
-  const results = await googleSearchSnippets(query);
+  // Call Google Custom Search directly so we can surface the actual error
+  if (!process.env.GOOGLE_SEARCH_API_KEY || !process.env.GOOGLE_SEARCH_CX) {
+    return NextResponse.json(
+      { error: "Google Search is not configured. Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX in your environment." },
+      { status: 503 },
+    );
+  }
+
+  const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
+  searchUrl.searchParams.set("key", process.env.GOOGLE_SEARCH_API_KEY);
+  searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX);
+  searchUrl.searchParams.set("q", query);
+  searchUrl.searchParams.set("num", "8");
+  searchUrl.searchParams.set("gl", "in");
+  searchUrl.searchParams.set("hl", "en");
+
+  const googleRes = await fetch(searchUrl.toString(), { cache: "no-store" });
+
+  if (!googleRes.ok) {
+    const errBody = await googleRes.json().catch(() => ({})) as { error?: { message?: string; status?: string } };
+    const message = errBody?.error?.message ?? `Google API error ${googleRes.status}`;
+    return NextResponse.json(
+      { error: `Google Search failed: ${message}` },
+      { status: 502 },
+    );
+  }
+
+  const payload = (await googleRes.json()) as { items?: Array<{ title?: string; link?: string; snippet?: string }> };
+  const results = (payload.items ?? [])
+    .map((item) => ({ title: item.title?.trim() ?? "", link: item.link?.trim() ?? "", snippet: item.snippet?.trim() ?? "" }))
+    .filter((item) => item.title && item.link)
+    .slice(0, 8);
 
   return NextResponse.json({
     data: {
