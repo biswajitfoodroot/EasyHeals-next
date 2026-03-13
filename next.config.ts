@@ -1,12 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Prevent Turbopack/webpack from bundling native Node modules — required for @libsql/client on Vercel
+  serverExternalPackages: ["@libsql/client", "@libsql/darwin-arm64", "@libsql/linux-x64-gnu"],
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "easyheals.com",
-      },
+      { protocol: "https", hostname: "**" },
+      { protocol: "http",  hostname: "**" },
     ],
     dangerouslyAllowSVG: true,
   },
