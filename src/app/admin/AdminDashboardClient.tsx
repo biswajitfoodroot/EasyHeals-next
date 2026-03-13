@@ -173,6 +173,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [editHospitalDraft, setEditHospitalDraft] = useState<Record<string, string | boolean>>({});
   const [hospitalMgmtBusy, setHospitalMgmtBusy] = useState(false);
   const [hospitalMgmtMsg, setHospitalMgmtMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [selectedHospitalIds, setSelectedHospitalIds] = useState<string[]>([]);
 
   // ── Quick Create Hospital ───────────────────────────────────────────────────
   const [newHospName, setNewHospName] = useState("");
@@ -245,6 +246,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     errors: string[];
   } | null>(null);
   const [agentBatchError, setAgentBatchError] = useState<string | null>(null);
+  
+  // Hospital search for ambiguous matches
+  const [ambiguousSearchQueries, setAmbiguousSearchQueries] = useState<Record<string, string>>({});
+  const [ambiguousSearchResults, setAmbiguousSearchResults] = useState<Record<string, Array<{ id: string; name: string; slug: string; city: string; state: string | null; phone: string | null; isActive: boolean }>>>({});
+  const [ambiguousSearchLoading, setAmbiguousSearchLoading] = useState<Record<string, boolean>>({});
 
   // ── Brochure Extractor ──────────────────────────────────────────────────────
   const [brochureText, setBrochureText] = useState("");
@@ -317,6 +323,35 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       return matchSearch && matchCity && matchStatus;
     });
   }, [hospitalList, hospitalSearch, hospitalCityFilter, hospitalStatusFilter]);
+
+  const allFilteredSelected = filteredHospitals.length > 0 && filteredHospitals.every(h => selectedHospitalIds.includes(h.id));
+
+  function toggleSelectAllHospitals() {
+    if (allFilteredSelected) {
+      const idsToRemove = filteredHospitals.map(h => h.id);
+      setSelectedHospitalIds(prev => prev.filter(id => !idsToRemove.includes(id)));
+    } else {
+      const idsToAdd = filteredHospitals.map(h => h.id).filter(id => !selectedHospitalIds.includes(id));
+      setSelectedHospitalIds(prev => [...prev, ...idsToAdd]);
+    }
+  }
+
+  function toggleHospitalSelection(id: string) {
+    setSelectedHospitalIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function handlePopulateData() {
+    const selectedNames = hospitalList
+      .filter(h => selectedHospitalIds.includes(h.id))
+      .map(h => h.name)
+      .join(", ");
+    
+    if (!selectedNames) return;
+    
+    setAgentQuery(`Find service details, packages, and doctor list of (cardiology, general surgeon, oncology, gastro, neurology, etc) for: ${selectedNames}`);
+    setActiveTab("ai_research");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   const uniqueCities = useMemo(
     () => [...new Set(hospitalList.map((h) => h.city).filter(Boolean))].sort() as string[],
@@ -861,6 +896,28 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     );
   }
 
+  async function onSearchAmbiguousHospitals(key: string, query: string) {
+    setAmbiguousSearchQueries((prev) => ({ ...prev, [key]: query }));
+    
+    // Fallback to local filtering for instant results
+    const lower = query.toLowerCase();
+    const results = hospitalList
+      .filter((h) => 
+        h.name.toLowerCase().includes(lower) || 
+        (h.city ?? "").toLowerCase().includes(lower) ||
+        (h.state ?? "").toLowerCase().includes(lower)
+      )
+      .slice(0, 50); // Show more results locally
+    
+    setAmbiguousSearchResults((prev) => ({ ...prev, [key]: results }));
+    
+    // If query is empty, we don't need to load anything extra
+    if (query.trim().length === 0) return;
+
+    // Optional: still trigger background fetch if we want to be sure about server-side matches
+    // but for now, local search on 23-100 hospitals is sufficient.
+  }
+
   function onBrochureHospitalSearchChange(q: string) {
     setBrochureHospitalSearch(q);
     setBrochureTargetHospital(null);
@@ -1289,6 +1346,17 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               <span className="self-center text-xs text-slate-400 font-medium">
                 {filteredHospitals.length} result{filteredHospitals.length !== 1 ? "s" : ""}
               </span>
+              {selectedHospitalIds.length > 0 && (
+                <button
+                  onClick={handlePopulateData}
+                  className="px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-sm transition flex items-center gap-2 font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                  </svg>
+                  Populate Data ({selectedHospitalIds.length})
+                </button>
+              )}
             </div>
 
             {hospitalMgmtMsg && (
@@ -1303,6 +1371,14 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-left">
+                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap w-12 text-center">
+                        <input
+                          type="checkbox"
+                          checked={allFilteredSelected}
+                          onChange={toggleSelectAllHospitals}
+                          className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                        />
+                      </th>
                       <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Hospital</th>
                       <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">City / State</th>
                       <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Phone</th>
@@ -1314,14 +1390,22 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                   <tbody className="divide-y divide-slate-100">
                     {filteredHospitals.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm italic">
+                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm italic">
                           No hospitals match your filters.
                         </td>
                       </tr>
                     )}
                     {filteredHospitals.map((h) => (
                       <React.Fragment key={h.id}>
-                        <tr className="hover:bg-slate-50/60 transition-colors group">
+                        <tr className={`hover:bg-slate-50/60 transition-colors group ${selectedHospitalIds.includes(h.id) ? "bg-teal-50/20" : ""}`}>
+                          <td className="px-4 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedHospitalIds.includes(h.id)}
+                              onChange={() => toggleHospitalSelection(h.id)}
+                              className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="px-4 py-3">
                             <p className="font-semibold text-slate-800">{h.name}</p>
                             <p className="text-xs text-slate-400 font-mono mt-0.5">{h.slug}</p>
@@ -1379,7 +1463,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                         {/* Inline edit row */}
                         {editingHospitalId === h.id && (
                           <tr className="bg-teal-50/50">
-                            <td colSpan={6} className="px-4 py-4">
+                            <td colSpan={7} className="px-4 py-4">
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 <div>
                                   <label className="text-xs font-semibold text-slate-500 mb-1 block">Hospital Name</label>
@@ -2201,37 +2285,91 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                           <p className="text-sm font-bold text-amber-800">
                             {agentBatchResult.ambiguous.length} hospital{agentBatchResult.ambiguous.length > 1 ? "s" : ""} need your input — multiple matches found
                           </p>
-                          {agentBatchResult.ambiguous.map((item) => (
-                            <div key={`${item.name}-${item.city}`} className="bg-white border border-amber-200 rounded-xl p-3 space-y-2">
+                          {agentBatchResult.ambiguous.map((item) => {
+                            const key = `${item.name}-${item.city}`;
+                            const searchQuery = ambiguousSearchQueries[key] || "";
+                            const searchResults = ambiguousSearchResults[key] || [];
+                            const isSearching = ambiguousSearchLoading[key] || false;
+                            
+                            return (
+                            <div key={key} className="bg-white border border-amber-200 rounded-xl p-3 space-y-2">
                               <p className="text-sm font-semibold text-slate-800">"{item.name}" <span className="text-slate-400 text-xs font-normal">in {item.city}</span></p>
-                              <div className="space-y-1.5">
-                                {item.candidates.map((c) => (
-                                  <div key={c.id} className="flex items-center justify-between gap-2">
-                                    <div className="min-w-0">
-                                      <p className="text-xs font-medium text-slate-700 truncate">{c.name}</p>
-                                      <p className="text-xs text-slate-400">{c.city}{c.state ? `, ${c.state}` : ""}</p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      disabled={brochureApplyBusy}
-                                      onClick={() => onResolveAmbiguous(item.name, item.city, c.id)}
-                                      className="shrink-0 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
-                                    >
-                                      Update This
-                                    </button>
-                                  </div>
-                                ))}
-                                <button
-                                  type="button"
-                                  disabled={brochureApplyBusy}
-                                  onClick={() => onCreateAmbiguousAsNew(item.name, item.city)}
-                                  className="w-full py-1.5 border border-slate-200 hover:border-slate-400 text-slate-500 text-xs rounded-lg transition-colors disabled:opacity-60"
-                                >
-                                  + Create as New
-                                </button>
+                              
+                              {/* Search field */}
+                              <div className="pb-2 border-b border-amber-100">
+                                <input
+                                  type="text"
+                                  placeholder="🔍 Search all hospitals..."
+                                  value={searchQuery}
+                                  onChange={(e) => onSearchAmbiguousHospitals(key, e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
+                                />
                               </div>
+                              
+                              <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                                {/* Show search results if searching */}
+                                {searchQuery.trim().length > 1 ? (
+                                  <>
+                                    {isSearching ? (
+                                      <p className="text-xs text-slate-400 py-2">Searching...</p>
+                                    ) : searchResults.length > 0 ? (
+                                      <>
+                                        <p className="text-xs font-semibold text-slate-600 px-1">Search Results ({searchResults.length})</p>
+                                        {searchResults.map((c) => (
+                                          <div key={c.id} className="flex items-center justify-between gap-2 px-1.5 py-1 hover:bg-slate-50 rounded">
+                                            <div className="min-w-0">
+                                              <p className="text-xs font-medium text-slate-700 truncate">{c.name}</p>
+                                              <p className="text-xs text-slate-400">{c.city}{c.state ? `, ${c.state}` : ""}</p>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              disabled={brochureApplyBusy}
+                                              onClick={() => onResolveAmbiguous(item.name, item.city, c.id)}
+                                              className="shrink-0 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+                                            >
+                                              Update This
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </>
+                                    ) : (
+                                      <p className="text-xs text-slate-400 py-2">No hospitals found matching "{searchQuery}"</p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-xs font-semibold text-slate-600 px-1">AI Suggested Matches</p>
+                                    {item.candidates.map((c) => (
+                                      <div key={c.id} className="flex items-center justify-between gap-2 px-1.5 py-1 hover:bg-slate-50 rounded">
+                                        <div className="min-w-0">
+                                          <p className="text-xs font-medium text-slate-700 truncate">{c.name}</p>
+                                          <p className="text-xs text-slate-400">{c.city}{c.state ? `, ${c.state}` : ""}</p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          disabled={brochureApplyBusy}
+                                          onClick={() => onResolveAmbiguous(item.name, item.city, c.id)}
+                                          className="shrink-0 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60"
+                                        >
+                                          Update This
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
+                              </div>
+                              
+                              <button
+                                type="button"
+                                disabled={brochureApplyBusy}
+                                onClick={() => onCreateAmbiguousAsNew(item.name, item.city)}
+                                className="w-full py-1.5 border border-slate-200 hover:border-slate-400 text-slate-500 text-xs rounded-lg transition-colors disabled:opacity-60"
+                              >
+                                + Create as New
+                              </button>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </>
