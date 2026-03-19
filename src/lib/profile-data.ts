@@ -483,6 +483,10 @@ export async function getTreatmentProfileBySlug(slug: string) {
 }
 
 export async function listAllSlugs() {
+  if (!process.env.TURSO_DATABASE_URL) {
+    return { hospitals: [], doctors: [], treatments: [] };
+  }
+
   const [hospitalSlugs, doctorSlugs, treatmentSlugs] = await Promise.all([
     db.select({ slug: hospitals.slug }).from(hospitals).where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true))),
     db.select({ slug: doctors.slug }).from(doctors).where(eq(doctors.isActive, true)),
