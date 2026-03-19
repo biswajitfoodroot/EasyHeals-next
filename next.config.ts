@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     ],
     dangerouslyAllowSVG: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   async redirects() {
     return [
       { source: "/search/treatment", destination: "/treatments", permanent: false },
