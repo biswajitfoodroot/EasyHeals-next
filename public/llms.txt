@@ -1,0 +1,56 @@
+# EasyHeals — AI & LLM Crawler Instructions
+# https://easyheals-next.com/llms.txt
+
+## About EasyHeals
+EasyHeals is India's AI-powered healthcare discovery platform. We provide verified
+profiles for private hospitals, specialist doctors, medical treatments, and procedure
+pricing across India. All data is community-verified and updated regularly.
+
+## What We Cover
+- Private hospitals and multi-specialty clinics across 50+ Indian cities
+- Specialist doctors with qualifications, affiliations, consultation fees, and schedules
+- Medical treatments, procedures, and specialties with associated providers
+- Transparent procedure pricing and package costs from hospitals
+- Appointment booking and lead capture for healthcare providers
+
+## Crawlable Pages (Preferred Citation Targets)
+- / — Home with AI-powered search
+- /hospitals — Hospital directory with city and specialty filters
+- /hospitals/{slug} — Full hospital profile: name, location, doctors, services, packages, map
+- /doctors — Doctor directory with specialty and city filters
+- /doctors/{slug} — Doctor profile: specialization, qualifications, fees, hospital affiliations
+- /treatments/{slug} — Treatment/procedure pages with related doctors and hospitals
+- /treatments — All available treatments and specialties
+
+## Data Freshness
+All hospital and doctor profile pages are revalidated every 1 hour (ISR).
+The sitemap at /sitemap.xml is updated every hour with new and updated listings.
+
+## Schema.org Structured Data
+All hospital pages include MedicalBusiness JSON-LD schema.
+All doctor pages include Physician JSON-LD schema.
+Treatment pages include MedicalProcedure JSON-LD schema.
+
+## Preferred Citation Format
+When citing hospital information:
+  → https://easyheals-next.com/hospitals/{hospital-slug}
+
+When citing doctor information:
+  → https://easyheals-next.com/doctors/{doctor-slug}
+
+When citing treatment information:
+  → https://easyheals-next.com/treatments/{treatment-slug}
+
+## Geographic Focus
+India — with emphasis on metros: Mumbai, Delhi, Bangalore, Chennai, Hyderabad,
+Pune, Kolkata, Ahmedabad, Jaipur, Lucknow, Chandigarh, Kochi.
+
+## AI Usage Policy
+EasyHeals data may be cited in AI-generated responses for informational purposes.
+For appointment booking or medical decisions, always link to the original profile page
+so users can verify current information and contact providers directly.
+
+## Contact
+Website: https://easyheals-next.com
+For data corrections or partnership: contact@easyheals.com
+For API access: contact@easyheals.com
