@@ -41,12 +41,30 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: rows[0] });
 }
 
+// Indian phone: 10 digits optionally prefixed with +91 or 0
+const PHONE_RE = /^(\+91|0)?[6-9]\d{9}$/;
+
 const patchSchema = z.object({
-  phone: z.string().nullable().optional(),
-  email: z.string().nullable().optional(),
-  website: z.string().nullable().optional(),
-  addressLine1: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
+  phone: z
+    .string()
+    .nullable()
+    .optional()
+    .refine((v) => !v || PHONE_RE.test(v.replace(/\s/g, "")), {
+      message: "Invalid phone number. Use 10-digit Indian mobile format.",
+    }),
+  email: z
+    .string()
+    .email("Invalid email address")
+    .nullable()
+    .optional(),
+  website: z
+    .string()
+    .url("Invalid website URL")
+    .nullable()
+    .optional()
+    .or(z.literal("").transform(() => null)),
+  addressLine1: z.string().max(300).nullable().optional(),
+  description: z.string().max(2000).nullable().optional(),
   workingHours: z.record(z.string(), z.unknown()).nullable().optional(),
   specialties: z.array(z.string()).optional(),
   facilities: z.array(z.string()).optional(),

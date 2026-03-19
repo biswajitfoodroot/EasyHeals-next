@@ -30,6 +30,9 @@ export const users = sqliteTable(
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     entityType: text("entity_type"),
     entityId: text("entity_id"),
+    // KYC status for provider accounts (hospital_admin / doctor roles)
+    kycStatus: text("kyc_status").notNull().default("not_required"),
+    // values: not_required | pending | submitted | approved | rejected
     // P2 — TOTP (HLD §8.2 G-TOTP gate — mandatory for owner/admin)
     totpSecret: text("totp_secret"),               // base32-encoded TOTP secret (encrypted at rest)
     totpEnabled: integer("totp_enabled", { mode: "boolean" }).notNull().default(false),
@@ -1298,6 +1301,57 @@ export const documentAccessLog = sqliteTable(
   (table) => [
     index("doc_access_share_idx").on(table.shareId),
     index("doc_access_user_idx").on(table.accessedBy),
+  ],
+);
+
+// ── ACCESS MANAGEMENT (0009) ──────────────────────────────────────────────────
+
+/** One user → many hospitals/clinics with per-entity permissions. */
+export const userEntityPermissions = sqliteTable(
+  "user_entity_permissions",
+  {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id),
+    entityType: text("entity_type").notNull(), // 'hospital' | 'doctor'
+    entityId: text("entity_id").notNull(),
+    isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
+    permissions: text("permissions").notNull().default("edit"), // 'edit' | 'view'
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("uep_user_entity_unique_idx").on(table.userId, table.entityType, table.entityId),
+    index("uep_user_idx").on(table.userId),
+    index("uep_entity_idx").on(table.entityType, table.entityId),
+  ],
+);
+
+/** KYC / entity-access request workflow: provider submits → admin_manager approves → admin_editor links. */
+export const entityAccessRequests = sqliteTable(
+  "entity_access_requests",
+  {
+    id: id(),
+    requesterId: text("requester_id").notNull().references(() => users.id),
+    entityType: text("entity_type").notNull(), // 'hospital' | 'doctor' | 'clinic'
+    entityId: text("entity_id"),              // null = requesting to create new entity
+    businessName: text("business_name"),
+    licenseNumber: text("license_number"),
+    licenseType: text("license_type"),        // 'clinic' | 'hospital' | 'medical_practice'
+    kycDocuments: text("kyc_documents", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    contactPhone: text("contact_phone"),
+    contactEmail: text("contact_email"),
+    notes: text("notes"),
+    status: text("status").notNull().default("pending"),
+    // pending | under_review | approved | rejected | info_requested
+    reviewedBy: text("reviewed_by").references(() => users.id),
+    reviewedAt: integer("reviewed_at", { mode: "timestamp_ms" }),
+    reviewNotes: text("review_notes"),
+    approvedEntityId: text("approved_entity_id"), // linked entity after approval
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ear_requester_idx").on(table.requesterId),
+    index("ear_status_idx").on(table.status),
   ],
 );
 

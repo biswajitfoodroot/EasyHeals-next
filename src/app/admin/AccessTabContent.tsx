@@ -16,11 +16,13 @@ type UserRow = {
   createdAt: string | null;
 };
 
+type EntityOption = { id: string; name: string };
+
 type Props = {
   me: Me;
 };
 
-const ROLE_OPTIONS = ["owner", "admin", "advisor", "viewer", "hospital_admin", "doctor"];
+const ROLE_OPTIONS = ["owner", "admin", "admin_manager", "admin_editor", "advisor", "viewer", "hospital_admin", "doctor", "receptionist"];
 
 const ACCESS_MATRIX: {
   role: string;
@@ -98,11 +100,16 @@ const EMPTY_FORM = {
 };
 
 export default function AccessTabContent({ me }: Props) {
-  const canManage = me.role === "owner" || me.role === "admin";
+  const canManage = me.role === "owner" || me.role === "admin" || me.role === "admin_manager";
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
+
+  // Entity lists for searchable dropdowns
+  const [hospitalOptions, setHospitalOptions] = useState<EntityOption[]>([]);
+  const [doctorOptions, setDoctorOptions] = useState<EntityOption[]>([]);
+  const [entitySearch, setEntitySearch] = useState("");
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState({ ...EMPTY_FORM });
@@ -137,7 +144,25 @@ export default function AccessTabContent({ me }: Props) {
 
   useEffect(() => {
     void loadUsers();
+    void loadEntityOptions();
   }, []);
+
+  async function loadEntityOptions() {
+    try {
+      const [hRes, dRes] = await Promise.all([
+        fetch("/api/hospitals?limit=500&fields=id,name"),
+        fetch("/api/admin/users?entityOptionsOnly=1"),
+      ]);
+      if (hRes.ok) {
+        const hJson = await hRes.json() as { data?: { id: string; name: string }[] };
+        setHospitalOptions((hJson.data ?? []).map((h) => ({ id: h.id, name: h.name })));
+      }
+      if (dRes.ok) {
+        const dJson = await dRes.json() as { doctors?: { id: string; fullName: string }[] };
+        setDoctorOptions((dJson.doctors ?? []).map((d) => ({ id: d.id, name: d.fullName })));
+      }
+    } catch { /* non-fatal */ }
+  }
 
   async function handleAddUser(e: FormEvent) {
     e.preventDefault();
@@ -366,7 +391,7 @@ export default function AccessTabContent({ me }: Props) {
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Entity Type</label>
                   <select
                     value={addForm.entityType}
-                    onChange={(e) => setAddForm({ ...addForm, entityType: e.target.value })}
+                    onChange={(e) => setAddForm({ ...addForm, entityType: e.target.value, entityId: "" })}
                     className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
                   >
                     <option value="">None</option>
@@ -375,13 +400,23 @@ export default function AccessTabContent({ me }: Props) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Entity ID</label>
-                  <input
-                    value={addForm.entityId}
-                    onChange={(e) => setAddForm({ ...addForm, entityId: e.target.value })}
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                    placeholder="UUID of hospital or doctor"
-                  />
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">
+                    Linked {addForm.entityType === "hospital" ? "Hospital" : addForm.entityType === "doctor" ? "Doctor" : "Entity"}
+                  </label>
+                  {addForm.entityType ? (
+                    <select
+                      value={addForm.entityId}
+                      onChange={(e) => setAddForm({ ...addForm, entityId: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                    >
+                      <option value="">— select —</option>
+                      {(addForm.entityType === "hospital" ? hospitalOptions : doctorOptions).map((opt) => (
+                        <option key={opt.id} value={opt.id}>{opt.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input disabled value="" placeholder="Select entity type first" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-400 outline-none" />
+                  )}
                 </div>
               </div>
 
@@ -531,7 +566,7 @@ export default function AccessTabContent({ me }: Props) {
                                 <label className="block text-xs font-semibold text-slate-500 mb-1">Entity Type</label>
                                 <select
                                   value={editForm.entityType}
-                                  onChange={(e) => setEditForm({ ...editForm, entityType: e.target.value })}
+                                  onChange={(e) => setEditForm({ ...editForm, entityType: e.target.value, entityId: "" })}
                                   className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
                                 >
                                   <option value="">None</option>
@@ -540,13 +575,23 @@ export default function AccessTabContent({ me }: Props) {
                                 </select>
                               </div>
                               <div>
-                                <label className="block text-xs font-semibold text-slate-500 mb-1">Entity ID</label>
-                                <input
-                                  value={editForm.entityId}
-                                  onChange={(e) => setEditForm({ ...editForm, entityId: e.target.value })}
-                                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
-                                  placeholder="UUID"
-                                />
+                                <label className="block text-xs font-semibold text-slate-500 mb-1">
+                                  Linked {editForm.entityType === "hospital" ? "Hospital" : editForm.entityType === "doctor" ? "Doctor" : "Entity"}
+                                </label>
+                                {editForm.entityType ? (
+                                  <select
+                                    value={editForm.entityId}
+                                    onChange={(e) => setEditForm({ ...editForm, entityId: e.target.value })}
+                                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+                                  >
+                                    <option value="">— select —</option>
+                                    {(editForm.entityType === "hospital" ? hospitalOptions : doctorOptions).map((opt) => (
+                                      <option key={opt.id} value={opt.id}>{opt.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input disabled value="" placeholder="Select entity type first" className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-sm text-slate-400 outline-none" />
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">

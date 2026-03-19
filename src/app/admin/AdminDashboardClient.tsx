@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AdminPatientsTab } from "./AdminPatientsTab";
 import { AdminAppointmentsTab } from "./AdminAppointmentsTab";
 import { AdminProvidersTab } from "./AdminProvidersTab";
+import KycReviewTabContent from "./KycReviewTabContent";
 
 type Me = { fullName: string; email: string; role: string };
 type Hospital = {
@@ -126,7 +127,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc";
 
 type BrochureDiff = {
   dryRun: true;
@@ -156,7 +157,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "config", "patients", "appointments", "providers"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -1264,7 +1265,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1272,6 +1273,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               ai_research: { label: "AI Research", icon: "🔍" },
               brochure: { label: "Brochure Extract", icon: "📄" },
               contributions: { label: "Contributions", icon: "✏️" },
+              kyc: { label: "KYC Requests", icon: "🪪" },
               config: { label: "Config & Flags", icon: "⚙️" },
               patients: { label: "Patients", icon: "👤" },
               appointments: { label: "Appointments", icon: "📅" },
@@ -2844,6 +2846,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         {/* ── CONTRIBUTIONS TAB ─────────────────────────────────────────── */}
         {activeTab === "contributions" && (
           <ContributionsTabContent />
+        )}
+
+        {/* ── KYC REQUESTS TAB ──────────────────────────────────────────── */}
+        {activeTab === "kyc" && (
+          <KycReviewTabContent myRole={me.role} />
         )}
 
         {/* ── CONFIG / FEATURE FLAGS TAB (Task 3.5) ──────────────────── */}

@@ -9,7 +9,7 @@ import { SESSION_COOKIE, hashSessionToken } from "@/lib/session";
 /** Roles that require TOTP verification on every session (HLD §8.2 G-TOTP gate). */
 const TOTP_REQUIRED_ROLES: RoleCode[] = ["owner", "admin"];
 
-export type RoleCode = "owner" | "admin" | "advisor" | "viewer" | "hospital_admin" | "doctor" | "contributor" | "receptionist";
+export type RoleCode = "owner" | "admin" | "admin_manager" | "admin_editor" | "advisor" | "viewer" | "hospital_admin" | "doctor" | "contributor" | "receptionist";
 
 export type AuthContext = {
   userId: string;
@@ -49,7 +49,7 @@ async function findSession(
   if (!row.length) return { auth: null };
 
   const record = row[0];
-  const validRoles: RoleCode[] = ["owner", "admin", "advisor", "viewer", "hospital_admin", "doctor", "contributor", "receptionist"];
+  const validRoles: RoleCode[] = ["owner", "admin", "admin_manager", "admin_editor", "advisor", "viewer", "hospital_admin", "doctor", "contributor", "receptionist"];
   const role = validRoles.includes(record.roleCode as RoleCode) ? (record.roleCode as RoleCode) : "viewer";
 
   const totpEnabled = record.totpEnabled ?? false;

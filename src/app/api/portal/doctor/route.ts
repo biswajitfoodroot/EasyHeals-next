@@ -40,19 +40,27 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: rows[0] });
 }
 
+const PHONE_RE = /^(\+91|0)?[6-9]\d{9}$/;
+
 const patchSchema = z.object({
-  bio: z.string().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  email: z.string().nullable().optional(),
+  bio: z.string().max(2000).nullable().optional(),
+  phone: z
+    .string()
+    .nullable()
+    .optional()
+    .refine((v) => !v || PHONE_RE.test(v.replace(/\s/g, "")), {
+      message: "Invalid phone number. Use 10-digit Indian mobile format.",
+    }),
+  email: z.string().email("Invalid email address").nullable().optional(),
   qualifications: z.array(z.string()).optional(),
   languages: z.array(z.string()).optional(),
-  consultationFee: z.number().nullable().optional(),
-  feeMin: z.number().nullable().optional(),
-  feeMax: z.number().nullable().optional(),
+  consultationFee: z.number().positive().nullable().optional(),
+  feeMin: z.number().positive().nullable().optional(),
+  feeMax: z.number().positive().nullable().optional(),
   consultationHours: z.record(z.string(), z.unknown()).nullable().optional(),
-  avatarUrl: z.string().nullable().optional(),
-  yearsOfExperience: z.number().int().nullable().optional(),
-  specialization: z.string().nullable().optional(),
+  avatarUrl: z.string().url().nullable().optional(),
+  yearsOfExperience: z.number().int().min(0).max(70).nullable().optional(),
+  specialization: z.string().max(100).nullable().optional(),
   specialties: z.array(z.string()).optional(),
 });
 

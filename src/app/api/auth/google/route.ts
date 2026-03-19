@@ -6,7 +6,10 @@ import { db } from "@/db/client";
 import { roles, userRoleMap, users } from "@/db/schema";
 import { createSession, setSessionCookie } from "@/lib/session";
 
-const bodySchema = z.object({ idToken: z.string().min(10) });
+const bodySchema = z.object({
+  idToken: z.string().min(10),
+  portalLogin: z.boolean().optional().default(false),
+});
 
 type GoogleTokenInfo = {
   sub: string;
@@ -57,7 +60,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const info = await verifyGoogleToken(parsed.data.idToken);
+  const { idToken, portalLogin } = parsed.data;
+  const info = await verifyGoogleToken(idToken);
   if (!info || info.email_verified !== "true") {
     return NextResponse.json({ error: "Invalid or unverified Google token" }, { status: 401 });
   }
@@ -116,12 +120,40 @@ export async function POST(req: NextRequest) {
   const { sessionToken, expiresAt } = await createSession(userId);
   await setSessionCookie(sessionToken, expiresAt);
 
-  // Fetch the saved user for response
+  // Fetch the saved user + role for response
   const [savedUser] = await db
     .select({ fullName: users.fullName, email: users.email, googleAvatar: users.googleAvatar })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
+
+  // If this is a portal login, return role + portalUrl
+  if (portalLogin) {
+    const roleRows = await db
+      .select({ code: roles.code })
+      .from(userRoleMap)
+      .innerJoin(roles, eq(roles.id, userRoleMap.roleId))
+      .where(eq(userRoleMap.userId, userId))
+      .limit(1);
+
+    const role = roleRows[0]?.code ?? "contributor";
+    let portalUrl: string;
+    if (role === "hospital_admin") portalUrl = "/portal/hospital/dashboard";
+    else if (role === "doctor") portalUrl = "/portal/doctor/dashboard";
+    else if (["owner", "admin", "advisor", "admin_manager", "admin_editor"].includes(role)) portalUrl = "/admin";
+    else portalUrl = "/portal/kyc-request";
+
+    return NextResponse.json({
+      data: {
+        userId,
+        role,
+        portalUrl,
+        name: savedUser?.fullName ?? info.name,
+        email: savedUser?.email ?? info.email,
+        avatar: savedUser?.googleAvatar ?? info.picture,
+      },
+    });
+  }
 
   return NextResponse.json({
     userId,
