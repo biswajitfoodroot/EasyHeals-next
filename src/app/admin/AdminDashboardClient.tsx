@@ -324,7 +324,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         !q ||
         h.name.toLowerCase().includes(q) ||
         (h.city ?? "").toLowerCase().includes(q) ||
-        (h.state ?? "").toLowerCase().includes(q);
+        (h.state ?? "").toLowerCase().includes(q) ||
+        h.id.toLowerCase().includes(q);
       const matchCity = !hospitalCityFilter || h.city === hospitalCityFilter;
       const matchStatus =
         hospitalStatusFilter === "all" ||
@@ -1336,7 +1337,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                 className="flex-1 min-w-[200px] px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm"
                 value={hospitalSearch}
                 onChange={(e) => setHospitalSearch(e.target.value)}
-                placeholder="Search by name, city, or state..."
+                placeholder="Search by name, city, state, or UUID..."
               />
               <select
                 className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm"
@@ -1423,6 +1424,13 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                           <td className="px-4 py-3">
                             <p className="font-semibold text-slate-800">{h.name}</p>
                             <p className="text-xs text-slate-400 font-mono mt-0.5">{h.slug}</p>
+                            <button
+                              className="text-xs text-slate-300 font-mono mt-0.5 hover:text-teal-600 transition-colors text-left truncate max-w-[200px] block"
+                              title={`UUID: ${h.id} — click to copy`}
+                              onClick={() => { void navigator.clipboard.writeText(h.id); }}
+                            >
+                              {h.id.slice(0, 8)}…
+                            </button>
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {h.city}
@@ -1524,6 +1532,24 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                     onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, email: e.target.value })}
                                     placeholder="contact@hospital.com"
                                   />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Hospital UUID</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      readOnly
+                                      value={h.id}
+                                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-slate-100 text-slate-500 outline-none select-all"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => { void navigator.clipboard.writeText(h.id); }}
+                                      className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs rounded-lg transition-colors whitespace-nowrap"
+                                      title="Copy UUID"
+                                    >
+                                      Copy
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="flex items-end gap-2">
                                   <button
