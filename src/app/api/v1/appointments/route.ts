@@ -65,7 +65,7 @@ const bookSchema = z.object({
   hospitalId: z.string().uuid(),
   doctorId: z.string().uuid().optional(),
   slotId: z.string().uuid().optional(),
-  type: z.enum(["in_person", "online_consultation"]).default("in_person"),
+  type: z.enum(["in_person", "audio_consultation", "video_consultation"]).default("in_person"),
   scheduledAt: z.string().datetime().optional(), // ISO-8601; required if no slotId
   patientNotes: z.string().max(1000).optional(),
   consentGranted: z.literal(true),
@@ -186,7 +186,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       if ("sendWhatsAppTemplate" in notif) {
         await (notif as any).sendWhatsAppTemplate(rawPhone, "easyheals_appointment_confirmed", {
           HOSPITAL: hospitalRows[0].name,
-          TYPE: type === "online_consultation" ? "Online Consultation" : "In-Person Visit",
+          TYPE: type !== "in_person" ? "Online Consultation" : "In-Person Visit",
           DATE: resolvedScheduledAt
             ? resolvedScheduledAt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
             : "To be confirmed",
@@ -233,6 +233,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       hospitalCity: hospitals.city,
       doctorId: doctors.id,
       doctorName: doctors.fullName,
+      consultationFee: appointments.consultationFee,
+      paymentStatus: appointments.paymentStatus,
+      meetingUrl: appointments.meetingUrl,
     })
     .from(appointments)
     .leftJoin(hospitals, eq(hospitals.id, appointments.hospitalId))

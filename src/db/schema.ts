@@ -1028,7 +1028,7 @@ export const appointments = sqliteTable(
     patientId: text("patient_id").notNull().references(() => patients.id),
     doctorId: text("doctor_id").references(() => doctors.id),
     hospitalId: text("hospital_id").references(() => hospitals.id),
-    type: text("type").notNull().default("in_person"), // in_person | online_consultation
+    type: text("type").notNull().default("in_person"), // in_person | audio_consultation | video_consultation
     status: text("status").notNull().default("requested"),
     // status lifecycle: requested → confirmed → in_progress → completed | cancelled | no_show
     scheduledAt: integer("scheduled_at", { mode: "timestamp_ms" }),
@@ -1041,6 +1041,9 @@ export const appointments = sqliteTable(
     consentRecordId: text("consent_record_id"),    // DPDP — FK to consent_records
     sourcePlatform: text("source_platform").default("web"), // web | crm | agent_portal
     slotId: text("slot_id"), // booked slot (if slot-based)
+    consultationFee: real("consultation_fee"),
+    paymentStatus: text("payment_status").notNull().default("none"),
+    meetingUrl: text("meeting_url"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
   },

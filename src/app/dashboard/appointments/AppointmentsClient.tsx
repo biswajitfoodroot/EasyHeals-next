@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 interface Appointment {
   id: string;
-  type: "in_person" | "online_consultation";
+  type: "in_person" | "audio_consultation" | "video_consultation" | "online_consultation";
   status: string;
   scheduledAt: string | null;
   confirmedAt: string | null;
@@ -21,7 +21,9 @@ interface Appointment {
   hospitalId: string | null;
   hospitalName: string | null;
   hospitalCity: string | null;
-  sessionId?: string | null;
+  consultationFee: number | null;
+  paymentStatus: string | null;
+  meetingUrl: string | null;
 }
 
 type Tab = "upcoming" | "past" | "cancelled";
@@ -61,6 +63,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function TypeBadge({ type }: { type: string }) {
+  if (type === "audio_consultation") {
+    return <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">📞 Audio</span>;
+  }
+  if (type === "video_consultation" || type === "online_consultation") {
+    return <span className="text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">🎥 Video</span>;
+  }
+  return <span className="text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">🏥 In-Person</span>;
+}
+
 function Skeleton() {
   return (
     <div className="space-y-3">
@@ -76,25 +88,39 @@ function Skeleton() {
 function AppointmentCard({
   appt,
   onCancel,
+  onPay,
   cancelling,
+  paying,
 }: {
   appt: Appointment;
   onCancel: (id: string) => void;
+  onPay: (id: string) => void;
   cancelling: string | null;
+  paying: string | null;
 }) {
-  const isOnline = appt.type === "online_consultation";
+  const isRemote = appt.type === "audio_consultation" || appt.type === "video_consultation" || appt.type === "online_consultation";
   const isConfirmed = appt.status === "confirmed";
   const isUpcoming = ["requested", "confirmed", "in_progress"].includes(appt.status);
-  const canJoin = isOnline && isConfirmed && !!appt.sessionId;
+  // canJoin: paid, waived, or no payment configured (legacy "none" treated as free)
+  const canJoin = isRemote && isConfirmed && !!appt.meetingUrl &&
+    (appt.paymentStatus === "paid" || appt.paymentStatus === "waived" || appt.paymentStatus === "none" || !appt.paymentStatus);
+  // needsPayment: ONLY when hospital explicitly set a fee > 0 (paymentStatus = "pending")
+  const needsPayment = isRemote && isConfirmed && appt.paymentStatus === "pending";
+
+  function typeLabel(type: string) {
+    if (type === "audio_consultation") return "Audio Consultation";
+    if (type === "video_consultation" || type === "online_consultation") return "Video Consultation";
+    return "In-person Visit";
+  }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         {/* Left: info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-2">
-            <span className="text-base">{isOnline ? "📹" : "🏥"}</span>
             <StatusBadge status={appt.status} />
+            <TypeBadge type={appt.type} />
           </div>
           <p className="font-semibold text-slate-800 truncate">
             {appt.doctorName ?? "Doctor TBC"}
@@ -104,8 +130,7 @@ function AppointmentCard({
             {appt.hospitalCity ? `, ${appt.hospitalCity}` : ""}
           </p>
           <p className="text-sm text-slate-600 mt-1">
-            {isOnline ? "Video Consultation" : "In-person Visit"} &bull;{" "}
-            {formatDateTime(appt.scheduledAt)}
+            {typeLabel(appt.type)} &bull; {formatDateTime(appt.scheduledAt)}
           </p>
           {appt.cancellationReason && (
             <p className="mt-1 text-xs text-red-500">Reason: {appt.cancellationReason}</p>
@@ -114,21 +139,17 @@ function AppointmentCard({
 
         {/* Right: actions */}
         <div className="flex flex-col gap-2 items-end shrink-0">
-          {canJoin && (
-            <Link
-              href={`/consultation/${appt.sessionId}`}
-              className="px-4 py-2 text-white text-sm font-semibold rounded-xl shadow-sm transition"
+          {canJoin && appt.meetingUrl && (
+            <a
+              href={appt.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-4 py-2 text-white text-sm font-semibold rounded-xl shadow-sm transition inline-flex items-center gap-1.5"
               style={{ background: "#1B8A4A" }}
             >
-              Join Now
-            </Link>
+              {appt.type === "video_consultation" || appt.type === "online_consultation" ? "🎥" : "📞"} Join Session
+            </a>
           )}
-          <Link
-            href={`/dashboard/appointments`}
-            className="text-xs font-medium underline text-slate-500 hover:text-slate-700"
-          >
-            View Details
-          </Link>
           {isUpcoming && (
             <button
               onClick={() => onCancel(appt.id)}
@@ -140,6 +161,46 @@ function AppointmentCard({
           )}
         </div>
       </div>
+
+      {/* Payment banner for pending remote consultations */}
+      {needsPayment && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Payment Required</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Consultation fee:{" "}
+              {appt.consultationFee != null ? (
+                <span className="font-bold">₹{appt.consultationFee}</span>
+              ) : "Set by hospital"}
+            </p>
+          </div>
+          <button
+            onClick={() => onPay(appt.id)}
+            disabled={paying === appt.id}
+            className="px-4 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-60 flex items-center gap-2 shrink-0"
+            style={{ background: "#d97706" }}
+          >
+            {paying === appt.id ? (
+              <>
+                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Processing...
+              </>
+            ) : "Pay Now"}
+          </button>
+        </div>
+      )}
+
+      {/* Paid/waived confirmation for remote appointments */}
+      {isRemote && isConfirmed && appt.paymentStatus === "paid" && (
+        <div className="p-2.5 bg-green-50 border border-green-200 rounded-xl text-xs text-green-800 font-medium">
+          ✅ Payment confirmed{appt.consultationFee ? ` — ₹${appt.consultationFee}` : ""}. Use the Join Session button to connect.
+        </div>
+      )}
+      {isRemote && isConfirmed && appt.paymentStatus === "waived" && (
+        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-medium">
+          Free consultation. Use the Join Session button to connect.
+        </div>
+      )}
     </div>
   );
 }
@@ -149,9 +210,10 @@ function AppointmentCard({
 export default function AppointmentsClient() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [appointmentsList, setAppointmentsList] = useState<Appointment[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -165,7 +227,7 @@ export default function AppointmentsClient() {
         }
         if (res.ok) {
           const j = (await res.json()) as { data: Appointment[] };
-          setAppointments(j.data ?? []);
+          setAppointmentsList(j.data ?? []);
         }
       } catch {
         setError("Failed to load appointments. Please refresh.");
@@ -187,7 +249,7 @@ export default function AppointmentsClient() {
         body: JSON.stringify({ reason: "Patient cancelled" }),
       });
       if (res.ok) {
-        setAppointments((prev) =>
+        setAppointmentsList((prev) =>
           prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a))
         );
       } else {
@@ -200,11 +262,36 @@ export default function AppointmentsClient() {
     }
   }
 
+  async function handlePay(id: string) {
+    setPaying(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/portal/appointments/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pay" }),
+      });
+      if (res.ok) {
+        setAppointmentsList((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, paymentStatus: "paid" } : a))
+        );
+      } else {
+        const j = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        setError(j?.error?.message ?? "Payment failed. Please try again.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setPaying(null);
+    }
+  }
+
   // Filter by tab
   const upcomingStatuses = ["requested", "confirmed", "in_progress"];
   const pastStatuses = ["completed", "no_show"];
 
-  const filtered = appointments.filter((a) => {
+  const filtered = appointmentsList.filter((a) => {
     if (activeTab === "upcoming") return upcomingStatuses.includes(a.status);
     if (activeTab === "past") return pastStatuses.includes(a.status);
     if (activeTab === "cancelled") return a.status === "cancelled";
@@ -277,7 +364,9 @@ export default function AppointmentsClient() {
                 key={a.id}
                 appt={a}
                 onCancel={handleCancel}
+                onPay={handlePay}
                 cancelling={cancelling}
+                paying={paying}
               />
             ))}
           </div>

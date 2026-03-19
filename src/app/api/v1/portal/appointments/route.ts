@@ -85,6 +85,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // Slot info
       slotStartsAt: appointmentSlots.startsAt,
       slotEndsAt: appointmentSlots.endsAt,
+      // Consultation / payment fields
+      consultationFee: appointments.consultationFee,
+      paymentStatus: appointments.paymentStatus,
+      meetingUrl: appointments.meetingUrl,
     })
     .from(appointments)
     .leftJoin(hospitals, eq(hospitals.id, appointments.hospitalId))
