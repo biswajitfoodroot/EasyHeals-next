@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { leads } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit";
+import { phiSafeChanges, writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
 
 const createLeadSchema = z.object({
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     entityType: "lead",
     entityId: lead.id,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
-    changes: { fullName: lead.fullName, phone: lead.phone, status: lead.status },
+    changes: phiSafeChanges({ fullName: lead.fullName, phone: lead.phone, status: lead.status }),
   });
 
   const [createdLead] = await db.select().from(leads).where(eq(leads.id, lead.id));

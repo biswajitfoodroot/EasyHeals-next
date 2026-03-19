@@ -19,8 +19,6 @@ export default async function HospitalsPage() {
   return (
     <DirectorySearchList
       kind="hospital"
-      title="Private Hospitals Across India"
-      description="Search verified private hospitals by city and specialty, then open profile pages with map directions and affiliated doctors."
       cityOptions={cityOptions}
       items={rows.map((row) => ({
         id: row.id,

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { useTranslations } from "@/i18n/LocaleContext";
 import styles from "@/components/profiles/profiles.module.css";
 
 type InlineFieldEditorProps = {
@@ -39,6 +40,7 @@ export function InlineFieldEditor({
   multiline,
   onOpenHistory,
 }: InlineFieldEditorProps) {
+  const { t } = useTranslations();
   const [draft, setDraft] = useState(value);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -90,14 +92,14 @@ export function InlineFieldEditor({
       <div className={styles.fieldHead}>
         <div>
           <p className={styles.fieldLabel}>{label}</p>
-          <p className={styles.fieldValue}>{hasValue ? value : "Not available"}</p>
+          <p className={styles.fieldValue}>{hasValue ? value : t("common.notAvailable")}</p>
         </div>
         <div className={styles.fieldActions}>
-          <button type="button" onClick={() => setOpen((prev) => !prev)} aria-label={`Edit ${label}`}>
-            ? Edit
+          <button type="button" onClick={() => setOpen((prev) => !prev)} aria-label={`${t("common.edit")} ${label}`}>
+            ? {t("common.edit")}
           </button>
           {onOpenHistory ? (
-            <button type="button" onClick={() => onOpenHistory(field)}>History</button>
+            <button type="button" onClick={() => onOpenHistory(field)}>{t("common.editHistory")}</button>
           ) : null}
         </div>
       </div>
@@ -111,10 +113,10 @@ export function InlineFieldEditor({
           )}
           <div className={styles.inlineEditorButtons}>
             <button className={styles.saveBtn} type="button" onClick={submitEdit} disabled={busy}>
-              {busy ? "Submitting..." : "Submit"}
+              {busy ? t("common.submitting") : t("common.submit")}
             </button>
             <button type="button" onClick={() => setOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>

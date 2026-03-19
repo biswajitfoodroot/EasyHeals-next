@@ -5,6 +5,8 @@ export type SearchIntent = {
   specialtyKey: string;
   symptoms: string[];
   location: string | null;
+  city: string | null;
+  entity: string | null;
   searchType: "symptom" | "doctor_name" | "hospital_name" | "treatment" | "lab_test" | "general";
   confidence: number;
 };

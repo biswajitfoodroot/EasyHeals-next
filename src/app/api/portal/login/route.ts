@@ -49,9 +49,9 @@ export async function POST(req: NextRequest) {
 
   let portalUrl: string | null = null;
   if (role === "hospital_admin") {
-    portalUrl = "/portal/hospital";
+    portalUrl = "/portal/hospital/dashboard";
   } else if (role === "doctor") {
-    portalUrl = "/portal/doctor";
+    portalUrl = "/portal/doctor/dashboard";
   } else if (["owner", "admin", "advisor", "viewer"].includes(role)) {
     portalUrl = "/admin";
   } else {

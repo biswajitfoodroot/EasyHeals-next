@@ -6,7 +6,7 @@ import { db } from "@/db/client";
 import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals } from "@/db/schema";
 
 import { requireAuth } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit";
+import { phiSafeChanges, writeAuditLog } from "@/lib/audit";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 import { ensureRole } from "@/lib/rbac";
 import { slugify } from "@/lib/strings";
@@ -210,7 +210,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     entityType: "hospital",
     entityId: id,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
-    changes: parsed.data,
+    changes: phiSafeChanges(parsed.data),
   });
 
   return NextResponse.json({ data: updated });
@@ -247,7 +247,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     entityType: "hospital",
     entityId: id,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
-    changes: { deleted: true, name: existing.name },
+    changes: phiSafeChanges({ deleted: true, hospitalName: existing.name }),
   });
 
   return NextResponse.json({ ok: true });

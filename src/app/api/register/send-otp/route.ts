@@ -58,12 +58,15 @@ export async function POST(req: NextRequest) {
 
     const otpHash = createHash("sha256").update(otp).digest("hex");
 
+    const phoneHash = createHash("sha256").update(phone).digest("hex");
+
     const [record] = await db
       .insert(otpVerifications)
       .values({
-        phone,
+        phoneHash,
         otpHash,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        channel: "sms",
       })
       .returning({ id: otpVerifications.id });
 

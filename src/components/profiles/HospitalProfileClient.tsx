@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
-import AppointmentModal from "@/components/AppointmentModal";
+import AuthBookingModal from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import styles from "@/components/profiles/profiles.module.css";
@@ -99,8 +99,8 @@ function ratingText(rating: number, count: number) {
   return `${rating.toFixed(1)} (${count.toLocaleString("en-IN")})`;
 }
 
-function objectSummary(value: Record<string, unknown> | null): string {
-  if (!value) return "Not updated";
+function objectSummary(value: Record<string, unknown> | null, notUpdatedLabel = "Not updated"): string {
+  if (!value) return notUpdatedLabel;
   return Object.entries(value)
     .map(([key, item]) => `${key}: ${String(item)}`)
     .join(" | ");
@@ -171,9 +171,9 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
     <main className={styles.page}>
       <section className={styles.container}>
         <nav className={styles.breadcrumb}>
-          <Link href="/">Home</Link>
+          <Link href="/">{t("common.home")}</Link>
           <span>/</span>
-          <Link href="/hospitals">Hospitals</Link>
+          <Link href="/hospitals">{t("nav.hospitals")}</Link>
           <span>/</span>
           <span>{data.hospital.name}</span>
         </nav>
@@ -228,13 +228,13 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
           <section className={styles.contentGrid}>
             <article className={styles.panel}>
               <h2>{t("hospital.profileOverview")}</h2>
-              <p>{data.hospital.description ?? "Description will appear after profile verification."}</p>
+              <p>{data.hospital.description ?? t("hospital.descriptionPending")}</p>
 
               <InlineFieldEditor
                 targetType="hospital"
                 targetId={data.hospital.id}
                 field="phone"
-                label="Primary Phone"
+                label={t("common.phone")}
                 value={data.hospital.phone ?? ""}
 
               />
@@ -242,7 +242,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 targetType="hospital"
                 targetId={data.hospital.id}
                 field="addressLine1"
-                label="Address"
+                label={t("common.address")}
                 value={data.hospital.addressLabel}
                 multiline
 
@@ -251,7 +251,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 targetType="hospital"
                 targetId={data.hospital.id}
                 field="website"
-                label="Website"
+                label={t("common.website")}
                 value={data.hospital.website ?? ""}
 
               />
@@ -259,8 +259,8 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 targetType="hospital"
                 targetId={data.hospital.id}
                 field="workingHours"
-                label="Working Hours"
-                value={objectSummary(data.hospital.workingHours)}
+                label={t("common.workingHours")}
+                value={objectSummary(data.hospital.workingHours, t("common.notUpdated"))}
                 multiline
 
               />
@@ -273,11 +273,11 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                   <span key={item}>{item}</span>
                 ))}
               </div>
-              <p>Facilities: {data.hospital.facilities.length ? data.hospital.facilities.join(", ") : "Pending"}</p>
+              <p>{t("hospital.facilities")}: {data.hospital.facilities.length ? data.hospital.facilities.join(", ") : t("common.pending")}</p>
               <p>
-                Accreditations: {data.hospital.accreditations.length ? data.hospital.accreditations.join(", ") : "Pending"}
+                {t("hospital.accreditations")}: {data.hospital.accreditations.length ? data.hospital.accreditations.join(", ") : t("common.pending")}
               </p>
-              <p>Fee Range: {objectSummary(data.hospital.feesRange)}</p>
+              <p>{t("common.feeRange")}: {objectSummary(data.hospital.feesRange, t("common.notUpdated"))}</p>
             </aside>
           </section>
         ) : null}
@@ -318,7 +318,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 <article key={doctor.id} className={styles.profileCard}>
                   <h4>{doctor.name}</h4>
                   <p>
-                    {doctor.specialization ?? "Specialist"} · {doctor.role}
+                    {doctor.specialization ?? t("common.specialist")} · {doctor.role}
                   </p>
                   <div className={styles.tagRow}>
                     {doctor.specialties.slice(0, 4).map((item) => (
@@ -326,17 +326,13 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                     ))}
                   </div>
                   <div className={styles.profileCardFooter}>
-                    <small>{doctor.yearsOfExperience ? `${doctor.yearsOfExperience}+ yrs` : "Experience updating"}</small>
+                    <small>{doctor.yearsOfExperience ? `${doctor.yearsOfExperience}+ yrs` : t("common.updating")}</small>
                     <Link href={doctor.profileUrl}>{t("common.viewProfile")}</Link>
                   </div>
                 </article>
               ))}
               {visibleDoctors.length === 0 && (
-                <p>
-                  {data.doctors.length === 0
-                    ? t("hospital.affiliatedDoctors") + " - " + t("common.noResults")
-                    : `No doctors found in the ${doctorDept} department.`}
-                </p>
+                <p>{t("common.noResults")}</p>
               )}
             </div>
           </section>
@@ -386,7 +382,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         {tab === "services" ? (
           <section className={styles.split}>
             <article className={styles.panel}>
-              <h2>Departments & Services</h2>
+              <h2>{t("hospital.departmentsServices")}</h2>
               <div className={styles.tagRow}>
                 {data.hospital.specialties.map((item) => (
                   <span key={item}>{item}</span>
@@ -410,9 +406,9 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                       ))}
                     </div>
                     <div className={styles.profileCardFooter}>
-                      <Link href={item.profileUrl}>Open</Link>
+                      <Link href={item.profileUrl}>{t("common.open")}</Link>
                       <a href={item.mapUrl} target="_blank" rel="noreferrer">
-                        Directions
+                        {t("common.directions")}
                       </a>
                     </div>
                   </article>
@@ -426,11 +422,9 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
           <section className={styles.panel}>
             <h2>{t("hospital.ratingsTitle")}</h2>
             <p>
-              Current score: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
+              {t("common.currentScore")}: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
             </p>
-            <p>
-              Review system in this phase shows aggregate score and trust signals. Verified patient review workflow is in the next planned sprint.
-            </p>
+            <p>{t("hospital.ratingsReviewNote")}</p>
           </section>
         ) : null}
 
@@ -438,7 +432,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
           <section className={styles.split}>
             <article className={styles.panel}>
               <h2>{t("hospital.locationTitle")}</h2>
-              <p>{data.hospital.addressLabel || "Address not available."}</p>
+              <p>{data.hospital.addressLabel || t("hospital.addressNotAvailable")}</p>
               <div className={styles.actions}>
                 <a className={styles.primaryAction} href={data.hospital.map.directionsUrl} target="_blank" rel="noreferrer">
                   {t("common.getDirections")}
@@ -470,12 +464,11 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         ) : null}
       </div>
 
-      <AppointmentModal
+      <AuthBookingModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         hospitalId={data.hospital.id}
         hospitalName={data.hospital.name}
-        source="hospital_profile"
       />
 
       <ContributeModal

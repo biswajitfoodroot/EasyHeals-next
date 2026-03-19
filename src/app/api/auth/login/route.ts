@@ -42,7 +42,30 @@ export async function POST(req: NextRequest) {
     .where(eq(userRoleMap.userId, user.id))
     .limit(1);
 
+  const role = roleRows[0]?.role ?? "viewer";
+
+  // Create session — totpVerifiedAt starts as NULL
   const { sessionToken, expiresAt } = await createSession(user.id);
+
+  // P2 — TOTP gate (HLD §8.2): owner/admin with TOTP enrolled must complete TOTP step
+  const totpRequired = user.totpEnabled && ["owner", "admin"].includes(role);
+
+  if (totpRequired) {
+    // Set session cookie so the TOTP validate route can identify the session,
+    // but access to protected routes is blocked until totpVerifiedAt is set.
+    await setSessionCookie(sessionToken, expiresAt);
+    return NextResponse.json({
+      requiresTOTP: true,
+      data: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role,
+      },
+    });
+  }
+
+  // No TOTP required — full session granted
   await setSessionCookie(sessionToken, expiresAt);
 
   return NextResponse.json({
@@ -50,7 +73,8 @@ export async function POST(req: NextRequest) {
       id: user.id,
       fullName: user.fullName,
       email: user.email,
-      role: roleRows[0]?.role ?? "viewer",
+      role,
+      totpEnabled: user.totpEnabled,
     },
   });
 }

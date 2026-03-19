@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { and, asc, eq, like, or, type SQL } from "drizzle-orm";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -231,8 +231,7 @@ async function generateAssistant(params: {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL });
+    const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
 
     const historyText = params.history.length
       ? params.history

@@ -3,7 +3,7 @@
  * POST /api/admin/audit-log  — AI natural-language search → returns filter params + summary
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { and, desc, eq, gte, inArray, lte, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -259,8 +259,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid query" }, { status: 400 });
   }
 
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY ?? "");
-  const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL ?? "gemini-2.5-flash" });
+  const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL ?? "gemini-2.5-flash" });
 
   const today = new Date().toISOString().split("T")[0];
 

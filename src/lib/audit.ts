@@ -1,5 +1,8 @@
 import { db } from "@/db/client";
 import { auditLogs } from "@/db/schema";
+import { phiSafeChanges } from "@/lib/security/phi-redactor";
+
+export { phiSafeChanges };
 
 type AuditInput = {
   actorUserId?: string;

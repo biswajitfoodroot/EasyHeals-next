@@ -4,6 +4,9 @@ import { useMemo, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { useTranslations } from "@/i18n/LocaleContext";
+import { LOCALES } from "@/i18n/translations";
+
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { categories, smartBrowseData } from "@/components/phase1/data";
 import styles from "@/components/phase1/phase1.module.css";
@@ -12,6 +15,7 @@ import { ChatSearch } from "@/components/search/ChatSearch";
 import { SearchResults } from "@/components/search/SearchResults";
 import type { SearchIntent, SearchResponse, SearchResult } from "@/components/phase1/types";
 import { easyHealsPublicData } from "@/data/easyhealsPublicData";
+import { RewardsTeaser } from "@/components/gamification/RewardsTeaser";
 
 type TopRatedEntry = {
   id: string;
@@ -99,6 +103,8 @@ function smartListingAsSearchResult(item: {
 }
 
 export default function PhaseOneHome() {
+  const { locale, setLocale, t } = useTranslations();
+  const [langOpen, setLangOpen] = useState(false);
   const [intent, setIntent] = useState<SearchIntent | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -107,6 +113,9 @@ export default function PhaseOneHome() {
   const [contributeTarget, setContributeTarget] = useState<SearchResult | null>(null);
   const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]["key"]>("hospital");
   const [activeSymptomArea, setActiveSymptomArea] = useState(symptomAreas[0]);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
+  const currentLocale = LOCALES.find((l) => l.code === locale);
 
   const smartCards = useMemo(
     () => smartBrowseData[activeCategory] ?? smartBrowseData.hospital,
@@ -114,6 +123,42 @@ export default function PhaseOneHome() {
   );
 
   const [topRated, setTopRated] = useState<TopRatedEntry[]>([]);
+  const [city, setCity] = useState<string | null>(null);
+
+  // Auth state check — determines Login vs My Dashboard in nav
+  useEffect(() => {
+    fetch("/api/v1/patients/me", { credentials: "include" })
+      .then((r) => setIsLoggedIn(r.ok))
+      .catch(() => setIsLoggedIn(false));
+  }, []);
+
+  // Task 3.10 — Location detection: Vercel IP city header (primary) + browser geolocation (refinement)
+  useEffect(() => {
+    // Step 1: fetch server-detected city from Vercel IP header
+    fetch("/api/v1/location")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { city?: string } | null) => {
+        if (data?.city) setCity(data.city);
+      })
+      .catch(() => {/* non-fatal */});
+
+    // Step 2: try browser geolocation for precision — result sent back to server for reverse-geocode
+    if (typeof navigator !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch(`/api/v1/location?lat=${latitude.toFixed(4)}&lng=${longitude.toFixed(4)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data: { city?: string } | null) => {
+              if (data?.city) setCity(data.city);
+            })
+            .catch(() => {/* non-fatal */});
+        },
+        () => {/* denied or unavailable — IP-based city already set above */},
+        { timeout: 5000, maximumAge: 300_000 },
+      );
+    }
+  }, []);
 
   useEffect(() => {
     fetch(`/api/public/top-rated?category=${activeCategory}`)
@@ -157,14 +202,130 @@ export default function PhaseOneHome() {
           </button>
 
           <nav className={styles.topNavLinks}>
-            <Link href="/treatments">Treatments</Link>
-            <Link href="/symptoms">Symptoms</Link>
-            <Link href="/hospitals">Hospitals</Link>
-            <Link href="/doctors">Doctors</Link>
+            <Link href="/treatments">{t("nav.treatments")}</Link>
+            <Link href="/symptoms">{t("home.symptoms")}</Link>
+            <Link href="/hospitals">{t("nav.hospitals")}</Link>
+            <Link href="/doctors">{t("nav.doctors")}</Link>
           </nav>
 
+          {/* Language picker */}
+          <div className={styles.navLang} style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setLangOpen((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "5px 10px",
+                borderRadius: "999px",
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.07)",
+                color: "rgba(255,255,255,0.75)",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+              aria-label="Change language"
+            >
+              <span>{currentLocale?.nativeLabel ?? "EN"}</span>
+              <span style={{ fontSize: "0.55rem", opacity: 0.7 }}>▼</span>
+            </button>
+
+            {langOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  background: "#0d1f38",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "12px",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                  overflow: "hidden",
+                  minWidth: "140px",
+                  zIndex: 300,
+                }}
+              >
+                {LOCALES.map((loc) => (
+                  <button
+                    key={loc.code}
+                    type="button"
+                    onClick={() => { setLocale(loc.code); setLangOpen(false); }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      width: "100%",
+                      padding: "0.55rem 0.85rem",
+                      background: loc.code === locale ? "rgba(110,232,160,0.1)" : "transparent",
+                      border: "none",
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      cursor: "pointer",
+                      fontSize: "0.82rem",
+                      fontFamily: "inherit",
+                      color: loc.code === locale ? "#6ee8a0" : "rgba(255,255,255,0.75)",
+                      fontWeight: loc.code === locale ? 700 : 400,
+                      textAlign: "left",
+                    }}
+                  >
+                    <span>{loc.nativeLabel}</span>
+                    <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.35)" }}>{loc.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Auth link */}
+          {isLoggedIn === true ? (
+            <Link
+              href="/dashboard"
+              style={{
+                height: "34px",
+                borderRadius: "999px",
+                padding: "0 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                color: "#6ee8a0",
+                border: "1px solid rgba(110,232,160,0.35)",
+                background: "rgba(110,232,160,0.08)",
+                fontSize: "13px",
+                fontWeight: 700,
+                textDecoration: "none",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t("home.myDashboard")}
+            </Link>
+          ) : isLoggedIn === false ? (
+            <Link
+              href="/login"
+              style={{
+                height: "34px",
+                borderRadius: "999px",
+                padding: "0 16px",
+                display: "inline-flex",
+                alignItems: "center",
+                color: "rgba(255,255,255,0.85)",
+                border: "1px solid rgba(255,255,255,0.25)",
+                background: "transparent",
+                fontSize: "13px",
+                fontWeight: 600,
+                textDecoration: "none",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t("home.login")}
+            </Link>
+          ) : null}
+
           <button type="button" className={styles.navCta} onClick={() => setRegistrationOpen(true)}>
-            List Hospital Free
+            {t("home.listHospitalFree")}
           </button>
         </div>
       </header>
@@ -179,17 +340,12 @@ export default function PhaseOneHome() {
 
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
-            <span className={styles.heroLabel}>AI-Powered Healthcare Search</span>
+            <span className={styles.heroLabel}>{t("home.heroLabel")}</span>
             <h1>
-              Tell us what
-              <br />
-              you need. We will
-              <br />
-              find the <em>right care</em>.
+              {t("home.heroTitle")}
             </h1>
             <p>
-              Describe symptoms in Hindi, Tamil, Marathi or English. Our AI maps your needs to
-              the best doctors and hospitals instantly.
+              {t("home.heroSubtitle")}
             </p>
 
             <div id="eh-chat">
@@ -204,19 +360,19 @@ export default function PhaseOneHome() {
             <div className={styles.heroStats}>
               <article>
                 <strong>12k+</strong>
-                <span>Hospitals</span>
+                <span>{t("home.statHospitals")}</span>
               </article>
               <article>
                 <strong>50+</strong>
-                <span>Cities</span>
+                <span>{t("home.statCities")}</span>
               </article>
               <article>
                 <strong>9 lang</strong>
-                <span>Languages</span>
+                <span>{t("home.statLanguages")}</span>
               </article>
               <article>
                 <strong>4.8?</strong>
-                <span>Patient Rating</span>
+                <span>{t("home.statRating")}</span>
               </article>
             </div>
           </div>
@@ -243,7 +399,7 @@ export default function PhaseOneHome() {
       <section className={styles.quickSection}>
         <div className={styles.sectionHeader}>
           <span>RC#4 Pan India Private Coverage</span>
-          <h2>What are you looking for?</h2>
+          <h2>{t("home.whatLooking")}</h2>
           <p>Government hospitals are excluded by rule in this phase.</p>
         </div>
         <div className={styles.quickGrid}>
@@ -253,7 +409,7 @@ export default function PhaseOneHome() {
                 <path d="M3 21V7a2 2 0 012-2h14a2 2 0 012 2v14"/><path d="M3 21h18"/><path d="M9 21V12h6v9"/><path d="M12 7v3m-1.5-1.5h3"/>
               </svg>
             </span>
-            Hospitals
+            {t("nav.hospitals")}
           </Link>
           <Link href="/doctors">
             <span className={styles.quickIcon}>
@@ -261,7 +417,7 @@ export default function PhaseOneHome() {
                 <circle cx="12" cy="8" r="3"/><path d="M6.5 20a5.5 5.5 0 0111 0"/><path d="M14 15h2a2 2 0 012 2v1"/>
               </svg>
             </span>
-            Doctors
+            {t("nav.doctors")}
           </Link>
           <Link href="/hospitals">
             <span className={styles.quickIcon}>
@@ -269,7 +425,7 @@ export default function PhaseOneHome() {
                 <path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V8l-5-5H9z"/><path d="M9 3v5h10"/><path d="M9 13h6m-3-3v6"/>
               </svg>
             </span>
-            Lab Tests
+            {t("home.labTests")}
           </Link>
           <Link href="/treatments">
             <span className={styles.quickIcon}>
@@ -277,7 +433,7 @@ export default function PhaseOneHome() {
                 <path d="M19 7l-1 1-4-4 1-1a2 2 0 012.83 0l1.17 1.17A2 2 0 0119 7z"/><path d="M14 8L5 17l-2 4 4-2 9-9"/><path d="M7.5 13.5l3 3"/>
               </svg>
             </span>
-            Treatments
+            {t("nav.treatments")}
           </Link>
           <Link href="/treatments">
             <span className={styles.quickIcon}>
@@ -285,7 +441,7 @@ export default function PhaseOneHome() {
                 <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/><path d="M12 6v6l4 2"/>
               </svg>
             </span>
-            Symptoms
+            {t("home.symptoms")}
           </Link>
           <button type="button" onClick={() => setRegistrationOpen(true)}>
             <span className={styles.quickIcon} style={{ color: "#fff" }}>
@@ -293,7 +449,7 @@ export default function PhaseOneHome() {
                 <path d="M12 5v14m-7-7h14"/>
               </svg>
             </span>
-            List Hospital Free
+            {t("home.listHospitalFree")}
           </button>
         </div>
       </section>
@@ -301,7 +457,7 @@ export default function PhaseOneHome() {
       <section className={styles.smartSection}>
         <div className={styles.sectionHeader}>
           <span>RC#3 Crowd Listings + AI Outlier Detection</span>
-          <h2>Top rated near you</h2>
+          <h2>{city ? `${t("home.topRatedIn")} ${city}` : t("home.topRatedNear")}</h2>
           <p>Community updates are scored before approval.</p>
         </div>
 
@@ -333,7 +489,7 @@ export default function PhaseOneHome() {
                     <div className={styles.smartFoot}>
                       <span>⭐ {entry.rating.toFixed(1)} ({entry.reviewCount.toLocaleString("en-IN")})</span>
                       <Link href={`/hospitals/${entry.slug}`} className={styles.smartViewBtn}>
-                        View Profile
+                        {t("home.viewProfile")}
                       </Link>
                     </div>
                   </article>
@@ -350,7 +506,7 @@ export default function PhaseOneHome() {
                     <div className={styles.smartFoot}>
                       <span>⭐ {card.rating} ({card.reviews})</span>
                       <button type="button" onClick={() => setContributeTarget(smartListingAsSearchResult(card))}>
-                        Suggest Edit
+                        {t("home.suggestEdit")}
                       </button>
                     </div>
                   </article>
@@ -362,8 +518,8 @@ export default function PhaseOneHome() {
       <section className={styles.symptomSection}>
         <div className={styles.sectionHeader}>
           <span>RC#1 Symptom to Specialist Mapping</span>
-          <h2>Not sure which specialist you need?</h2>
-          <p>Select body area and get suggested specialty instantly.</p>
+          <h2>{t("home.notSureSpecialist")}</h2>
+          <p>{t("home.selectBodyArea")}</p>
         </div>
 
         <div className={styles.symptomLayout}>
@@ -390,17 +546,22 @@ export default function PhaseOneHome() {
         </div>
       </section>
 
+      {/* Task 3.4 — RewardsTeaser: shown in P1 when gamification_phase_a=OFF */}
+      <section style={{ padding: "40px 24px", maxWidth: "480px", margin: "0 auto" }}>
+        <RewardsTeaser />
+      </section>
+
       <section className={styles.registerSection}>
         <div>
           <span>RC#6 Self Registration</span>
-          <h2>List your hospital. It is free.</h2>
+          <h2>{t("home.listHospitalCta")}</h2>
           <p>
             OTP verified onboarding, free basic tier, and activation in minutes. Zero manual admin
             dependency.
           </p>
         </div>
         <button type="button" onClick={() => setRegistrationOpen(true)}>
-          Start Registration
+          {t("home.startRegistration")}
         </button>
       </section>
 

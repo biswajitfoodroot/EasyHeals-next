@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -33,8 +33,7 @@ export async function POST(req: NextRequest) {
 
   const { rawText, sourceHint, cityHint } = parsed.data;
 
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-  const model = genAI.getGenerativeModel({
+  const model = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL,
     generationConfig: {
       responseMimeType: "application/json",

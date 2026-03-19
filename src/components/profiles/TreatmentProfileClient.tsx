@@ -73,9 +73,9 @@ export function TreatmentProfileClient({ data }: Props) {
     <main className={styles.page}>
       <section className={styles.container}>
         <nav className={styles.breadcrumb}>
-          <Link href="/">Home</Link>
+          <Link href="/">{t("common.home")}</Link>
           <span>/</span>
-          <Link href="/treatments">Treatments</Link>
+          <Link href="/treatments">{t("nav.treatments")}</Link>
           <span>/</span>
           <span>{treatment.title}</span>
         </nav>
@@ -89,9 +89,8 @@ export function TreatmentProfileClient({ data }: Props) {
                 <p className={styles.subtitle}>{treatment.description}</p>
               )}
               <div className={styles.heroBadges}>
-                {relatedHospitals.length > 0 && <span>{relatedHospitals.length} Hospitals</span>}
-                {relatedDoctors.length > 0 && <span>{relatedDoctors.length} Specialists</span>}
-                <span>India</span>
+                {relatedHospitals.length > 0 && <span>{relatedHospitals.length} {t("nav.hospitals")}</span>}
+                {relatedDoctors.length > 0 && <span>{relatedDoctors.length} {t("treatment.specialists")}</span>}
               </div>
             </div>
 
@@ -125,10 +124,9 @@ export function TreatmentProfileClient({ data }: Props) {
         {tab === "overview" && (
           <section className={styles.contentGrid}>
             <article className={styles.panel}>
-              <h2>About {treatment.title}</h2>
+              <h2>{t("treatment.aboutTitle")} {treatment.title}</h2>
               <p>
-                {treatment.description ??
-                  `${treatment.title} is a medical specialty or procedure available at leading hospitals and clinics across India. Use the Hospitals and Doctors tabs to find the right provider.`}
+                {treatment.description ?? t("treatment.noHospitals")}
               </p>
               <div className="mt-4">
                 <button
@@ -136,18 +134,18 @@ export function TreatmentProfileClient({ data }: Props) {
                   onClick={() => setModalOpen(true)}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl transition-colors text-sm"
                 >
-                  Book a Free Consultation
+                  {t("treatment.bookFreeConsultation")}
                 </button>
               </div>
             </article>
 
             <aside className={styles.panel}>
-              <h3>Quick Stats</h3>
+              <h3>{t("treatment.quickStats")}</h3>
               <p className="text-slate-600 text-sm mb-3">
-                <strong>{relatedHospitals.length}</strong> hospitals found for {treatment.title} across India.
+                <strong>{relatedHospitals.length}</strong> {t("treatment.hospitalsFound")}.
               </p>
               <p className="text-slate-600 text-sm mb-4">
-                <strong>{relatedDoctors.length}</strong> specialist doctors available.
+                <strong>{relatedDoctors.length}</strong> {t("treatment.specialistDoctorsAvailable")}.
               </p>
               {relatedHospitals.length > 0 && (
                 <button
@@ -155,7 +153,7 @@ export function TreatmentProfileClient({ data }: Props) {
                   onClick={() => setTab("hospitals")}
                   className="text-teal-700 font-semibold text-sm hover:underline"
                 >
-                  View Hospitals →
+                  {t("treatment.viewHospitals")} →
                 </button>
               )}
             </aside>
@@ -164,7 +162,7 @@ export function TreatmentProfileClient({ data }: Props) {
 
         {tab === "hospitals" && (
           <section className={styles.panel}>
-            <h2>Hospitals for {treatment.title}</h2>
+            <h2>{t("treatment.hospitalsFor")} {treatment.title}</h2>
             {relatedHospitals.length === 0 ? (
               <p className="text-slate-500">{t("treatment.noHospitals")}</p>
             ) : (
@@ -174,7 +172,7 @@ export function TreatmentProfileClient({ data }: Props) {
                     <div className="flex items-start justify-between gap-2">
                       <h4>{h.name}</h4>
                       {h.verified && (
-                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full shrink-0">Verified</span>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full shrink-0">{t("common.verified")}</span>
                       )}
                     </div>
                     <p className="text-slate-500 text-sm">
@@ -199,7 +197,7 @@ export function TreatmentProfileClient({ data }: Props) {
 
         {tab === "doctors" && (
           <section className={styles.panel}>
-            <h2>Specialists for {treatment.title}</h2>
+            <h2>{t("treatment.specialistsFor")} {treatment.title}</h2>
             {relatedDoctors.length === 0 ? (
               <p className="text-slate-500">{t("treatment.noDoctors")}</p>
             ) : (
@@ -209,7 +207,7 @@ export function TreatmentProfileClient({ data }: Props) {
                     <div className="flex items-start justify-between gap-2">
                       <h4>{d.fullName}</h4>
                       {d.verified && (
-                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full shrink-0">Verified</span>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full shrink-0">{t("common.verified")}</span>
                       )}
                     </div>
                     <p className="text-slate-500 text-sm">

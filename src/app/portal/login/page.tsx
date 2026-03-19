@@ -34,9 +34,9 @@ export default function PortalLoginPage() {
       if (portalUrl) {
         router.push(portalUrl);
       } else if (role === "hospital_admin") {
-        router.push("/portal/hospital");
+        router.push("/portal/hospital/dashboard");
       } else if (role === "doctor") {
-        router.push("/portal/doctor");
+        router.push("/portal/doctor/dashboard");
       } else {
         router.push("/admin");
       }

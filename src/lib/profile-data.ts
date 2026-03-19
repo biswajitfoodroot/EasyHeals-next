@@ -407,10 +407,26 @@ export async function getTreatmentProfileBySlug(slug: string) {
 
   const title = node.title.toLowerCase();
 
+  // Extract meaningful keywords from the treatment title for broader matching.
+  // e.g. "Knee Replacement Surgery" → ["knee", "replacement", "surgery"]
+  // Stops words and very short tokens are excluded to avoid false positives.
+  const STOP_WORDS = new Set(["and", "or", "for", "the", "of", "in", "at", "to", "by", "with", "from", "a", "an", "is", "on"]);
+  const titleKeywords = title
+    .split(/[\s\-\/,&]+/)
+    .map((w) => w.replace(/[^a-z0-9]/g, ""))
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+
+  /** Returns true if any meaningful keyword from the treatment title appears in the candidate string. */
+  function keywordMatch(candidate: string): boolean {
+    const c = candidate.toLowerCase();
+    // Exact bidirectional substring match (original logic — fast for common cases)
+    if (c.includes(title) || title.includes(c)) return true;
+    // Keyword match — any significant word from title found in candidate
+    return titleKeywords.some((kw) => c.includes(kw));
+  }
+
   const relatedHospitals = allHospitals
-    .filter((h) =>
-      parseStringArray(h.specialties).some((s) => s.toLowerCase().includes(title) || title.includes(s.toLowerCase())),
-    )
+    .filter((h) => parseStringArray(h.specialties).some((s) => keywordMatch(s)))
     .slice(0, 12)
     .map((h) => ({
       id: h.id,
@@ -432,9 +448,9 @@ export async function getTreatmentProfileBySlug(slug: string) {
 
   const relatedDoctors = allDoctors
     .filter((d) => {
-      const spec = (d.specialization ?? "").toLowerCase();
-      const specs = parseStringArray(d.specialties).map((s) => s.toLowerCase());
-      return spec.includes(title) || title.includes(spec) || specs.some((s) => s.includes(title) || title.includes(s));
+      const spec = d.specialization ?? "";
+      const specs = parseStringArray(d.specialties);
+      return keywordMatch(spec) || specs.some((s) => keywordMatch(s));
     })
     .slice(0, 12)
     .map((d) => ({

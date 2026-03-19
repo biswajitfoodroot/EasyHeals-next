@@ -1,9 +1,8 @@
 import { and, eq, gt, sql } from "drizzle-orm";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 import { db } from "@/db/client";
 import { contributions, hospitals } from "@/db/schema";
 import { env } from "@/lib/env";
+import { getGeminiClient } from "@/lib/ai/client";
 import { loadThresholds } from "@/lib/outlier-config";
 
 export type OutlierRecommendation = "auto_approve" | "pending_review" | "auto_reject";
@@ -50,8 +49,7 @@ async function isSemanticallySuspicious(
   if (!env.GOOGLE_AI_API_KEY) return false;
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL });
+    const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
 
     const prompt = [
       "Classify if this provider listing edit looks suspicious or implausible.",

@@ -2,6 +2,9 @@
 
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AdminPatientsTab } from "./AdminPatientsTab";
+import { AdminAppointmentsTab } from "./AdminAppointmentsTab";
+import { AdminProvidersTab } from "./AdminProvidersTab";
 
 type Me = { fullName: string; email: string; role: string };
 type Hospital = {
@@ -123,7 +126,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers";
 
 type BrochureDiff = {
   dryRun: true;
@@ -153,7 +156,12 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "config", "patients", "appointments", "providers"];
+  // Feature flags state (Task 3.5)
+  const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
+  const [configLoading, setConfigLoading] = React.useState(false);
+  const [configMsg, setConfigMsg] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [togglingKey, setTogglingKey] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>(
     tabParam && validTabs.includes(tabParam) ? tabParam : "ingestion"
   );
@@ -1256,7 +1264,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1264,6 +1272,10 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               ai_research: { label: "AI Research", icon: "🔍" },
               brochure: { label: "Brochure Extract", icon: "📄" },
               contributions: { label: "Contributions", icon: "✏️" },
+              config: { label: "Config & Flags", icon: "⚙️" },
+              patients: { label: "Patients", icon: "👤" },
+              appointments: { label: "Appointments", icon: "📅" },
+              providers: { label: "Providers", icon: "🏥" },
             };
             const { label, icon, count } = labels[tab];
             return (
@@ -2834,7 +2846,65 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
           <ContributionsTabContent />
         )}
 
+        {/* ── CONFIG / FEATURE FLAGS TAB (Task 3.5) ──────────────────── */}
+        {activeTab === "config" && (
+          <ConfigTab
+            flags={configFlags}
+            loading={configLoading}
+            msg={configMsg}
+            togglingKey={togglingKey}
+            onMount={async () => {
+              setConfigLoading(true);
+              try {
+                const res = await fetch("/api/admin/config/flags");
+                const body = await res.json();
+                setConfigFlags(body.flags ?? []);
+              } catch {
+                setConfigMsg({ type: "error", text: "Failed to load feature flags" });
+              } finally {
+                setConfigLoading(false);
+              }
+            }}
+            onToggle={async (key, enabled) => {
+              setTogglingKey(key);
+              setConfigMsg(null);
+              try {
+                const res = await fetch("/api/admin/config/flags", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ key, enabled }),
+                });
+                if (!res.ok) throw new Error("Toggle failed");
+                setConfigFlags((prev) =>
+                  prev.map((f) => (f.key === key ? { ...f, enabled } : f)),
+                );
+                setConfigMsg({ type: "success", text: `"${key}" ${enabled ? "enabled" : "disabled"}` });
+              } catch {
+                setConfigMsg({ type: "error", text: "Failed to update flag" });
+              } finally {
+                setTogglingKey(null);
+                setTimeout(() => setConfigMsg(null), 3000);
+              }
+            }}
+          />
+        )}
+
         {/* Access moved to /admin/access */}
+
+        {/* ── PATIENTS TAB ─────────────────────────────────────────────── */}
+        {activeTab === "patients" && (
+          <AdminPatientsTab />
+        )}
+
+        {/* ── APPOINTMENTS TAB ─────────────────────────────────────────── */}
+        {activeTab === "appointments" && (
+          <AdminAppointmentsTab />
+        )}
+
+        {/* ── PROVIDERS TAB ────────────────────────────────────────────── */}
+        {activeTab === "providers" && (
+          <AdminProvidersTab />
+        )}
 
       </div>
 
@@ -3462,5 +3532,135 @@ function ContributionsTabContent() {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Feature Flags Tab Component ────────────────────────────────────────────────
+
+function ConfigTab({
+  flags,
+  loading,
+  msg,
+  togglingKey,
+  onMount,
+  onToggle,
+}: {
+  flags: Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>;
+  loading: boolean;
+  msg: { type: "success" | "error"; text: string } | null;
+  togglingKey: string | null;
+  onMount: () => void;
+  onToggle: (key: string, enabled: boolean) => void;
+}) {
+  React.useEffect(() => { onMount(); }, []);
+
+  const phaseBadge = (phase: string) => {
+    const styles: Record<string, string> = {
+      p1: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      p2: "bg-amber-100 text-amber-700 border-amber-200",
+      p3: "bg-slate-100 text-slate-500 border-slate-200",
+      unknown: "bg-purple-100 text-purple-700 border-purple-200",
+    };
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${styles[phase] ?? styles.unknown}`}>
+        {phase.toUpperCase()}
+      </span>
+    );
+  };
+
+  const grouped = ["p1", "p2", "p3"].map((phase) => ({
+    phase,
+    flags: flags.filter((f) => f.phase === phase),
+  }));
+
+  return (
+    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="p-5 border-b border-slate-100 bg-slate-50/60">
+        <h2 className="text-xl font-bold text-slate-800">⚙️ Configuration &amp; Feature Flags</h2>
+        <p className="text-slate-500 text-sm mt-0.5">
+          Toggle features per phase. P2/P3 flags should only be enabled after compliance gate checklist is complete.
+        </p>
+      </div>
+
+      <div className="p-5">
+        {msg && (
+          <div className={`mb-4 px-4 py-2.5 rounded-xl text-sm font-medium border ${
+            msg.type === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"
+          }`}>
+            {msg.type === "success" ? "✓" : "✗"} {msg.text}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center py-12 text-slate-400">Loading flags…</div>
+        ) : (
+          <div className="space-y-8">
+            {grouped.map(({ phase, flags: phaseFlags }) => (
+              <div key={phase}>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                  Phase {phase.toUpperCase()} Flags
+                </h3>
+                <div className="rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+                  {phaseFlags.map((flag) => (
+                    <div key={flag.key} className="flex items-start gap-4 p-4 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-sm font-semibold text-slate-800">{flag.key}</span>
+                          {phaseBadge(flag.phase)}
+                          {flag.enabled ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                              ● ON
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-slate-100 text-slate-500 border-slate-200">
+                              ○ OFF
+                            </span>
+                          )}
+                        </div>
+                        {flag.description && (
+                          <p className="text-xs text-slate-500 mt-0.5">{flag.description}</p>
+                        )}
+                        {!flag.enabled && flag.complianceChecklist.length > 0 && (
+                          <details className="mt-2">
+                            <summary className="text-xs text-amber-600 font-semibold cursor-pointer select-none">
+                              ⚠️ {flag.complianceChecklist.length} compliance gates must pass before enabling
+                            </summary>
+                            <ul className="mt-2 space-y-1">
+                              {flag.complianceChecklist.map((item) => (
+                                <li key={item} className="flex items-start gap-2 text-xs text-slate-600">
+                                  <span className="text-slate-400 mt-0.5">□</span>
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onToggle(flag.key, !flag.enabled)}
+                        disabled={togglingKey === flag.key}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          flag.enabled ? "bg-teal-600" : "bg-slate-200"
+                        } ${togglingKey === flag.key ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                        role="switch"
+                        aria-checked={flag.enabled}
+                        aria-label={`Toggle ${flag.key}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+                            flag.enabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

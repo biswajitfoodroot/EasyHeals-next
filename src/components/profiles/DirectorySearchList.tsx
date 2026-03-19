@@ -20,16 +20,17 @@ type DirectoryItem = {
 
 type DirectorySearchListProps = {
   kind: "hospital" | "doctor";
-  title: string;
-  description: string;
   items: DirectoryItem[];
   cityOptions: string[];
 };
 
-export function DirectorySearchList({ kind, title, description, items, cityOptions }: DirectorySearchListProps) {
+export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearchListProps) {
   const { t } = useTranslations();
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
+
+  const title = kind === "hospital" ? t("hospital.directoryTitle") : t("doctor.directoryTitle");
+  const description = kind === "hospital" ? t("hospital.directoryDescription") : t("doctor.directoryDescription");
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -80,7 +81,7 @@ export function DirectorySearchList({ kind, title, description, items, cityOptio
                 <span key={`${item.id}-${specialty}`}>{specialty}</span>
               ))}
             </div>
-            <p>{item.verified ? t("common.verified") : t("common.communityVerified")} · Rating {item.rating.toFixed(1)}</p>
+            <p>{item.verified ? t("common.verified") : t("common.communityVerified")} · {t("common.rating")} {item.rating.toFixed(1)}</p>
             <Link href={item.url}>{t("common.viewProfile")}</Link>
           </article>
         ))}

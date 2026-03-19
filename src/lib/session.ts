@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
@@ -9,21 +9,28 @@ import { sessions } from "@/db/schema";
 export const SESSION_COOKIE = "easyheals_next_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Hash a raw session token before storing or querying. DB never sees the raw UUID. */
+export function hashSessionToken(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
+
 export async function createSession(userId: string) {
-  const sessionToken = randomUUID();
+  const rawToken = randomUUID();
+  const tokenHash = hashSessionToken(rawToken);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   await db.delete(sessions).where(eq(sessions.userId, userId));
-  await db.insert(sessions).values({ sessionToken, userId, expiresAt });
+  await db.insert(sessions).values({ sessionToken: tokenHash, userId, expiresAt });
 
+  // Return the raw token — this is what goes into the cookie, never stored in DB
   return {
-    sessionToken,
+    sessionToken: rawToken,
     expiresAt,
   };
 }
 
-export async function deleteSession(sessionToken: string) {
-  await db.delete(sessions).where(eq(sessions.sessionToken, sessionToken));
+export async function deleteSession(rawToken: string) {
+  await db.delete(sessions).where(eq(sessions.sessionToken, hashSessionToken(rawToken)));
 }
 
 export async function setSessionCookie(sessionToken: string, expiresAt: Date) {

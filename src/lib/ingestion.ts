@@ -36,8 +36,9 @@
  * All previously exported types and signatures preserved — no breaking changes.
  */
 
-import { GoogleGenerativeAI, type GenerationConfig } from "@google/generative-ai";
+import { type GenerationConfig, type GenerativeModel } from "@google/generative-ai";
 import { env } from "@/lib/env";
+import { getGeminiClient } from "@/lib/ai/client";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -1184,7 +1185,7 @@ Return JSON:
 }`;
 
 async function runPass<T>(
-  model: ReturnType<InstanceType<typeof GoogleGenerativeAI>["getGenerativeModel"]>,
+  model: GenerativeModel,
   userContent: string,
   fallback: T,
 ): Promise<T> {
@@ -1328,7 +1329,6 @@ export async function extractStructuredFromSources(params: {
   if (!env.GOOGLE_AI_API_KEY) return fallback;
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
     const ctx = [
       `Hospital name hint: ${params.hints.hospitalName ?? "unknown"}`,
       `City hint: ${params.hints.city ?? "unknown"}`,
@@ -1337,13 +1337,13 @@ export async function extractStructuredFromSources(params: {
 
     // ── PASS A — Hospital core ─────────────────────────────────────────────
     await onProgress?.({ stage: 'extracting', message: "AI Pass A: Hospital Profile...", percent: 75 });
-    const modelA = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_A, generationConfig: JSON_CONFIG });
+    const modelA = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_A, generationConfig: JSON_CONFIG });
     const passAInput = [ctx, "ROOT PAGE:\n" + params.websiteText.slice(0, 28_000), aboutPageText ? "ABOUT/CONTACT:\n" + aboutPageText : ""].join("\n\n");
     const passA = await runPass<Partial<IngestionHospital>>(modelA, passAInput, {});
 
     // ── PASS B — Doctors ────────────────────────────────────────────────────
     await onProgress?.({ stage: 'extracting', message: "AI Pass B: Doctor Directory...", percent: 85 });
-    const modelB = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_B, generationConfig: JSON_CONFIG });
+    const modelB = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_B, generationConfig: JSON_CONFIG });
     const passBInput = [
       ctx,
       doctorPageText
@@ -1355,7 +1355,7 @@ export async function extractStructuredFromSources(params: {
 
     // ── PASS C — Services + Packages + Procedure Costs ─────────────────────
     await onProgress?.({ stage: 'extracting', message: "AI Pass C: Services & Pricing...", percent: 95 });
-    const modelC = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_C, generationConfig: JSON_CONFIG });
+    const modelC = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL, systemInstruction: SYSTEM_C, generationConfig: JSON_CONFIG });
     const passCInput = [
       ctx,
       servicePageText ? "SERVICE/PACKAGE/DEPT PAGES:\n" + servicePageText : "SERVICE PAGES: none found separately.",
@@ -1555,8 +1555,7 @@ export async function chooseBestHospitalMatch(params: {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL, generationConfig: JSON_CONFIG });
+    const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL, generationConfig: JSON_CONFIG });
     const prompt = [
       "You are a hospital entity matching engine. Return JSON only.",
       '{"action":"create|update|skip","matchHospitalId":"id or null","confidence":0.0,"reason":"string"}',
@@ -1688,7 +1687,7 @@ export async function discoverHospitalPricing(hostname: string, city: string): P
   if (snippets.length === 0) return { packages: [], costs: [], sources: [] };
 
   // Step 1: Use AI to decide which 2 links look most like pricing data
-  const model = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY!).getGenerativeModel({ model: env.GEMINI_MODEL });
+  const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
   const rankPrompt = `I have a list of search results for a hospital's pricing.
 Which 2 links are MOST likely to contain a structured table of medical procedure costs or package prices?
 Return ONLY a JSON array of indices (0-7).

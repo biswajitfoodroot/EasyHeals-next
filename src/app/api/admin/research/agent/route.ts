@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -41,16 +41,28 @@ export async function POST(req: NextRequest) {
 
   const parsed = agentSchema.safeParse(payload);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Validation error", details: parsed.error.flatten() }, { status: 400 });
+    // Build a user-friendly error message
+    let errorMsg = "Please check your input:";
+    const errors = parsed.error.flatten().fieldErrors;
+    
+    if (errors.query) {
+      errorMsg += " Research query must be between 3-300 characters.";
+    }
+    if (errors.city) {
+      errorMsg += " City name must be under 80 characters.";
+    }
+    
+    return NextResponse.json(
+      { error: errorMsg, details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   const { query, city, autoQueue } = parsed.data;
   const locationHint = city ? ` in ${city}` : " in India";
 
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-
   // ── Step 1: Gemini with Google Search Grounding ──────────────────────────
-  const searchModel = genAI.getGenerativeModel({
+  const searchModel = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL,
     // @ts-expect-error — googleSearch tool is valid at runtime
     tools: [{ googleSearch: {} }],
@@ -82,7 +94,7 @@ Provide a comprehensive summary of what you found.`;
     (candidate as any)?.groundingMetadata?.groundingChunks ?? [];
 
   // ── Step 2: Extract structured entities from grounded text ───────────────
-  const extractModel = genAI.getGenerativeModel({
+  const extractModel = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL,
     generationConfig: {
       responseMimeType: "application/json",

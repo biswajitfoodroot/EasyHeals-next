@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
-import AppointmentModal from "@/components/AppointmentModal";
+import AuthBookingModal from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import styles from "@/components/profiles/profiles.module.css";
@@ -137,9 +137,9 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
     <main className={styles.page}>
       <section className={styles.container}>
         <nav className={styles.breadcrumb}>
-          <Link href="/">Home</Link>
+          <Link href="/">{t("common.home")}</Link>
           <span>/</span>
-          <Link href="/doctors">Doctors</Link>
+          <Link href="/doctors">{t("nav.doctors")}</Link>
           <span>/</span>
           <span>{data.doctor.fullName}</span>
         </nav>
@@ -151,7 +151,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
               <h1 className={styles.title}>{data.doctor.fullName}</h1>
               <p className={styles.subtitle}>{heroMeta}</p>
               <div className={styles.heroBadges}>
-                <span>{data.doctor.verified ? "Verified" : "Community Verified"}</span>
+                <span>{data.doctor.verified ? t("common.verified") : t("common.communityVerified")}</span>
                 <span>Bidirectional Hospital Mapping</span>
                 <span>Consultation Ready</span>
               </div>
@@ -192,14 +192,14 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         {tab === "overview" ? (
           <section className={styles.contentGrid}>
             <article className={styles.panel}>
-              <h2>Doctor Overview</h2>
-              <p>{data.doctor.bio ?? "Profile summary will appear after verification."}</p>
+              <h2>{t("doctor.profileOverview")}</h2>
+              <p>{data.doctor.bio ?? t("doctor.profileSummaryNote")}</p>
 
               <InlineFieldEditor
                 targetType="doctor"
                 targetId={data.doctor.id}
                 field="phone"
-                label="Phone"
+                label={t("common.phone")}
                 value={valueOrFallback(data.doctor.phone, "")}
 
               />
@@ -207,7 +207,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 targetType="doctor"
                 targetId={data.doctor.id}
                 field="specialization"
-                label="Specialization"
+                label={t("doctor.specialization")}
                 value={valueOrFallback(data.doctor.specialization, "")}
 
               />
@@ -215,7 +215,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 targetType="doctor"
                 targetId={data.doctor.id}
                 field="qualifications"
-                label="Qualifications"
+                label={t("doctor.qualifications")}
                 value={data.doctor.qualifications.join(", ")}
                 multiline
 
@@ -224,18 +224,18 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 targetType="doctor"
                 targetId={data.doctor.id}
                 field="consultationFee"
-                label="Consultation Fee"
+                label={t("doctor.consultationFee")}
                 value={data.doctor.consultationFee ? String(data.doctor.consultationFee) : ""}
 
               />
             </article>
 
             <aside className={styles.panel}>
-              <h3>Highlights</h3>
-              <p>Experience: {data.doctor.yearsOfExperience ? `${data.doctor.yearsOfExperience}+ years` : "Updating"}</p>
-              <p>Languages: {data.doctor.languages.length ? data.doctor.languages.join(", ") : "Updating"}</p>
+              <h3>{t("doctor.highlights")}</h3>
+              <p>{t("common.experience")}: {data.doctor.yearsOfExperience ? `${data.doctor.yearsOfExperience}+ years` : t("common.updating")}</p>
+              <p>{t("doctor.languages")}: {data.doctor.languages.length ? data.doctor.languages.join(", ") : t("common.updating")}</p>
               <p>
-                Fee Range: {data.doctor.feeMin || data.doctor.feeMax ? `${data.doctor.feeMin ?? "-"} - ${data.doctor.feeMax ?? "-"}` : "Updating"}
+                {t("common.feeRange")}: {data.doctor.feeMin || data.doctor.feeMax ? `${data.doctor.feeMin ?? "-"} - ${data.doctor.feeMax ?? "-"}` : t("common.updating")}
               </p>
               <div className={styles.tagRow}>
                 {data.doctor.specialties.map((item) => (
@@ -248,8 +248,8 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
 
         {tab === "affiliations" ? (
           <section className={styles.panel}>
-            <h2>Affiliated Hospitals</h2>
-            <p>Click a hospital to navigate to its profile page and available doctors.</p>
+            <h2>{t("doctor.tabAffiliations")}</h2>
+            <p>{t("doctor.affiliationsHint")}</p>
             <div className={styles.cardGrid}>
               {data.affiliations.map((item) => (
                 <article key={item.affiliationId} className={styles.profileCard}>
@@ -279,7 +279,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         {tab === "services" ? (
           <section className={styles.split}>
             <article className={styles.panel}>
-              <h2>Specialties</h2>
+              <h2>{t("doctor.specialties")}</h2>
               <div className={styles.tagRow}>
                 {data.doctor.specialties.map((item) => (
                   <span key={item}>{item}</span>
@@ -288,14 +288,14 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
             </article>
 
             <article className={styles.panel}>
-              <h2>Nearby Doctors</h2>
+              <h2>{t("doctor.nearbyDoctors")}</h2>
               <div className={styles.cardGrid}>
                 {data.nearbyDoctors.map((item) => (
                   <article key={item.id} className={styles.profileCard}>
                     <h4>{item.fullName}</h4>
-                    <p>{valueOrFallback(item.specialization)}</p>
+                    <p>{valueOrFallback(item.specialization, t("common.notUpdated"))}</p>
                     <p>
-                      {valueOrFallback(item.city)}
+                      {valueOrFallback(item.city, t("common.notUpdated"))}
                       {item.state ? `, ${item.state}` : ""}
                     </p>
                     <div className={styles.profileCardFooter}>
@@ -312,7 +312,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
           <section className={styles.panel}>
             <h2>{t("doctor.ratingsTitle")}</h2>
             <p>
-              Current score: <strong>{data.doctor.rating.toFixed(1)} / 5</strong> from {data.doctor.reviewCount.toLocaleString("en-IN")} reviews.
+              {t("common.currentScore")}: <strong>{data.doctor.rating.toFixed(1)} / 5</strong> from {data.doctor.reviewCount.toLocaleString("en-IN")} reviews.
             </p>
             {data.doctor.aiReviewSummary ? (
               <div style={{ marginTop: "12px", padding: "14px 16px", borderRadius: "12px", border: "1px solid rgba(77,255,216,0.2)", background: "rgba(0,184,150,0.06)" }}>
@@ -320,14 +320,14 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                 <p style={{ margin: 0, lineHeight: 1.6 }}>{data.doctor.aiReviewSummary}</p>
               </div>
             ) : (
-              <p>Verified patient review workflow is scheduled in the next phase.</p>
+              <p>{t("doctor.ratingsNote")}</p>
             )}
           </section>
         ) : null}
 
         {tab === "location" ? (
           <section className={styles.panel}>
-            <h2>Practice Locations</h2>
+            <h2>{t("doctor.practiceLocations")}</h2>
             <div className={styles.cardGrid}>
               {data.affiliations.map((item) => (
                 <article key={`${item.affiliationId}-location`} className={styles.profileCard}>
@@ -358,13 +358,12 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         ) : null}
       </div>
 
-      <AppointmentModal
+      <AuthBookingModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         doctorName={data.doctor.fullName}
-        hospitalId={primaryHospital?.hospital.id}
+        hospitalId={primaryHospital?.hospital.id ?? ""}
         hospitalName={primaryHospital?.hospital.name}
-        source="doctor_profile"
       />
 
       <ContributeModal

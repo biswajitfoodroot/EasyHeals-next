@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { hospitals } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit";
+import { phiSafeChanges, writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
 import { parseStringArray } from "@/lib/profiles";
 
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
     action: "portal.hospital.update",
     entityType: "hospital",
     entityId: hospitalId,
-    changes: parsed.data,
+    changes: phiSafeChanges(parsed.data),
   });
 
   const rows = await db.select().from(hospitals).where(eq(hospitals.id, hospitalId)).limit(1);

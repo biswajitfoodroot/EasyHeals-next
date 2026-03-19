@@ -54,6 +54,21 @@ export type Dict = {
     directions: string;
     stay: string;
     bookPackage: string;
+    home: string;
+    updating: string;
+    pending: string;
+    currentScore: string;
+    notUpdated: string;
+    feeRange: string;
+    notAvailable: string;
+    phone: string;
+    address: string;
+    website: string;
+    workingHours: string;
+    submit: string;
+    submitting: string;
+    edit: string;
+    specialist: string;
   };
   hospital: {
     directoryTitle: string;
@@ -76,6 +91,11 @@ export type Dict = {
     locationTitle: string;
     largerMap: string;
     kicker: string;
+    facilities: string;
+    accreditations: string;
+    departmentsServices: string;
+    addressNotAvailable: string;
+    descriptionPending: string;
   };
   doctor: {
     directoryTitle: string;
@@ -94,8 +114,24 @@ export type Dict = {
     ratingsTitle: string;
     ratingsNote: string;
     kicker: string;
+    specialization: string;
+    tabServices: string;
+    tabLocation: string;
+    profileOverview: string;
+    profileSummaryNote: string;
+    highlights: string;
+    affiliationsHint: string;
+    nearbyDoctors: string;
+    practiceLocations: string;
   };
   treatment: {
+    directoryTitle: string;
+    directoryDescription: string;
+    typeSpecialty: string;
+    typeTreatment: string;
+    typeProcedure: string;
+    typeCondition: string;
+    typeDepartment: string;
     tabOverview: string;
     tabHospitals: string;
     tabDoctors: string;
@@ -103,6 +139,14 @@ export type Dict = {
     specialists: string;
     noHospitals: string;
     noDoctors: string;
+    aboutTitle: string;
+    bookFreeConsultation: string;
+    quickStats: string;
+    hospitalsFound: string;
+    specialistDoctorsAvailable: string;
+    viewHospitals: string;
+    hospitalsFor: string;
+    specialistsFor: string;
   };
   registration: {
     title: string;
@@ -117,6 +161,59 @@ export type Dict = {
     verifyComplete: string;
     successTitle: string;
     successMessage: string;
+  };
+  home: {
+    heroLabel: string;
+    heroTitle: string;
+    heroSubtitle: string;
+    myDashboard: string;
+    login: string;
+    listHospitalFree: string;
+    startRegistration: string;
+    whatLooking: string;
+    topRatedNear: string;
+    topRatedIn: string;
+    notSureSpecialist: string;
+    selectBodyArea: string;
+    labTests: string;
+    symptoms: string;
+    viewProfile: string;
+    suggestEdit: string;
+    listHospitalCta: string;
+    statHospitals: string;
+    statCities: string;
+    statLanguages: string;
+    statRating: string;
+  };
+  dashboard: {
+    greetingMorning: string;
+    greetingAfternoon: string;
+    greetingEvening: string;
+    healthSummary: string;
+    noAppointments: string;
+    bookAppointment: string;
+    nextAppointment: string;
+    quickActions: string;
+    healthTools: string;
+    myRecords: string;
+    labOrders: string;
+    appointments: string;
+    emrVisits: string;
+    prescriptions: string;
+    findHospitals: string;
+    visitsAndPrescriptions: string;
+    viewTestResults: string;
+    symptomCheck: string;
+    aiTriageGuidance: string;
+    uploadReport: string;
+    aiExtractedInsights: string;
+    healthTimeline: string;
+    yourHealthHistory: string;
+    askCoach: string;
+    aiHealthAssistant: string;
+    privacy: string;
+    manageDataConsent: string;
+    signOut: string;
   };
 };
 
@@ -166,6 +263,21 @@ const en: Dict = {
     directions: "Directions",
     stay: "Stay",
     bookPackage: "Book This Package",
+    home: "Home",
+    updating: "Updating",
+    pending: "Pending",
+    currentScore: "Current score",
+    notUpdated: "Not updated",
+    feeRange: "Fee Range",
+    notAvailable: "Not available",
+    phone: "Phone",
+    address: "Address",
+    website: "Website",
+    workingHours: "Working Hours",
+    submit: "Submit",
+    submitting: "Submitting...",
+    edit: "Edit",
+    specialist: "Specialist",
   },
   hospital: {
     directoryTitle: "Private Hospitals Across India",
@@ -188,6 +300,11 @@ const en: Dict = {
     locationTitle: "Location & Navigation",
     largerMap: "Larger Map",
     kicker: "Hospital Profile",
+    facilities: "Facilities",
+    accreditations: "Accreditations",
+    departmentsServices: "Departments & Services",
+    addressNotAvailable: "Address not available",
+    descriptionPending: "Description will appear after profile verification.",
   },
   doctor: {
     directoryTitle: "Doctors Across India",
@@ -206,8 +323,24 @@ const en: Dict = {
     ratingsTitle: "Ratings & Reviews",
     ratingsNote: "Verified patient review workflow is in the next planned sprint.",
     kicker: "Doctor Profile",
+    specialization: "Specialization",
+    tabServices: "Services",
+    tabLocation: "Location",
+    profileOverview: "Doctor Overview",
+    profileSummaryNote: "Profile summary will appear after verification.",
+    highlights: "Highlights",
+    affiliationsHint: "Click a hospital to navigate to its profile page and available doctors.",
+    nearbyDoctors: "Nearby Doctors",
+    practiceLocations: "Practice Locations",
   },
   treatment: {
+    directoryTitle: "Treatments & Specialties",
+    directoryDescription: "Browse medical treatments, specialties and procedures. Find top hospitals and specialists for any healthcare need across India.",
+    typeSpecialty: "Specialties",
+    typeTreatment: "Treatments",
+    typeProcedure: "Procedures",
+    typeCondition: "Conditions",
+    typeDepartment: "Departments",
     tabOverview: "Overview",
     tabHospitals: "Hospitals",
     tabDoctors: "Doctors",
@@ -215,6 +348,14 @@ const en: Dict = {
     specialists: "Specialists",
     noHospitals: "No hospitals linked to this treatment yet.",
     noDoctors: "No doctors linked to this treatment yet.",
+    aboutTitle: "About",
+    bookFreeConsultation: "Book a Free Consultation",
+    quickStats: "Quick Stats",
+    hospitalsFound: "hospitals found across India",
+    specialistDoctorsAvailable: "specialist doctors available",
+    viewHospitals: "View Hospitals",
+    hospitalsFor: "Hospitals for",
+    specialistsFor: "Specialists for",
   },
   registration: {
     title: "Register Your Hospital",
@@ -229,6 +370,59 @@ const en: Dict = {
     verifyComplete: "Verify & Complete",
     successTitle: "You're live!",
     successMessage: "Your hospital profile is now active on EasyHeals.",
+  },
+  home: {
+    heroLabel: "AI-Powered Healthcare Search",
+    heroTitle: "Tell us what you need. We will find the right care.",
+    heroSubtitle: "Describe symptoms in Hindi, Tamil, Marathi or English. Our AI maps your needs to the best doctors and hospitals instantly.",
+    myDashboard: "My Dashboard",
+    login: "Login",
+    listHospitalFree: "List Hospital Free",
+    startRegistration: "Start Registration",
+    whatLooking: "What are you looking for?",
+    topRatedNear: "Top rated near you",
+    topRatedIn: "Top rated in",
+    notSureSpecialist: "Not sure which specialist you need?",
+    selectBodyArea: "Select body area and get suggested specialty instantly.",
+    labTests: "Lab Tests",
+    symptoms: "Symptoms",
+    viewProfile: "View Profile",
+    suggestEdit: "Suggest Edit",
+    listHospitalCta: "List your hospital. It is free.",
+    statHospitals: "Hospitals",
+    statCities: "Cities",
+    statLanguages: "Languages",
+    statRating: "Patient Rating",
+  },
+  dashboard: {
+    greetingMorning: "Good morning",
+    greetingAfternoon: "Good afternoon",
+    greetingEvening: "Good evening",
+    healthSummary: "Here's your health summary",
+    noAppointments: "No upcoming appointments",
+    bookAppointment: "Book Appointment",
+    nextAppointment: "Next Appointment",
+    quickActions: "Quick Actions",
+    healthTools: "Health Tools",
+    myRecords: "My Records",
+    labOrders: "Lab Orders",
+    appointments: "Appointments",
+    emrVisits: "EMR Visits",
+    prescriptions: "Prescriptions",
+    findHospitals: "Find hospitals near you",
+    visitsAndPrescriptions: "Visits & prescriptions",
+    viewTestResults: "View test results",
+    symptomCheck: "Symptom Check",
+    aiTriageGuidance: "AI triage guidance",
+    uploadReport: "Upload Report",
+    aiExtractedInsights: "AI-extracted insights",
+    healthTimeline: "Health Timeline",
+    yourHealthHistory: "Your health history",
+    askCoach: "Ask Coach",
+    aiHealthAssistant: "AI health assistant",
+    privacy: "Privacy",
+    manageDataConsent: "Manage data & consent",
+    signOut: "Sign Out",
   },
 };
 
@@ -278,6 +472,21 @@ const hi: Dict = {
     directions: "दिशा",
     stay: "ठहरना",
     bookPackage: "यह पैकेज बुक करें",
+    home: "होम",
+    updating: "अपडेट हो रहा है",
+    pending: "लंबित",
+    currentScore: "वर्तमान स्कोर",
+    notUpdated: "अपडेट नहीं किया गया",
+    feeRange: "शुल्क सीमा",
+    notAvailable: "उपलब्ध नहीं",
+    phone: "फ़ोन",
+    address: "पता",
+    website: "वेबसाइट",
+    workingHours: "कार्य समय",
+    submit: "जमा करें",
+    submitting: "जमा हो रहा है...",
+    edit: "संपादित करें",
+    specialist: "विशेषज्ञ",
   },
   hospital: {
     directoryTitle: "भारत भर के निजी अस्पताल",
@@ -300,6 +509,11 @@ const hi: Dict = {
     locationTitle: "स्थान और नेविगेशन",
     largerMap: "बड़ा नक्शा",
     kicker: "अस्पताल प्रोफ़ाइल",
+    facilities: "सुविधाएं",
+    accreditations: "मान्यताएं",
+    departmentsServices: "विभाग और सेवाएं",
+    addressNotAvailable: "पता उपलब्ध नहीं",
+    descriptionPending: "प्रोफ़ाइल सत्यापन के बाद विवरण दिखाई देगा।",
   },
   doctor: {
     directoryTitle: "भारत भर के डॉक्टर",
@@ -318,8 +532,24 @@ const hi: Dict = {
     ratingsTitle: "रेटिंग और समीक्षाएं",
     ratingsNote: "सत्यापित रोगी समीक्षा वर्कफ़्लो अगले स्प्रिंट में है।",
     kicker: "डॉक्टर प्रोफ़ाइल",
+    specialization: "विशेषज्ञता",
+    tabServices: "सेवाएं",
+    tabLocation: "स्थान",
+    profileOverview: "डॉक्टर अवलोकन",
+    profileSummaryNote: "प्रोफ़ाइल सारांश सत्यापन के बाद दिखाई देगी।",
+    highlights: "मुख्य बातें",
+    affiliationsHint: "प्रोफ़ाइल पृष्ठ देखने के लिए किसी भी अस्पताल पर क्लिक करें।",
+    nearbyDoctors: "नज़दीकी डॉक्टर",
+    practiceLocations: "प्रैक्टिस स्थान",
   },
   treatment: {
+    directoryTitle: "उपचार और विशेषताएं",
+    directoryDescription: "चिकित्सा उपचार, विशेषताएं और प्रक्रियाएं देखें। पूरे भारत में किसी भी स्वास्थ्य सेवा के लिए शीर्ष अस्पताल और विशेषज्ञ खोजें।",
+    typeSpecialty: "विशेषताएं",
+    typeTreatment: "उपचार",
+    typeProcedure: "प्रक्रियाएं",
+    typeCondition: "स्थितियां",
+    typeDepartment: "विभाग",
     tabOverview: "अवलोकन",
     tabHospitals: "अस्पताल",
     tabDoctors: "डॉक्टर",
@@ -327,6 +557,14 @@ const hi: Dict = {
     specialists: "विशेषज्ञ",
     noHospitals: "अभी तक इस उपचार से कोई अस्पताल नहीं जोड़ा गया।",
     noDoctors: "अभी तक इस उपचार से कोई डॉक्टर नहीं जोड़ा गया।",
+    aboutTitle: "के बारे में",
+    bookFreeConsultation: "नि:शुल्क परामर्श बुक करें",
+    quickStats: "त्वरित आंकड़े",
+    hospitalsFound: "अस्पताल पूरे भारत में मिले",
+    specialistDoctorsAvailable: "विशेषज्ञ डॉक्टर उपलब्ध",
+    viewHospitals: "अस्पताल देखें",
+    hospitalsFor: "के लिए अस्पताल",
+    specialistsFor: "के लिए विशेषज्ञ",
   },
   registration: {
     title: "अपना अस्पताल पंजीकृत करें",
@@ -341,6 +579,59 @@ const hi: Dict = {
     verifyComplete: "सत्यापित करें और पूरा करें",
     successTitle: "आप लाइव हैं!",
     successMessage: "आपकी अस्पताल प्रोफ़ाइल अब EasyHeals पर सक्रिय है।",
+  },
+  home: {
+    heroLabel: "AI-संचालित स्वास्थ्य सेवा खोज",
+    heroTitle: "हमें बताएं आपको क्या चाहिए। हम सही देखभाल खोजेंगे।",
+    heroSubtitle: "हिंदी, तमिल, मराठी या अंग्रेजी में लक्षण बताएं। हमारा AI आपकी जरूरत के अनुसार सर्वश्रेष्ठ डॉक्टर और अस्पताल खोजता है।",
+    myDashboard: "मेरा डैशबोर्ड",
+    login: "लॉगिन",
+    listHospitalFree: "अस्पताल निःशुल्क सूचीबद्ध करें",
+    startRegistration: "पंजीकरण शुरू करें",
+    whatLooking: "आप क्या ढूंढ रहे हैं?",
+    topRatedNear: "आपके पास शीर्ष रेटेड",
+    topRatedIn: "शीर्ष रेटेड",
+    notSureSpecialist: "नहीं जानते कौन से विशेषज्ञ की जरूरत है?",
+    selectBodyArea: "शरीर का हिस्सा चुनें और तुरंत विशेषज्ञ सुझाव पाएं।",
+    labTests: "लैब टेस्ट",
+    symptoms: "लक्षण",
+    viewProfile: "प्रोफ़ाइल देखें",
+    suggestEdit: "संपादन सुझाएं",
+    listHospitalCta: "अपना अस्पताल सूचीबद्ध करें। यह मुफ़्त है।",
+    statHospitals: "अस्पताल",
+    statCities: "शहर",
+    statLanguages: "भाषाएं",
+    statRating: "रोगी रेटिंग",
+  },
+  dashboard: {
+    greetingMorning: "सुप्रभात",
+    greetingAfternoon: "शुभ अपराह्न",
+    greetingEvening: "शुभ संध्या",
+    healthSummary: "आपका स्वास्थ्य सारांश",
+    noAppointments: "कोई आगामी अपॉइंटमेंट नहीं",
+    bookAppointment: "अपॉइंटमेंट बुक करें",
+    nextAppointment: "अगली अपॉइंटमेंट",
+    quickActions: "त्वरित कार्य",
+    healthTools: "स्वास्थ्य उपकरण",
+    myRecords: "मेरे रिकॉर्ड",
+    labOrders: "लैब ऑर्डर",
+    appointments: "अपॉइंटमेंट",
+    emrVisits: "EMR विजिट",
+    prescriptions: "नुस्खे",
+    findHospitals: "आपके पास अस्पताल खोजें",
+    visitsAndPrescriptions: "विजिट और नुस्खे",
+    viewTestResults: "जांच परिणाम देखें",
+    symptomCheck: "लक्षण जांच",
+    aiTriageGuidance: "AI ट्रायाज मार्गदर्शन",
+    uploadReport: "रिपोर्ट अपलोड करें",
+    aiExtractedInsights: "AI-निकाले गए अंतर्दृष्टि",
+    healthTimeline: "स्वास्थ्य टाइमलाइन",
+    yourHealthHistory: "आपका स्वास्थ्य इतिहास",
+    askCoach: "कोच से पूछें",
+    aiHealthAssistant: "AI स्वास्थ्य सहायक",
+    privacy: "गोपनीयता",
+    manageDataConsent: "डेटा और सहमति प्रबंधित करें",
+    signOut: "साइन आउट",
   },
 };
 
@@ -390,6 +681,21 @@ const mr: Dict = {
     directions: "दिशा",
     stay: "मुक्काम",
     bookPackage: "हे पॅकेज बुक करा",
+    home: "मुख्यपृष्ठ",
+    updating: "अपडेट होत आहे",
+    pending: "प्रलंबित",
+    currentScore: "सध्याचा स्कोर",
+    notUpdated: "अपडेट केलेले नाही",
+    feeRange: "शुल्क श्रेणी",
+    notAvailable: "उपलब्ध नाही",
+    phone: "फोन",
+    address: "पत्ता",
+    website: "वेबसाइट",
+    workingHours: "कामाचे तास",
+    submit: "सादर करा",
+    submitting: "सादर होत आहे...",
+    edit: "संपादित करा",
+    specialist: "तज्ञ",
   },
   hospital: {
     directoryTitle: "भारतभरातील खाजगी रुग्णालये",
@@ -412,6 +718,11 @@ const mr: Dict = {
     locationTitle: "स्थान आणि नेव्हिगेशन",
     largerMap: "मोठा नकाशा",
     kicker: "रुग्णालय प्रोफाइल",
+    facilities: "सुविधा",
+    accreditations: "मान्यता",
+    departmentsServices: "विभाग आणि सेवा",
+    addressNotAvailable: "पत्ता उपलब्ध नाही",
+    descriptionPending: "प्रोफाइल सत्यापनानंतर वर्णन दिसेल.",
   },
   doctor: {
     directoryTitle: "भारतभरातील डॉक्टर",
@@ -430,8 +741,24 @@ const mr: Dict = {
     ratingsTitle: "रेटिंग आणि समीक्षा",
     ratingsNote: "सत्यापित रुग्ण समीक्षा वर्कफ्लो पुढील स्प्रिंटमध्ये आहे.",
     kicker: "डॉक्टर प्रोफाइल",
+    specialization: "विशेषीकरण",
+    tabServices: "सेवा",
+    tabLocation: "स्थान",
+    profileOverview: "डॉक्टर आढावा",
+    profileSummaryNote: "प्रोफाइल सारांश सत्यापनानंतर दिसेल.",
+    highlights: "ठळक मुद्दे",
+    affiliationsHint: "प्रोफाइल पृष्ठ पाहण्यासाठी कोणत्याही रुग्णालयावर क्लिक करा.",
+    nearbyDoctors: "जवळचे डॉक्टर",
+    practiceLocations: "सराव ठिकाणे",
   },
   treatment: {
+    directoryTitle: "उपचार आणि विशेषता",
+    directoryDescription: "वैद्यकीय उपचार, विशेषता आणि प्रक्रिया पहा. भारतभरातील कोणत्याही आरोग्य सेवेसाठी शीर्ष रुग्णालये आणि तज्ञ शोधा.",
+    typeSpecialty: "विशेषता",
+    typeTreatment: "उपचार",
+    typeProcedure: "प्रक्रिया",
+    typeCondition: "स्थिती",
+    typeDepartment: "विभाग",
     tabOverview: "आढावा",
     tabHospitals: "रुग्णालये",
     tabDoctors: "डॉक्टर",
@@ -439,6 +766,14 @@ const mr: Dict = {
     specialists: "तज्ञ",
     noHospitals: "अजून या उपचारासाठी कोणतेही रुग्णालय जोडलेले नाही.",
     noDoctors: "अजून या उपचारासाठी कोणताही डॉक्टर जोडलेला नाही.",
+    aboutTitle: "बद्दल",
+    bookFreeConsultation: "विनामूल्य सल्ला बुक करा",
+    quickStats: "त्वरित आकडेवारी",
+    hospitalsFound: "रुग्णालये भारतभर आढळली",
+    specialistDoctorsAvailable: "तज्ञ डॉक्टर उपलब्ध",
+    viewHospitals: "रुग्णालये पहा",
+    hospitalsFor: "साठी रुग्णालये",
+    specialistsFor: "साठी तज्ञ",
   },
   registration: {
     title: "तुमचे रुग्णालय नोंदणी करा",
@@ -453,6 +788,59 @@ const mr: Dict = {
     verifyComplete: "सत्यापित करा आणि पूर्ण करा",
     successTitle: "तुम्ही लाइव्ह आहात!",
     successMessage: "तुमची रुग्णालय प्रोफाइल आता EasyHeals वर सक्रिय आहे.",
+  },
+  home: {
+    heroLabel: "AI-चालित आरोग्य सेवा शोध",
+    heroTitle: "तुम्हाला काय हवे ते सांगा. आम्ही योग्य काळजी शोधू.",
+    heroSubtitle: "हिंदी, तमिळ, मराठी किंवा इंग्रजीत लक्षणे सांगा. आमचा AI तुमच्या गरजेनुसार सर्वोत्तम डॉक्टर आणि रुग्णालये शोधतो.",
+    myDashboard: "माझा डॅशबोर्ड",
+    login: "लॉगिन",
+    listHospitalFree: "रुग्णालय मोफत नोंदवा",
+    startRegistration: "नोंदणी सुरू करा",
+    whatLooking: "तुम्ही काय शोधत आहात?",
+    topRatedNear: "तुमच्याजवळ शीर्ष रेटेड",
+    topRatedIn: "शीर्ष रेटेड",
+    notSureSpecialist: "कोणता तज्ञ हवा हे माहित नाही?",
+    selectBodyArea: "शरीराचा भाग निवडा आणि त्वरित तज्ञाची शिफारस मिळवा.",
+    labTests: "लॅब चाचण्या",
+    symptoms: "लक्षणे",
+    viewProfile: "प्रोफाइल पहा",
+    suggestEdit: "संपादन सुचवा",
+    listHospitalCta: "तुमचे रुग्णालय नोंदवा. हे मोफत आहे.",
+    statHospitals: "रुग्णालये",
+    statCities: "शहरे",
+    statLanguages: "भाषा",
+    statRating: "रुग्ण रेटिंग",
+  },
+  dashboard: {
+    greetingMorning: "सुप्रभात",
+    greetingAfternoon: "शुभ दुपार",
+    greetingEvening: "शुभ संध्याकाळ",
+    healthSummary: "तुमचा आरोग्य सारांश",
+    noAppointments: "कोणत्याही आगामी भेटी नाहीत",
+    bookAppointment: "अपॉइंटमेंट बुक करा",
+    nextAppointment: "पुढील अपॉइंटमेंट",
+    quickActions: "द्रुत क्रिया",
+    healthTools: "आरोग्य साधने",
+    myRecords: "माझे रेकॉर्ड",
+    labOrders: "लॅब ऑर्डर",
+    appointments: "अपॉइंटमेंट",
+    emrVisits: "EMR भेटी",
+    prescriptions: "प्रिस्क्रिप्शन",
+    findHospitals: "जवळचे रुग्णालय शोधा",
+    visitsAndPrescriptions: "भेटी आणि प्रिस्क्रिप्शन",
+    viewTestResults: "चाचणी परिणाम पहा",
+    symptomCheck: "लक्षण तपासणी",
+    aiTriageGuidance: "AI ट्रायाज मार्गदर्शन",
+    uploadReport: "अहवाल अपलोड करा",
+    aiExtractedInsights: "AI-निष्कर्षित अंतर्दृष्टी",
+    healthTimeline: "आरोग्य टाइमलाइन",
+    yourHealthHistory: "तुमचा आरोग्य इतिहास",
+    askCoach: "कोचला विचारा",
+    aiHealthAssistant: "AI आरोग्य सहाय्यक",
+    privacy: "गोपनीयता",
+    manageDataConsent: "डेटा आणि संमती व्यवस्थापित करा",
+    signOut: "साइन आउट",
   },
 };
 
@@ -502,6 +890,21 @@ const ta: Dict = {
     directions: "வழிகாட்டல்",
     stay: "தங்குதல்",
     bookPackage: "இந்த தொகுப்பை பதிவு செய்க",
+    home: "முகப்பு",
+    updating: "புதுப்பிக்கிறது",
+    pending: "நிலுவையில்",
+    currentScore: "தற்போதைய மதிப்பெண்",
+    notUpdated: "புதுப்பிக்கப்படவில்லை",
+    feeRange: "கட்டண வரம்பு",
+    notAvailable: "கிடைக்கவில்லை",
+    phone: "தொலைபேசி",
+    address: "முகவரி",
+    website: "இணையதளம்",
+    workingHours: "பணி நேரம்",
+    submit: "சமர்ப்பி",
+    submitting: "சமர்ப்பிக்கிறது...",
+    edit: "திருத்து",
+    specialist: "நிபுணர்",
   },
   hospital: {
     directoryTitle: "இந்தியா முழுவதும் தனியார் மருத்துவமனைகள்",
@@ -524,6 +927,11 @@ const ta: Dict = {
     locationTitle: "இடம் & வழிசெலுத்தல்",
     largerMap: "பெரிய வரைபடம்",
     kicker: "மருத்துவமனை சுயவிவரம்",
+    facilities: "வசதிகள்",
+    accreditations: "அங்கீகாரங்கள்",
+    departmentsServices: "துறைகள் & சேவைகள்",
+    addressNotAvailable: "முகவரி கிடைக்கவில்லை",
+    descriptionPending: "சுயவிவர சரிபார்ப்புக்குப் பிறகு விளக்கம் தோன்றும்.",
   },
   doctor: {
     directoryTitle: "இந்தியா முழுவதும் மருத்துவர்கள்",
@@ -542,8 +950,24 @@ const ta: Dict = {
     ratingsTitle: "மதிப்பீடுகள் & மதிப்புரைகள்",
     ratingsNote: "சரிபார்க்கப்பட்ட நோயாளி மதிப்பாய்வு அடுத்த ஸ்பிரிண்டில் உள்ளது.",
     kicker: "மருத்துவர் சுயவிவரம்",
+    specialization: "சிறப்பு",
+    tabServices: "சேவைகள்",
+    tabLocation: "இடம்",
+    profileOverview: "மருத்துவர் கண்ணோட்டம்",
+    profileSummaryNote: "சுயவிவர சுருக்கம் சரிபார்ப்புக்குப் பிறகு தோன்றும்.",
+    highlights: "சிறப்பம்சங்கள்",
+    affiliationsHint: "சுயவிவர பக்கம் பார்க்க எந்த மருத்துவமனையையும் கிளிக் செய்யுங்கள்.",
+    nearbyDoctors: "அருகிலுள்ள மருத்துவர்கள்",
+    practiceLocations: "பணிபுரியும் இடங்கள்",
   },
   treatment: {
+    directoryTitle: "சிகிச்சைகள் & சிறப்புகள்",
+    directoryDescription: "மருத்துவ சிகிச்சைகள், சிறப்புகள் மற்றும் நடைமுறைகளை பார்க்கவும். இந்தியா முழுவதும் எந்த சுகாதார தேவைக்கும் சிறந்த மருத்துவமனைகள் மற்றும் நிபுணர்களை கண்டறியுங்கள்.",
+    typeSpecialty: "சிறப்புகள்",
+    typeTreatment: "சிகிச்சைகள்",
+    typeProcedure: "செயல்முறைகள்",
+    typeCondition: "நிலைமைகள்",
+    typeDepartment: "துறைகள்",
     tabOverview: "கண்ணோட்டம்",
     tabHospitals: "மருத்துவமனைகள்",
     tabDoctors: "மருத்துவர்கள்",
@@ -551,6 +975,14 @@ const ta: Dict = {
     specialists: "நிபுணர்கள்",
     noHospitals: "இன்னும் இந்த சிகிச்சைக்கு மருத்துவமனை இணைக்கப்படவில்லை.",
     noDoctors: "இன்னும் இந்த சிகிச்சைக்கு மருத்துவர் இணைக்கப்படவில்லை.",
+    aboutTitle: "பற்றி",
+    bookFreeConsultation: "இலவச ஆலோசனை பதிவு செய்க",
+    quickStats: "விரைவு புள்ளிவிவரம்",
+    hospitalsFound: "மருத்துவமனைகள் இந்தியா முழுவதும் கண்டறியப்பட்டன",
+    specialistDoctorsAvailable: "நிபுணர் மருத்துவர்கள் கிடைக்கின்றனர்",
+    viewHospitals: "மருத்துவமனைகள் பார்க்க",
+    hospitalsFor: "க்கான மருத்துவமனைகள்",
+    specialistsFor: "க்கான நிபுணர்கள்",
   },
   registration: {
     title: "உங்கள் மருத்துவமனையை பதிவு செய்யுங்கள்",
@@ -565,6 +997,59 @@ const ta: Dict = {
     verifyComplete: "சரிபார்த்து முடி",
     successTitle: "நீங்கள் நேரலையில் இருக்கிறீர்கள்!",
     successMessage: "உங்கள் மருத்துவமனை சுயவிவரம் EasyHeals இல் செயலில் உள்ளது.",
+  },
+  home: {
+    heroLabel: "AI-இயக்கப்படும் சுகாதார தேடல்",
+    heroTitle: "உங்களுக்கு என்ன தேவை என்று சொல்லுங்கள். நாங்கள் சரியான சிகிச்சை கண்டறிவோம்.",
+    heroSubtitle: "இந்தி, தமிழ், மராத்தி அல்லது ஆங்கிலத்தில் அறிகுறிகளை விவரிக்கவும். எங்கள் AI உங்கள் தேவைக்கு ஏற்ப சிறந்த மருத்துவர்களையும் மருத்துவமனைகளையும் கண்டறியும்.",
+    myDashboard: "என் டாஷ்போர்டு",
+    login: "உள்நுழை",
+    listHospitalFree: "மருத்துவமனையை இலவசமாக பட்டியலிடு",
+    startRegistration: "பதிவு தொடங்கு",
+    whatLooking: "நீங்கள் என்ன தேடுகிறீர்கள்?",
+    topRatedNear: "உங்களுக்கு அருகில் சிறந்தவை",
+    topRatedIn: "சிறந்தவை",
+    notSureSpecialist: "எந்த நிபுணர் வேண்டும் என்று தெரியவில்லையா?",
+    selectBodyArea: "உடலின் பகுதியை தேர்ந்தெடுத்து உடனடியாக சிறப்பு பரிந்துரை பெறுங்கள்.",
+    labTests: "ஆய்வக சோதனைகள்",
+    symptoms: "அறிகுறிகள்",
+    viewProfile: "சுயவிவரம் பார்க்க",
+    suggestEdit: "திருத்தம் பரிந்துரைக்க",
+    listHospitalCta: "உங்கள் மருத்துவமனையை பட்டியலிடுங்கள். இது இலவசம்.",
+    statHospitals: "மருத்துவமனைகள்",
+    statCities: "நகரங்கள்",
+    statLanguages: "மொழிகள்",
+    statRating: "நோயாளி மதிப்பீடு",
+  },
+  dashboard: {
+    greetingMorning: "காலை வணக்கம்",
+    greetingAfternoon: "மதிய வணக்கம்",
+    greetingEvening: "மாலை வணக்கம்",
+    healthSummary: "உங்கள் சுகாதார சுருக்கம்",
+    noAppointments: "வரவிருக்கும் சந்திப்புகள் எதுவும் இல்லை",
+    bookAppointment: "சந்திப்பு பதிவு செய்க",
+    nextAppointment: "அடுத்த சந்திப்பு",
+    quickActions: "விரைவு செயல்கள்",
+    healthTools: "சுகாதார கருவிகள்",
+    myRecords: "என் பதிவுகள்",
+    labOrders: "ஆய்வக ஆர்டர்கள்",
+    appointments: "சந்திப்புகள்",
+    emrVisits: "EMR வருகைகள்",
+    prescriptions: "மருந்து சீட்டுகள்",
+    findHospitals: "அருகில் மருத்துவமனைகள் கண்டறிக",
+    visitsAndPrescriptions: "வருகைகள் & மருந்து சீட்டுகள்",
+    viewTestResults: "சோதனை முடிவுகளை பார்க்க",
+    symptomCheck: "அறிகுறி சோதனை",
+    aiTriageGuidance: "AI ட்ரியேஜ் வழிகாட்டுதல்",
+    uploadReport: "அறிக்கை பதிவேற்று",
+    aiExtractedInsights: "AI-பிரித்தெடுத்த நுண்ணறிவு",
+    healthTimeline: "சுகாதார காலவரிசை",
+    yourHealthHistory: "உங்கள் சுகாதார வரலாறு",
+    askCoach: "கோச்கை கேளுங்கள்",
+    aiHealthAssistant: "AI சுகாதார உதவியாளர்",
+    privacy: "தனியுரிமை",
+    manageDataConsent: "தரவு & ஒப்புதல் நிர்வகி",
+    signOut: "வெளியேறு",
   },
 };
 
@@ -614,6 +1099,21 @@ const bn: Dict = {
     directions: "দিকনির্দেশনা",
     stay: "থাকা",
     bookPackage: "এই প্যাকেজ বুক করুন",
+    home: "হোম",
+    updating: "আপডেট হচ্ছে",
+    pending: "মুলতুবি",
+    currentScore: "বর্তমান স্কোর",
+    notUpdated: "আপডেট করা হয়নি",
+    feeRange: "ফি সীমা",
+    notAvailable: "পাওয়া যায়নি",
+    phone: "ফোন",
+    address: "ঠিকানা",
+    website: "ওয়েবসাইট",
+    workingHours: "কার্যসময়",
+    submit: "জমা দিন",
+    submitting: "জমা হচ্ছে...",
+    edit: "সম্পাদনা",
+    specialist: "বিশেষজ্ঞ",
   },
   hospital: {
     directoryTitle: "ভারত জুড়ে বেসরকারি হাসপাতাল",
@@ -636,6 +1136,11 @@ const bn: Dict = {
     locationTitle: "অবস্থান ও নেভিগেশন",
     largerMap: "বড় মানচিত্র",
     kicker: "হাসপাতাল প্রোফাইল",
+    facilities: "সুবিধাসমূহ",
+    accreditations: "স্বীকৃতি",
+    departmentsServices: "বিভাগ ও সেবা",
+    addressNotAvailable: "ঠিকানা পাওয়া যায়নি",
+    descriptionPending: "প্রোফাইল যাচাইয়ের পরে বিবরণ দেখা যাবে।",
   },
   doctor: {
     directoryTitle: "ভারত জুড়ে ডাক্তার",
@@ -654,8 +1159,24 @@ const bn: Dict = {
     ratingsTitle: "রেটিং ও পর্যালোচনা",
     ratingsNote: "যাচাইকৃত রোগীর পর্যালোচনা পরবর্তী স্প্রিন্টে আসবে।",
     kicker: "ডাক্তার প্রোফাইল",
+    specialization: "বিশেষত্ব",
+    tabServices: "সেবাসমূহ",
+    tabLocation: "অবস্থান",
+    profileOverview: "ডাক্তার সংক্ষিপ্ত বিবরণ",
+    profileSummaryNote: "যাচাইয়ের পরে প্রোফাইল সারাংশ দেখা যাবে।",
+    highlights: "মূল বিষয়",
+    affiliationsHint: "প্রোফাইল পৃষ্ঠা দেখতে যেকোনো হাসপাতালে ক্লিক করুন।",
+    nearbyDoctors: "কাছের ডাক্তার",
+    practiceLocations: "অনুশীলনের স্থান",
   },
   treatment: {
+    directoryTitle: "চিকিৎসা ও বিশেষত্ব",
+    directoryDescription: "চিকিৎসা পদ্ধতি, বিশেষত্ব এবং প্রক্রিয়া দেখুন। ভারত জুড়ে যেকোনো স্বাস্থ্যসেবা প্রয়োজনে শীর্ষ হাসপাতাল ও বিশেষজ্ঞ খুঁজুন।",
+    typeSpecialty: "বিশেষত্ব",
+    typeTreatment: "চিকিৎসা",
+    typeProcedure: "প্রক্রিয়া",
+    typeCondition: "অবস্থা",
+    typeDepartment: "বিভাগ",
     tabOverview: "সংক্ষিপ্ত বিবরণ",
     tabHospitals: "হাসপাতাল",
     tabDoctors: "ডাক্তার",
@@ -663,6 +1184,14 @@ const bn: Dict = {
     specialists: "বিশেষজ্ঞ",
     noHospitals: "এখনও এই চিকিৎসার জন্য কোনো হাসপাতাল যোগ করা হয়নি।",
     noDoctors: "এখনও এই চিকিৎসার জন্য কোনো ডাক্তার যোগ করা হয়নি।",
+    aboutTitle: "সম্পর্কে",
+    bookFreeConsultation: "বিনামূল্যে পরামর্শ বুক করুন",
+    quickStats: "দ্রুত পরিসংখ্যান",
+    hospitalsFound: "হাসপাতাল ভারত জুড়ে পাওয়া গেছে",
+    specialistDoctorsAvailable: "বিশেষজ্ঞ ডাক্তার উপলব্ধ",
+    viewHospitals: "হাসপাতাল দেখুন",
+    hospitalsFor: "এর জন্য হাসপাতাল",
+    specialistsFor: "এর জন্য বিশেষজ্ঞ",
   },
   registration: {
     title: "আপনার হাসপাতাল নিবন্ধন করুন",
@@ -677,6 +1206,59 @@ const bn: Dict = {
     verifyComplete: "যাচাই করুন ও সম্পন্ন করুন",
     successTitle: "আপনি লাইভ!",
     successMessage: "আপনার হাসপাতাল প্রোফাইল এখন EasyHeals-এ সক্রিয়।",
+  },
+  home: {
+    heroLabel: "AI-চালিত স্বাস্থ্যসেবা অনুসন্ধান",
+    heroTitle: "আপনার কী দরকার বলুন। আমরা সঠিক সেবা খুঁজে দেব।",
+    heroSubtitle: "হিন্দি, তামিল, মারাঠি বা বাংলায় লক্ষণ বর্ণনা করুন। আমাদের AI আপনার প্রয়োজন অনুযায়ী সেরা ডাক্তার ও হাসপাতাল খুঁজে দেবে।",
+    myDashboard: "আমার ড্যাশবোর্ড",
+    login: "প্রবেশ করুন",
+    listHospitalFree: "হাসপাতাল বিনামূল্যে তালিকাভুক্ত করুন",
+    startRegistration: "নিবন্ধন শুরু করুন",
+    whatLooking: "আপনি কী খুঁজছেন?",
+    topRatedNear: "আপনার কাছে শীর্ষ রেটেড",
+    topRatedIn: "শীর্ষ রেটেড",
+    notSureSpecialist: "কোন বিশেষজ্ঞ দরকার জানেন না?",
+    selectBodyArea: "শরীরের অঞ্চল নির্বাচন করুন এবং তাৎক্ষণিক বিশেষত্বের পরামর্শ পান।",
+    labTests: "ল্যাব টেস্ট",
+    symptoms: "লক্ষণ",
+    viewProfile: "প্রোফাইল দেখুন",
+    suggestEdit: "সম্পাদনা সুপারিশ",
+    listHospitalCta: "আপনার হাসপাতাল তালিকাভুক্ত করুন। এটি বিনামূল্যে।",
+    statHospitals: "হাসপাতাল",
+    statCities: "শহর",
+    statLanguages: "ভাষা",
+    statRating: "রোগীর রেটিং",
+  },
+  dashboard: {
+    greetingMorning: "শুভ সকাল",
+    greetingAfternoon: "শুভ অপরাহ্ন",
+    greetingEvening: "শুভ সন্ধ্যা",
+    healthSummary: "আপনার স্বাস্থ্য সারাংশ",
+    noAppointments: "কোনো আসন্ন অ্যাপয়েন্টমেন্ট নেই",
+    bookAppointment: "অ্যাপয়েন্টমেন্ট বুক করুন",
+    nextAppointment: "পরবর্তী অ্যাপয়েন্টমেন্ট",
+    quickActions: "দ্রুত কার্যক্রম",
+    healthTools: "স্বাস্থ্য সরঞ্জাম",
+    myRecords: "আমার রেকর্ড",
+    labOrders: "ল্যাব অর্ডার",
+    appointments: "অ্যাপয়েন্টমেন্ট",
+    emrVisits: "EMR ভিজিট",
+    prescriptions: "প্রেসক্রিপশন",
+    findHospitals: "কাছের হাসপাতাল খুঁজুন",
+    visitsAndPrescriptions: "ভিজিট ও প্রেসক্রিপশন",
+    viewTestResults: "পরীক্ষার ফলাফল দেখুন",
+    symptomCheck: "লক্ষণ পরীক্ষা",
+    aiTriageGuidance: "AI ট্রায়াজ নির্দেশনা",
+    uploadReport: "রিপোর্ট আপলোড করুন",
+    aiExtractedInsights: "AI-নিষ্কাশিত অন্তর্দৃষ্টি",
+    healthTimeline: "স্বাস্থ্য টাইমলাইন",
+    yourHealthHistory: "আপনার স্বাস্থ্য ইতিহাস",
+    askCoach: "কোচকে জিজ্ঞাসা করুন",
+    aiHealthAssistant: "AI স্বাস্থ্য সহায়তা",
+    privacy: "গোপনীয়তা",
+    manageDataConsent: "ডেটা ও সম্মতি পরিচালনা",
+    signOut: "প্রস্থান করুন",
   },
 };
 

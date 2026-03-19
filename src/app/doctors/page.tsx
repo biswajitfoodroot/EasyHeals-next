@@ -21,8 +21,6 @@ export default async function DoctorsPage() {
   return (
     <DirectorySearchList
       kind="doctor"
-      title="Doctors & Specialists"
-      description="Search doctors by name, city, and specialty, then view affiliated hospitals and navigation links."
       cityOptions={cityOptions}
       items={rows.map((row) => ({
         id: row.id,

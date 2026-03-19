@@ -1213,7 +1213,8 @@
 
 @media (max-width: 920px) {
   .navPill,
-  .topNavLinks {
+  .topNavLinks,
+  .navLang {
     display: none;
   }
 

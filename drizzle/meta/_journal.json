@@ -50,6 +50,13 @@
       "when": 1773394648299,
       "tag": "0006_safe_colleen_wing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1773487429928,
+      "tag": "0007_stale_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

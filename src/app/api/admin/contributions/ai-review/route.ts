@@ -7,7 +7,7 @@
  * Bulk apply the AI-recommended actions (approve / reject) to contributions.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -31,8 +31,7 @@ async function aiReviewContributions(batch: ContributionRow[]): Promise<
     reason: string;
   }>
 > {
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY ?? "");
-  const model = genAI.getGenerativeModel({
+  const model = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL ?? "gemini-2.5-flash",
   });
 

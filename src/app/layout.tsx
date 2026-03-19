@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { LocaleProvider } from "@/i18n/LocaleContext";
 import type { Locale } from "@/i18n/translations";
 import { SiteNav } from "@/components/SiteNav";
+import { MSG91HelloChat } from "@/components/MSG91HelloChat";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -70,6 +71,7 @@ export default async function RootLayout({
         <LocaleProvider initialLocale={initialLocale}>
           <SiteNav />
           {children}
+          <MSG91HelloChat />
         </LocaleProvider>
       </body>
     </html>

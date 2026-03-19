@@ -1,6 +1,5 @@
-﻿import { GoogleGenerativeAI } from "@google/generative-ai";
-
-import { env } from "@/lib/env";
+﻿import { env } from "@/lib/env";
+import { getGeminiClient } from "@/lib/ai/client";
 
 export interface SearchIntent {
   language: string;
@@ -9,6 +8,8 @@ export interface SearchIntent {
   specialtyKey: string;
   symptoms: string[];
   location: string | null;
+  city: string | null;
+  entity: string | null;
   searchType: "symptom" | "doctor_name" | "hospital_name" | "treatment" | "lab_test" | "general";
   confidence: number;
 }
@@ -112,6 +113,8 @@ function heuristicIntent(query: string): SearchIntent {
       .filter((segment) => segment.length > 2)
       .slice(0, 5),
     location,
+    city: location,
+    entity: null,
     searchType: detectSearchType(normalized),
     confidence: 0.65,
   };
@@ -133,6 +136,8 @@ function safeIntentParse(text: string): SearchIntent | null {
       specialtyKey: parsed.specialtyKey,
       symptoms: Array.isArray(parsed.symptoms) ? parsed.symptoms.slice(0, 6) : [],
       location: parsed.location ?? null,
+      city: parsed.city ?? parsed.location ?? null,
+      entity: parsed.entity ?? null,
       searchType: parsed.searchType ?? "general",
       confidence:
         typeof parsed.confidence === "number"
@@ -144,7 +149,7 @@ function safeIntentParse(text: string): SearchIntent | null {
   }
 }
 
-export async function extractSearchIntent(query: string): Promise<SearchIntent> {
+export async function extractSearchIntent(query: string, city?: string): Promise<SearchIntent> {
   const fallback = heuristicIntent(query);
 
   if (!env.GOOGLE_AI_API_KEY) {
@@ -152,8 +157,7 @@ export async function extractSearchIntent(query: string): Promise<SearchIntent> 
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL });
+    const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
 
     const prompt = [
       "Extract healthcare search intent for India.",
@@ -162,7 +166,8 @@ export async function extractSearchIntent(query: string): Promise<SearchIntent> 
       "specialtyKey should be lowercase short key like cardiology, ortho, neurology, maternity, oncology, diagnostic, general.",
       "If query is already English, translatedQuery must equal original intent query cleaned.",
       `User query: ${query}`,
-    ].join("\n");
+      city ? `User city context: ${city}` : "",
+    ].filter(Boolean).join("\n");
 
     const response = await model.generateContent(prompt);
     const parsed = safeIntentParse(response.response.text());

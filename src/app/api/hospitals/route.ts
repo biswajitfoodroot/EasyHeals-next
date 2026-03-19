@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { hospitals } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit";
+import { phiSafeChanges, writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
 import { slugify } from "@/lib/strings";
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     entityType: "hospital",
     entityId: created.id,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
-    changes: created,
+    changes: phiSafeChanges(created),
   });
 
   return NextResponse.json({ data: created }, { status: 201 });

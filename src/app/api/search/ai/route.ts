@@ -1,6 +1,6 @@
 import { and, asc, like, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { z } from "zod";
 
 import { db } from "@/db/client";
@@ -93,8 +93,7 @@ async function runGemini(query: string, mode: string, city: string | undefined, 
     return null;
   }
 
-  const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: env.GEMINI_MODEL });
+  const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
 
   const prompt = `
 You are EasyHeals AI Search Assistant.

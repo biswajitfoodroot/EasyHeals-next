@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getGeminiClient } from "@/lib/ai/client";
 import { and, eq, like, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
@@ -17,10 +17,8 @@ export async function enrichDoctorProfile(
 ): Promise<void> {
   if (!env.GOOGLE_AI_API_KEY) return;
 
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-
   // ── Step 1: Google Search Grounding ──────────────────────────────────────
-  const searchModel = genAI.getGenerativeModel({
+  const searchModel = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL,
     // @ts-expect-error — googleSearch tool is valid at runtime
     tools: [{ googleSearch: {} }],
@@ -49,7 +47,7 @@ export async function enrichDoctorProfile(
   }
 
   // ── Step 2: Extract structured entities ──────────────────────────────────
-  const extractModel = genAI.getGenerativeModel({
+  const extractModel = getGeminiClient().getGenerativeModel({
     model: env.GEMINI_MODEL,
     generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
   });
