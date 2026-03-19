@@ -1,0 +1,113 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "back": "Back",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "search": "Search",
+    "noResults": "No results found"
+  },
+  "nav": {
+    "home": "Home",
+    "hospitals": "Hospitals",
+    "doctors": "Doctors",
+    "dashboard": "Dashboard",
+    "signIn": "Sign In",
+    "signOut": "Sign Out"
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening"
+    },
+    "summary": "Here's your health summary",
+    "quickActions": "Quick Actions",
+    "healthTools": "Health Tools",
+    "bookAppointment": "Book Appointment",
+    "findHospitals": "Find hospitals near you",
+    "myRecords": "My Records",
+    "visitsAndPrescriptions": "Visits & prescriptions",
+    "labOrders": "Lab Orders",
+    "viewTestResults": "View test results",
+    "uploadReport": "Upload Report",
+    "aiExtractedInsights": "AI-extracted insights",
+    "healthTimeline": "Health Timeline",
+    "yourHealthHistory": "Your health history",
+    "askCoach": "Ask Coach",
+    "aiHealthAssistant": "AI health assistant",
+    "privacy": "Privacy",
+    "manageDataConsent": "Manage data & consent"
+  },
+  "booking": {
+    "title": "Book Appointment",
+    "selectDate": "Select Date",
+    "availableSlots": "Available Slots",
+    "noSlots": "No slots available for this date.",
+    "reasonForVisit": "Reason for visit (optional)",
+    "confirmBooking": "Confirm Booking",
+    "appointmentRequested": "Appointment Requested!",
+    "confirmationNote": "You'll receive a confirmation once the provider confirms your slot.",
+    "inPerson": "In-Person",
+    "videoConsult": "Video Consult",
+    "consentText": "I consent to share my contact information with the healthcare provider for appointment coordination.",
+    "viewAppointments": "View My Appointments"
+  },
+  "documents": {
+    "title": "Health Documents",
+    "subtitle": "Upload reports, prescriptions & discharge summaries. AI extracts key data automatically.",
+    "uploadButton": "Upload Document",
+    "dropZone": "Drop a file or click to upload",
+    "fileTypes": "PDF, JPG, PNG, WebP — up to 10MB",
+    "docType": "Document Type",
+    "titleField": "Title (optional)",
+    "uploadAndExtract": "Upload & Extract",
+    "aiExtracted": "AI Extracted",
+    "extracting": "Extracting...",
+    "queued": "Queued",
+    "failed": "Extraction Failed",
+    "viewTimeline": "Timeline",
+    "share": "Share",
+    "deleteConfirm": "Delete this document and its extracted health data? This cannot be undone.",
+    "howItWorks": "How it works"
+  },
+  "healthCoach": {
+    "title": "AI Health Coach",
+    "placeholder": "Ask about your health... (Enter to send, Shift+Enter for new line)",
+    "disclaimer": "AI can make mistakes. Always consult a doctor for medical decisions.",
+    "newChat": "New Chat",
+    "history": "History",
+    "suggestions": {
+      "labResults": "What do my recent lab results mean?",
+      "bloodPressure": "Are my blood pressure readings normal?",
+      "medications": "What should I watch out for with my current medications?",
+      "hba1c": "How can I improve my HbA1c?",
+      "questions": "What questions should I ask my doctor?"
+    }
+  },
+  "privacy": {
+    "title": "Privacy & Consent",
+    "subtitle": "You are in control of your health data.",
+    "dpdpRights": "Your rights under DPDP Act 2023",
+    "exportData": "Export My Health Data",
+    "deleteAccount": "Delete My Account",
+    "deleteWarning": "Permanently deletes your account, all health documents, and health records.",
+    "abhaLink": "ABHA Health ID Linking",
+    "abhaPlaceholder": "e.g. 12-3456-7890-1234 or username@abdm"
+  },
+  "rewards": {
+    "title": "Rewards & Points",
+    "subtitle": "Earn points for every health action.",
+    "pointsBalance": "Points Balance",
+    "dayStreak": "Day Streak",
+    "badgesEarned": "Badges Earned",
+    "dailyCheckin": "Daily Check-in",
+    "checkinPoints": "+10 points every day. Don't break your streak!",
+    "howToEarn": "How to Earn Points",
+    "recentActivity": "Recent Activity",
+    "checkIn": "Check In"
+  }
+}

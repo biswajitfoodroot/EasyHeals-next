@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Block crawlers from admin, API, and portal routes
+Disallow: /admin/
+Disallow: /api/
+Disallow: /portal/
+
+# Allow health check only
+Allow: /api/health
+
+# Sitemap
+Sitemap: https://easyheals.com/sitemap.xml
