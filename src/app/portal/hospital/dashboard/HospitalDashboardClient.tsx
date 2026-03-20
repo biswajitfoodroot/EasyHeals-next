@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type Tab = "appointments" | "doctors" | "patients" | "billing" | "staff";
 
 interface Appointment {
   id: string;
   patientId: string;
-  type: "in_person" | "audio_consultation" | "video_consultation" | "online_consultation";
+  type: string;
   status: string;
   scheduledAt: string | null;
   confirmedAt: string | null;
@@ -21,11 +25,72 @@ interface Appointment {
   meetingUrl: string | null;
 }
 
+interface DoctorAffiliate {
+  affiliationId: string;
+  doctorId: string;
+  fullName: string;
+  specialization: string | null;
+  phone: string | null;
+  email: string | null;
+  avatarUrl: string | null;
+  yearsOfExperience: number | null;
+  role: string;
+  feeMin: number | null;
+  feeMax: number | null;
+  isPrimary: boolean;
+  verified: boolean;
+  isActive: boolean;
+}
+
+interface PatientRow {
+  patientId: string;
+  displayAlias: string;
+  city: string | null;
+  lastApptAt: string | null;
+  lastApptStatus: string;
+  lastDoctorName: string | null;
+  appointmentCount: number;
+  consultationTypes: string[];
+  treatingDoctors: string[];
+}
+
+interface BillingRow {
+  id: string;
+  patientId: string;
+  type: string;
+  status: string;
+  scheduledAt: string | null;
+  completedAt: string | null;
+  consultationFee: number | null;
+  paymentStatus: string | null;
+  createdAt: string | null;
+  doctorName: string | null;
+}
+
+interface BillingSummary {
+  total: number;
+  paid: number;
+  pending: number;
+  totalRevenue: number;
+  pendingRevenue: number;
+}
+
+interface SearchDoctor {
+  id: string;
+  fullName: string;
+  specialization: string | null;
+  phone: string | null;
+  verified: boolean;
+}
+
 interface Props {
   userFullName: string;
   userRole: string;
   hospitalId?: string;
+  hospitalName?: string;
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDT(dt: string | null) {
   if (!dt) return "TBC";
@@ -35,17 +100,23 @@ function formatDT(dt: string | null) {
   });
 }
 
+function formatDate(dt: string | null) {
+  if (!dt) return "—";
+  return new Date(dt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function isToday(dt: string | null) {
   if (!dt) return false;
-  const d = new Date(dt);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+  const d = new Date(dt), n = new Date();
+  return d.toDateString() === n.toDateString();
 }
+
+// ── Badges ────────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     requested:   "bg-amber-100 text-amber-800 border-amber-200",
-    confirmed:   "bg-green-100 text-green-800 border-green-200",
+    confirmed:   "bg-emerald-100 text-emerald-800 border-emerald-200",
     in_progress: "bg-blue-100 text-blue-800 border-blue-200",
     completed:   "bg-slate-100 text-slate-600 border-slate-200",
     cancelled:   "bg-red-100 text-red-700 border-red-200",
@@ -66,9 +137,9 @@ function TypeBadge({ type }: { type: string }) {
 
 function PaymentBadge({ status, fee }: { status: string | null; fee: number | null }) {
   if (!status || status === "none") return null;
-  if (status === "paid") return <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">✅ Paid {fee ? `₹${fee}` : ""}</span>;
-  if (status === "pending") return <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">⏳ Payment pending {fee ? `₹${fee}` : ""}</span>;
-  if (status === "waived") return <span className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">Free consultation</span>;
+  if (status === "paid") return <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">✅ Paid{fee ? ` ₹${fee}` : ""}</span>;
+  if (status === "pending") return <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">⏳ Payment pending{fee ? ` ₹${fee}` : ""}</span>;
+  if (status === "waived") return <span className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">Free</span>;
   return null;
 }
 
@@ -76,59 +147,378 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-slate-200 rounded-xl ${className ?? ""}`} />;
 }
 
-export default function HospitalDashboardClient({ userFullName, userRole, hospitalId }: Props) {
+// ── Appointment Card ──────────────────────────────────────────────────────────
+
+function AppointmentCard({
+  appt,
+  actioning,
+  acceptFees,
+  acceptUrls,
+  onAccept,
+  onAct,
+  onFeeChange,
+  onUrlChange,
+}: {
+  appt: Appointment;
+  actioning: string | null;
+  acceptFees: Record<string, string>;
+  acceptUrls: Record<string, string>;
+  onAccept: (id: string, type: string) => void;
+  onAct: (id: string, action: "reject" | "complete", reason?: string) => void;
+  onFeeChange: (id: string, val: string) => void;
+  onUrlChange: (id: string, val: string) => void;
+}) {
+  const isPending   = appt.status === "requested";
+  const isConfirmed = appt.status === "confirmed";
+  const busy        = actioning === appt.id;
+  const isRemote    = appt.type === "audio_consultation" || appt.type === "video_consultation" || appt.type === "online_consultation";
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-2">
+            <StatusBadge status={appt.status} />
+            <TypeBadge type={appt.type} />
+            <PaymentBadge status={appt.paymentStatus} fee={appt.consultationFee} />
+            {isToday(appt.scheduledAt) && (
+              <span className="text-xs font-bold text-white bg-red-500 px-2 py-0.5 rounded-full">TODAY</span>
+            )}
+          </div>
+          <p className="text-sm font-semibold text-slate-700">Patient #{appt.patientId.slice(0, 8)}</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {appt.scheduledAt ? `Scheduled: ${formatDT(appt.scheduledAt)}` : `Requested: ${formatDT(appt.createdAt)}`}
+          </p>
+          {appt.patientNotes && (
+            <p className="mt-2 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+              💬 {appt.patientNotes}
+            </p>
+          )}
+          {isConfirmed && isRemote && appt.meetingUrl && (
+            <a href={appt.meetingUrl} target="_blank" rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
+              style={{ background: "#1B8A4A" }}>
+              {appt.type === "video_consultation" ? "🎥" : "📞"} Start Session →
+            </a>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 items-end shrink-0">
+          {isPending && (
+            <>
+              {isRemote && (
+                <div className="space-y-1.5 w-44">
+                  <input
+                    type="number" min="0"
+                    placeholder="Fee (₹) — 0 for free"
+                    value={acceptFees[appt.id] ?? ""}
+                    onChange={(e) => onFeeChange(appt.id, e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                  <input
+                    type="url"
+                    placeholder="Meeting link (optional)"
+                    value={acceptUrls[appt.id] ?? ""}
+                    onChange={(e) => onUrlChange(appt.id, e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+              <button
+                onClick={() => onAccept(appt.id, appt.type)}
+                disabled={busy}
+                className="px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center gap-1.5 transition"
+                style={{ background: "#1B8A4A" }}
+              >
+                {busy ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "✓"}
+                Accept{isRemote ? " & Set Fee" : ""}
+              </button>
+              <button
+                onClick={() => onAct(appt.id, "reject", "Provider unavailable")}
+                disabled={busy}
+                className="px-4 py-2 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition"
+              >
+                Reject
+              </button>
+            </>
+          )}
+          {isConfirmed && (
+            <button
+              onClick={() => onAct(appt.id, "complete")}
+              disabled={busy}
+              className="px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
+              style={{ background: "#1e40af" }}
+            >
+              Mark Complete
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Add Doctor Modal ──────────────────────────────────────────────────────────
+
+function AddDoctorModal({ hospitalId, onClose, onDone }: {
+  hospitalId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [mode, setMode] = useState<"search" | "create">("search");
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<SearchDoctor[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  // Create form
+  const [form, setForm] = useState({ fullName: "", specialization: "", phone: "", email: "", role: "Visiting Consultant" });
+
+  async function doSearch(q: string) {
+    if (q.length < 2) { setResults([]); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}&search=${encodeURIComponent(q)}`, { credentials: "include" });
+      const j = await res.json() as { data: SearchDoctor[] };
+      setResults(j.data ?? []);
+    } finally { setSearching(false); }
+  }
+
+  async function linkDoctor(doctorId: string) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "link", doctorId }),
+      });
+      if (res.ok) { onDone(); onClose(); }
+      else { const j = await res.json(); setMsg(j?.error?.userMessage ?? "Failed to link doctor."); }
+    } finally { setSaving(false); }
+  }
+
+  async function createDoctor() {
+    if (!form.fullName) { setMsg("Full name is required."); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create", ...form }),
+      });
+      if (res.ok) { onDone(); onClose(); }
+      else { const j = await res.json(); setMsg(j?.error?.userMessage ?? "Failed to create doctor."); }
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-800">Add Doctor to Hospital</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {/* Mode toggle */}
+          <div className="flex gap-2 bg-slate-100 rounded-xl p-1">
+            {(["search", "create"] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition ${mode === m ? "bg-white shadow text-slate-800" : "text-slate-500"}`}>
+                {m === "search" ? "Link Existing" : "Create New"}
+              </button>
+            ))}
+          </div>
+
+          {msg && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{msg}</p>}
+
+          {mode === "search" ? (
+            <div className="space-y-3">
+              <input
+                type="text" placeholder="Search by name or specialization…"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); void doSearch(e.target.value); }}
+                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              {searching && <p className="text-xs text-slate-400">Searching…</p>}
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {results.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{d.fullName}</p>
+                      <p className="text-xs text-slate-500">{d.specialization ?? "General"}</p>
+                    </div>
+                    <button
+                      onClick={() => void linkDoctor(d.id)}
+                      disabled={saving}
+                      className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg disabled:opacity-50"
+                      style={{ background: "#1B8A4A" }}
+                    >
+                      Link
+                    </button>
+                  </div>
+                ))}
+                {results.length === 0 && search.length >= 2 && !searching && (
+                  <p className="text-xs text-slate-400 text-center py-4">No doctors found. Try creating a new one.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {[
+                { label: "Full Name *", key: "fullName", type: "text", placeholder: "Dr. Priya Sharma" },
+                { label: "Specialization", key: "specialization", type: "text", placeholder: "Cardiologist" },
+                { label: "Phone", key: "phone", type: "tel", placeholder: "+91 98765 43210" },
+                { label: "Email", key: "email", type: "email", placeholder: "doctor@hospital.com" },
+                { label: "Role at Hospital", key: "role", type: "text", placeholder: "Visiting Consultant" },
+              ].map((f) => (
+                <div key={f.key}>
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">{f.label}</label>
+                  <input
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    value={form[f.key as keyof typeof form]}
+                    onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              ))}
+              <button
+                onClick={() => void createDoctor()}
+                disabled={saving}
+                className="w-full py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
+                style={{ background: "#1B8A4A" }}
+              >
+                {saving ? "Creating…" : "Create Doctor"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main Dashboard ────────────────────────────────────────────────────────────
+
+export default function HospitalDashboardClient({ userFullName, userRole, hospitalId, hospitalName }: Props) {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [appts, setAppts] = useState<Appointment[]>([]);
-  const [activeTab, setActiveTab] = useState<"pending" | "today" | "all">("pending");
-  const [actioning, setActioning] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) ?? "appointments";
+
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [error, setError] = useState<string | null>(null);
 
-  // Accept-with-fee state per appointment
+  // Appointment state
+  const [apptLoading, setApptLoading] = useState(false);
+  const [appts, setAppts] = useState<Appointment[]>([]);
+  const [apptFilter, setApptFilter] = useState<"pending" | "today" | "confirmed" | "all">("pending");
+  const [actioning, setActioning] = useState<string | null>(null);
   const [acceptFees, setAcceptFees] = useState<Record<string, string>>({});
   const [acceptUrls, setAcceptUrls] = useState<Record<string, string>>({});
 
+  // Doctor state
+  const [doctorLoading, setDoctorLoading] = useState(false);
+  const [doctors, setDoctors] = useState<DoctorAffiliate[]>([]);
+  const [showAddDoctor, setShowAddDoctor] = useState(false);
+
+  // Patient state
+  const [patientLoading, setPatientLoading] = useState(false);
+  const [patients, setPatients] = useState<PatientRow[]>([]);
+
+  // Billing state
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingRows, setBillingRows] = useState<BillingRow[]>([]);
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [billingFilter, setBillingFilter] = useState<string>("all");
+
+  // ── Data loaders ─────────────────────────────────────────────────────────
+
+  const loadAppointments = useCallback(async () => {
+    setApptLoading(true);
+    try {
+      const res = await fetch("/api/v1/portal/appointments?limit=100", { credentials: "include" });
+      if (res.status === 401 || res.status === 403) { router.push("/portal/login"); return; }
+      if (res.ok) {
+        const j = await res.json() as { data: Appointment[] };
+        setAppts(j.data ?? []);
+      }
+    } catch { /* non-fatal */ }
+    finally { setApptLoading(false); }
+  }, [router]);
+
+  const loadDoctors = useCallback(async () => {
+    if (!hospitalId) return;
+    setDoctorLoading(true);
+    try {
+      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}`, { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json() as { data: DoctorAffiliate[] };
+        setDoctors(j.data ?? []);
+      }
+    } finally { setDoctorLoading(false); }
+  }, [hospitalId]);
+
+  const loadPatients = useCallback(async () => {
+    if (!hospitalId) return;
+    setPatientLoading(true);
+    try {
+      const res = await fetch(`/api/v1/portal/patients?hospitalId=${hospitalId}&limit=100`, { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json() as { data: PatientRow[] };
+        setPatients(j.data ?? []);
+      }
+    } finally { setPatientLoading(false); }
+  }, [hospitalId]);
+
+  const loadBilling = useCallback(async (statusFilter?: string) => {
+    if (!hospitalId) return;
+    setBillingLoading(true);
+    try {
+      const params = new URLSearchParams({ hospitalId, limit: "100" });
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`/api/v1/portal/billing?${params}`, { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json() as { data: BillingRow[]; summary: BillingSummary };
+        setBillingRows(j.data ?? []);
+        setBillingSummary(j.summary ?? null);
+      }
+    } finally { setBillingLoading(false); }
+  }, [hospitalId]);
+
+  // Load on tab switch
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/v1/portal/appointments?limit=100`, { credentials: "include" });
-        if (res.status === 401 || res.status === 403) { router.push("/portal/login"); return; }
-        if (res.ok) {
-          const j = (await res.json()) as { data: Appointment[] };
-          setAppts(j.data ?? []);
-        }
-      } catch { /* non-fatal */ }
-      finally { setLoading(false); }
-    }
-    void load();
-  }, [router, hospitalId]);
+    if (activeTab === "appointments") void loadAppointments();
+    if (activeTab === "doctors")      void loadDoctors();
+    if (activeTab === "patients")     void loadPatients();
+    if (activeTab === "billing")      void loadBilling();
+  }, [activeTab, loadAppointments, loadDoctors, loadPatients, loadBilling]);
+
+  // ── Appointment actions ───────────────────────────────────────────────────
 
   async function act(id: string, action: "reject" | "complete", reason?: string) {
-    setActioning(id);
-    setError(null);
+    setActioning(id); setError(null);
     try {
       const res = await fetch(`/api/v1/portal/appointments/${id}`, {
-        method: "PATCH",
-        credentials: "include",
+        method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, reason }),
       });
       if (res.ok) {
         const statusMap: Record<string, string> = { reject: "cancelled", complete: "completed" };
-        setAppts((prev) => prev.map((a) => a.id === id ? { ...a, status: statusMap[action] ?? a.status } : a));
+        setAppts((p) => p.map((a) => a.id === id ? { ...a, status: statusMap[action] ?? a.status } : a));
       } else {
         const j = await res.json().catch(() => ({})) as { error?: { message?: string } };
-        setError(j?.error?.message ?? "Action failed. Please try again.");
+        setError(j?.error?.message ?? "Action failed.");
       }
-    } catch { setError("Network error. Please try again."); }
+    } catch { setError("Network error."); }
     finally { setActioning(null); }
   }
 
   async function acceptAppointment(id: string, type: string) {
-    setActioning(id);
-    setError(null);
-    const isRemote = type === "audio_consultation" || type === "video_consultation" || type === "online_consultation";
+    setActioning(id); setError(null);
+    const isRemote = type !== "in_person";
     const feeStr = acceptFees[id];
     const url = acceptUrls[id];
     const body: Record<string, unknown> = { action: "accept" };
@@ -136,17 +526,15 @@ export default function HospitalDashboardClient({ userFullName, userRole, hospit
     if (url) body.meetingUrl = url;
     try {
       const res = await fetch(`/api/v1/portal/appointments/${id}`, {
-        method: "PATCH",
-        credentials: "include",
+        method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (res.ok) {
         const j = await res.json() as { data?: { meetingUrl?: string } };
         const fee = feeStr ? parseFloat(feeStr) : null;
-        setAppts((prev) => prev.map((a) => a.id === id ? {
-          ...a,
-          status: "confirmed",
+        setAppts((p) => p.map((a) => a.id === id ? {
+          ...a, status: "confirmed",
           consultationFee: fee,
           paymentStatus: fee && fee > 0 ? "pending" : (isRemote ? "waived" : "none"),
           meetingUrl: j.data?.meetingUrl ?? url ?? null,
@@ -155,8 +543,19 @@ export default function HospitalDashboardClient({ userFullName, userRole, hospit
         const j = await res.json().catch(() => ({})) as { error?: { message?: string } };
         setError(j?.error?.message ?? "Action failed.");
       }
-    } catch { setError("Network error. Please try again."); }
+    } catch { setError("Network error."); }
     finally { setActioning(null); }
+  }
+
+  async function removeDoctor(doctorId: string) {
+    if (!hospitalId) return;
+    if (!confirm("Remove this doctor from your hospital?")) return;
+    try {
+      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}&doctorId=${doctorId}`, {
+        method: "DELETE", credentials: "include",
+      });
+      if (res.ok) setDoctors((p) => p.filter((d) => d.doctorId !== doctorId));
+    } catch { /* non-fatal */ }
   }
 
   async function handleSignOut() {
@@ -164,51 +563,78 @@ export default function HospitalDashboardClient({ userFullName, userRole, hospit
     router.push("/portal/login");
   }
 
+  // ── Computed ──────────────────────────────────────────────────────────────
+
   const pending   = appts.filter((a) => a.status === "requested");
-  const today     = appts.filter((a) => isToday(a.scheduledAt));
+  const todayList = appts.filter((a) => isToday(a.scheduledAt));
   const confirmed = appts.filter((a) => a.status === "confirmed");
-  const completed = appts.filter((a) => a.status === "completed");
-  const displayed = activeTab === "pending" ? pending : activeTab === "today" ? today : appts;
+
+  const displayed =
+    apptFilter === "pending"   ? pending :
+    apptFilter === "today"     ? todayList :
+    apptFilter === "confirmed" ? confirmed :
+    appts;
 
   const stats = [
-    { label: "Pending Approval", value: pending.length,   icon: "⏳", hi: pending.length > 0 },
-    { label: "Today",            value: today.length,     icon: "📅", hi: false },
-    { label: "Confirmed",        value: confirmed.length, icon: "✅", hi: false },
-    { label: "Completed",        value: completed.length, icon: "🏁", hi: false },
+    { label: "Pending",   value: pending.length,   icon: "⏳", hi: pending.length > 0 },
+    { label: "Today",     value: todayList.length,  icon: "📅", hi: false },
+    { label: "Confirmed", value: confirmed.length,  icon: "✅", hi: false },
+    { label: "Doctors",   value: doctors.length,    icon: "👨‍⚕️", hi: false },
   ];
 
-  const tabs: { key: typeof activeTab; label: string; count: number }[] = [
-    { key: "pending", label: "Pending Approval", count: pending.length },
-    { key: "today",   label: "Today",            count: today.length },
-    { key: "all",     label: "All Active",       count: appts.length },
+  const navItems = [
+    { tab: "appointments" as Tab, icon: "📅", label: "Appointments", badge: pending.length > 0 ? pending.length : null },
+    { tab: "doctors"      as Tab, icon: "👨‍⚕️", label: "Doctors", badge: null },
+    { tab: "patients"     as Tab, icon: "🧑‍🤝‍🧑", label: "Patients", badge: null },
+    { tab: "billing"      as Tab, icon: "💰", label: "Billing", badge: null },
+    { tab: "staff"        as Tab, icon: "👥", label: "Staff", badge: null },
   ];
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Sidebar */}
-      <aside className="w-14 lg:w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: "#1B8A4A" }}>E</span>
-          <span className="hidden lg:block font-bold text-slate-800 text-sm">EasyHeals</span>
+      <aside className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen shadow-sm">
+        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm" style={{ background: "#1B8A4A" }}>E</span>
+          <div className="hidden lg:block min-w-0">
+            <p className="font-bold text-slate-800 text-sm leading-tight truncate">EasyHeals</p>
+            <p className="text-[10px] text-slate-400 truncate">{hospitalName ?? "Hospital Portal"}</p>
+          </div>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {[
-            { href: "/portal/hospital/dashboard", icon: "🏠", label: "Dashboard",    active: true },
-            { href: "/portal/hospital",           icon: "🏥", label: "Edit Profile", active: false },
-            { href: "/portal/schedule",           icon: "📅", label: "Schedule",     active: false },
-            { href: "/portal/queue",              icon: "🎫", label: "OPD Queue",    active: false },
-            { href: "/portal/staff",              icon: "👥", label: "Staff",         active: false },
-            { href: "/portal/subscription",       icon: "💳", label: "Subscription", active: false },
-          ].map((n) => (
-            <Link key={n.label} href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${n.active ? "text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
-              style={n.active ? { background: "#1B8A4A" } : {}}
+
+        <nav className="flex-1 p-2 space-y-0.5">
+          {navItems.map((n) => (
+            <button key={n.tab}
+              onClick={() => setActiveTab(n.tab)}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
+              style={activeTab === n.tab ? { background: "#1B8A4A" } : {}}
             >
-              <span className="text-base">{n.icon}</span>
-              <span className="hidden lg:block">{n.label}</span>
-            </Link>
+              <span className="text-base shrink-0">{n.icon}</span>
+              <span className="hidden lg:block flex-1 text-left">{n.label}</span>
+              {n.badge !== null && n.badge !== undefined && n.badge > 0 && (
+                <span className={`hidden lg:flex w-5 h-5 rounded-full text-[10px] font-bold items-center justify-center ${activeTab === n.tab ? "bg-white/20 text-white" : "bg-amber-500 text-white"}`}>
+                  {n.badge}
+                </span>
+              )}
+            </button>
           ))}
+
+          <div className="pt-2 border-t border-slate-100 mt-2 space-y-0.5">
+            {[
+              { href: "/portal/hospital",     icon: "✏️", label: "Edit Profile" },
+              { href: "/portal/schedule",     icon: "📆", label: "Schedule" },
+              { href: "/portal/queue",        icon: "🎫", label: "OPD Queue" },
+              { href: "/portal/subscription", icon: "💳", label: "Subscription" },
+            ].map((n) => (
+              <Link key={n.label} href={n.href}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
+                <span className="text-base shrink-0">{n.icon}</span>
+                <span className="hidden lg:block">{n.label}</span>
+              </Link>
+            ))}
+          </div>
         </nav>
+
         <div className="p-3 border-t border-slate-100">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#1B8A4A" }}>
@@ -216,180 +642,306 @@ export default function HospitalDashboardClient({ userFullName, userRole, hospit
             </div>
             <div className="hidden lg:block min-w-0">
               <p className="text-xs font-semibold text-slate-700 truncate">{userFullName}</p>
-              <p className="text-xs text-slate-400 capitalize">{userRole.replace("_", " ")}</p>
+              <p className="text-[10px] text-slate-400 capitalize">{userRole.replace("_", " ")}</p>
             </div>
           </div>
-          <button onClick={handleSignOut} className="hidden lg:block mt-2 text-xs text-slate-400 hover:text-slate-600 transition w-full text-left">Sign out</button>
+          <button onClick={() => void handleSignOut()} className="hidden lg:block mt-2 text-xs text-slate-400 hover:text-red-500 transition w-full text-left">Sign out →</button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main content */}
       <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
+          {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h1 className="text-xl font-bold text-slate-800">Hospital Dashboard</h1>
+              <h1 className="text-xl font-bold text-slate-800">
+                {activeTab === "appointments" ? "Appointments" :
+                 activeTab === "doctors"      ? "Doctors" :
+                 activeTab === "patients"     ? "Patient History" :
+                 activeTab === "billing"      ? "Billing History" :
+                 "Staff Management"}
+              </h1>
               <p className="text-sm text-slate-400">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
             </div>
-            <Link href="/portal/hospital" className="text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition">
-              Edit Hospital Profile →
-            </Link>
+            {activeTab === "doctors" && (
+              <button
+                onClick={() => setShowAddDoctor(true)}
+                className="text-sm font-semibold px-4 py-2 rounded-xl text-white shadow-sm transition"
+                style={{ background: "#1B8A4A" }}
+              >
+                + Add Doctor
+              </button>
+            )}
           </div>
 
           {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>}
 
-          {/* Stats */}
+          {/* Stats row — always visible */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {stats.map((s) =>
-              loading ? <Skeleton key={s.label} className="h-24" /> : (
-                <div key={s.label} className={`bg-white rounded-xl border p-4 shadow-sm ${s.hi ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}>
-                  <div className="text-2xl mb-1">{s.icon}</div>
-                  <div className={`text-3xl font-bold ${s.hi ? "text-amber-700" : "text-slate-800"}`}>{s.value}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
-                </div>
-              )
-            )}
-          </div>
-
-          {/* Tabs */}
-          <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
-            {tabs.map((t) => (
-              <button key={t.key} onClick={() => setActiveTab(t.key)}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 ${activeTab === t.key ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                style={activeTab === t.key ? { background: "#1B8A4A" } : {}}
-              >
-                {t.label}
-                {t.count > 0 && (
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${activeTab === t.key ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"}`}>{t.count}</span>
-                )}
-              </button>
+            {stats.map((s) => (
+              <div key={s.label} className={`bg-white rounded-xl border p-4 shadow-sm ${s.hi ? "border-amber-300 bg-amber-50" : "border-slate-200"}`}>
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <div className={`text-3xl font-bold ${s.hi ? "text-amber-700" : "text-slate-800"}`}>{s.value}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+              </div>
             ))}
           </div>
 
-          {/* Appointment list */}
-          {loading ? (
-            <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}</div>
-          ) : displayed.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
-              <p className="text-slate-400 text-sm">
-                {activeTab === "pending" ? "No pending appointments — all caught up!" :
-                 activeTab === "today"   ? "No appointments scheduled for today." : "No active appointments."}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {displayed.map((appt) => {
-                const isPending   = appt.status === "requested";
-                const isConfirmed = appt.status === "confirmed";
-                const busy        = actioning === appt.id;
-                const isRemote    = appt.type === "audio_consultation" || appt.type === "video_consultation" || appt.type === "online_consultation";
+          {/* ── APPOINTMENTS TAB ──────────────────────────────────────────────── */}
+          {activeTab === "appointments" && (
+            <div className="space-y-4">
+              {/* Filter bar */}
+              <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                {([
+                  { key: "pending",   label: "Pending Approval", count: pending.length },
+                  { key: "today",     label: "Today",            count: todayList.length },
+                  { key: "confirmed", label: "Confirmed",        count: confirmed.length },
+                  { key: "all",       label: "All",              count: appts.length },
+                ] as const).map((t) => (
+                  <button key={t.key} onClick={() => setApptFilter(t.key)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1 ${apptFilter === t.key ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    style={apptFilter === t.key ? { background: "#1B8A4A" } : {}}>
+                    {t.label}
+                    {t.count > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${apptFilter === t.key ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600"}`}>{t.count}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-                return (
-                  <div key={appt.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      {/* Left */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                          <StatusBadge status={appt.status} />
-                          <TypeBadge type={appt.type} />
-                          <PaymentBadge status={appt.paymentStatus} fee={appt.consultationFee} />
-                        </div>
-                        <p className="text-sm font-semibold text-slate-700">Patient #{appt.patientId.slice(0, 8)}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {appt.scheduledAt ? `Scheduled: ${formatDT(appt.scheduledAt)}` : `Requested: ${formatDT(appt.createdAt)}`}
-                        </p>
-                        {appt.patientNotes && (
-                          <p className="mt-1.5 text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
-                            💬 {appt.patientNotes}
-                          </p>
-                        )}
-                        {/* Meeting URL for confirmed remote appointments */}
-                        {isConfirmed && isRemote && appt.meetingUrl && (
-                          <a href={appt.meetingUrl} target="_blank" rel="noreferrer"
-                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-lg"
-                            style={{ background: "#1B8A4A" }}>
-                            {appt.type === "video_consultation" ? "🎥" : "📞"} Start Session →
-                          </a>
-                        )}
-                      </div>
-
-                      {/* Right: actions */}
-                      <div className="flex flex-col gap-2 items-end shrink-0">
-                        {isPending && (
-                          <>
-                            {/* Fee + URL inputs for remote appointments */}
-                            {isRemote && (
-                              <div className="space-y-1.5 w-44">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  placeholder="Fee (₹) — 0 for free"
-                                  value={acceptFees[appt.id] ?? ""}
-                                  onChange={(e) => setAcceptFees((p) => ({ ...p, [appt.id]: e.target.value }))}
-                                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                                />
-                                <input
-                                  type="url"
-                                  placeholder="Meeting link (Google Meet / Jitsi)"
-                                  value={acceptUrls[appt.id] ?? ""}
-                                  onChange={(e) => setAcceptUrls((p) => ({ ...p, [appt.id]: e.target.value }))}
-                                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
-                                />
-                              </div>
-                            )}
-                            <button
-                              onClick={() => void acceptAppointment(appt.id, appt.type)}
-                              disabled={busy}
-                              className="px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center gap-1.5 transition"
-                              style={{ background: "#1B8A4A" }}
-                            >
-                              {busy ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "✓"}
-                              Accept{isRemote ? " & Set Fee" : ""}
-                            </button>
-                            <button
-                              onClick={() => void act(appt.id, "reject", "Provider unavailable")}
-                              disabled={busy}
-                              className="px-4 py-2 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        {isConfirmed && (
-                          <button
-                            onClick={() => void act(appt.id, "complete")}
-                            disabled={busy}
-                            className="px-4 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
-                            style={{ background: "#1e40af" }}
-                          >
-                            Mark Complete
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {apptLoading ? (
+                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}</div>
+              ) : displayed.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                  <p className="text-4xl mb-3">📋</p>
+                  <p className="text-slate-500 font-medium">No appointments in this view</p>
+                  <p className="text-sm text-slate-400 mt-1">New appointment requests will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {displayed.map((appt) => (
+                    <AppointmentCard
+                      key={appt.id} appt={appt} actioning={actioning}
+                      acceptFees={acceptFees} acceptUrls={acceptUrls}
+                      onAccept={(id, type) => void acceptAppointment(id, type)}
+                      onAct={(id, action, reason) => void act(id, action, reason)}
+                      onFeeChange={(id, val) => setAcceptFees((p) => ({ ...p, [id]: val }))}
+                      onUrlChange={(id, val) => setAcceptUrls((p) => ({ ...p, [id]: val }))}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Quick links */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            {[
-              { href: "/portal/hospital",  icon: "✏️", label: "Edit Hospital Profile", desc: "Update info, hours, specialties" },
-              { href: "/portal/schedule",  icon: "📅", label: "Manage Schedule",        desc: "Set working hours & slot settings" },
-              { href: "/portal/staff",     icon: "👥", label: "Manage Staff",           desc: "Add receptionists & billing staff" },
-            ].map((l) => (
-              <Link key={l.label} href={l.href} className="bg-white rounded-xl border border-slate-200 p-4 hover:border-green-300 hover:shadow-sm transition group">
-                <div className="text-xl mb-2">{l.icon}</div>
-                <p className="text-sm font-semibold text-slate-700 group-hover:text-green-700">{l.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{l.desc}</p>
+          {/* ── DOCTORS TAB ───────────────────────────────────────────────────── */}
+          {activeTab === "doctors" && (
+            <div className="space-y-4">
+              {doctorLoading ? (
+                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div>
+              ) : doctors.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                  <p className="text-4xl mb-3">👨‍⚕️</p>
+                  <p className="text-slate-500 font-medium">No doctors added yet</p>
+                  <p className="text-sm text-slate-400 mt-1">Add doctors to manage their appointments and schedules.</p>
+                  <button
+                    onClick={() => setShowAddDoctor(true)}
+                    className="mt-4 px-5 py-2 text-sm font-semibold text-white rounded-xl"
+                    style={{ background: "#1B8A4A" }}
+                  >
+                    + Add First Doctor
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {doctors.map((d) => (
+                    <div key={d.doctorId} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center text-xl font-bold text-emerald-700 shrink-0">
+                        {d.fullName.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-slate-800">{d.fullName}</p>
+                          {d.verified && <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">✓ Verified</span>}
+                          {d.isPrimary && <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">Primary</span>}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">{d.specialization ?? "General"} · {d.role}</p>
+                        {(d.feeMin || d.feeMax) && (
+                          <p className="text-xs text-slate-600 mt-1">
+                            Fee: ₹{d.feeMin ?? 0}{d.feeMax ? ` – ₹${d.feeMax}` : "+"}
+                          </p>
+                        )}
+                        {(d.phone || d.email) && (
+                          <p className="text-xs text-slate-400 mt-1 truncate">{d.phone ?? d.email}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => void removeDoctor(d.doctorId)}
+                        className="text-xs text-red-400 hover:text-red-600 transition shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── PATIENTS TAB ──────────────────────────────────────────────────── */}
+          {activeTab === "patients" && (
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
+                <strong>Privacy note:</strong> Patient names are anonymised per DPDP Act 2023. You see a display alias only. Full records are accessible to treating doctors.
+              </div>
+
+              {patientLoading ? (
+                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}</div>
+              ) : patients.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                  <p className="text-4xl mb-3">🧑‍🤝‍🧑</p>
+                  <p className="text-slate-500 font-medium">No patient history yet</p>
+                  <p className="text-sm text-slate-400 mt-1">Completed appointments will appear here.</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        {["Patient", "Last Visit", "Doctor", "Visits", "Type"].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {patients.map((p) => (
+                        <tr key={p.patientId} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3">
+                            <p className="font-semibold text-slate-800 text-xs">{p.displayAlias}</p>
+                            {p.city && <p className="text-[10px] text-slate-400">{p.city}</p>}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">
+                            {formatDate(p.lastApptAt)}
+                            <div className="mt-0.5"><StatusBadge status={p.lastApptStatus} /></div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{p.lastDoctorName ?? "—"}</td>
+                          <td className="px-4 py-3 text-xs text-slate-600 text-center">{p.appointmentCount}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1 flex-wrap">
+                              {p.consultationTypes.slice(0, 2).map((t) => <TypeBadge key={t} type={t} />)}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── BILLING TAB ───────────────────────────────────────────────────── */}
+          {activeTab === "billing" && (
+            <div className="space-y-4">
+              {/* Summary cards */}
+              {billingSummary && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Total Billing Records", value: billingSummary.total,                                      icon: "📋", cls: "" },
+                    { label: "Revenue Collected",     value: `₹${billingSummary.totalRevenue.toLocaleString("en-IN")}`, icon: "💚", cls: "border-emerald-200 bg-emerald-50" },
+                    { label: "Pending Collection",    value: `₹${billingSummary.pendingRevenue.toLocaleString("en-IN")}`, icon: "⏳", cls: billingSummary.pendingRevenue > 0 ? "border-amber-200 bg-amber-50" : "" },
+                    { label: "Paid Appointments",     value: billingSummary.paid,                                       icon: "✅", cls: "" },
+                  ].map((s) => (
+                    <div key={s.label} className={`bg-white rounded-xl border p-4 shadow-sm ${s.cls || "border-slate-200"}`}>
+                      <div className="text-2xl mb-1">{s.icon}</div>
+                      <div className="text-xl font-bold text-slate-800">{s.value}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Filter */}
+              <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                {(["all", "paid", "pending", "waived", "none"] as const).map((f) => (
+                  <button key={f} onClick={() => { setBillingFilter(f); void loadBilling(f === "all" ? undefined : f); }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${billingFilter === f ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    style={billingFilter === f ? { background: "#1B8A4A" } : {}}>
+                    {f === "all" ? "All" : f === "paid" ? "Paid" : f === "pending" ? "Pending" : f === "waived" ? "Waived/Free" : "Not Required"}
+                  </button>
+                ))}
+              </div>
+
+              {billingLoading ? (
+                <div className="space-y-3">{[1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}</div>
+              ) : billingRows.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                  <p className="text-4xl mb-3">💰</p>
+                  <p className="text-slate-500 font-medium">No billing records yet</p>
+                  <p className="text-sm text-slate-400 mt-1">Completed appointments with fees will appear here.</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        {["Patient", "Doctor", "Type", "Date", "Fee", "Payment"].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {billingRows.map((r) => (
+                        <tr key={r.id} className="hover:bg-slate-50 transition">
+                          <td className="px-4 py-3 text-xs text-slate-600">#{r.patientId.slice(0, 6)}</td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{r.doctorName ?? "—"}</td>
+                          <td className="px-4 py-3"><TypeBadge type={r.type} /></td>
+                          <td className="px-4 py-3 text-xs text-slate-600">{formatDate(r.scheduledAt ?? r.createdAt)}</td>
+                          <td className="px-4 py-3 text-xs font-semibold text-slate-800">
+                            {r.consultationFee ? `₹${r.consultationFee.toLocaleString("en-IN")}` : "—"}
+                          </td>
+                          <td className="px-4 py-3"><PaymentBadge status={r.paymentStatus} fee={r.consultationFee} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <p className="text-xs text-slate-400 text-center">
+                Showing consultation fees only. Lab orders and surgery billing coming in a future update.
+              </p>
+            </div>
+          )}
+
+          {/* ── STAFF TAB ─────────────────────────────────────────────────────── */}
+          {activeTab === "staff" && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
+              <p className="text-4xl mb-3">👥</p>
+              <p className="text-slate-600 font-semibold">Staff Management</p>
+              <p className="text-sm text-slate-400 mt-1 mb-4">Add and manage receptionists, billing staff, and coordinators.</p>
+              <Link href="/portal/staff"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl"
+                style={{ background: "#1B8A4A" }}
+              >
+                Manage Staff →
               </Link>
-            ))}
-          </div>
+            </div>
+          )}
+
         </div>
       </main>
+
+      {/* Add Doctor Modal */}
+      {showAddDoctor && hospitalId && (
+        <AddDoctorModal
+          hospitalId={hospitalId}
+          onClose={() => setShowAddDoctor(false)}
+          onDone={() => void loadDoctors()}
+        />
+      )}
     </div>
   );
 }

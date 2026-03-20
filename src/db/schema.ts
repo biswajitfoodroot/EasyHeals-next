@@ -1358,6 +1358,35 @@ export const entityAccessRequests = sqliteTable(
   ],
 );
 
+// P2 TABLE: patient_record_access — fine-grained access grants for staff to view patient data
+// A doctor can grant a specific staff user (receptionist/hospital_admin) access to a patient's
+// full records (documents, lab reports, prescriptions). Without a grant, staff see only metadata.
+export const patientRecordAccess = sqliteTable(
+  "patient_record_access",
+  {
+    id: id(),
+    patientId: text("patient_id").notNull().references(() => patients.id),
+    grantedToUserId: text("granted_to_user_id").notNull().references(() => users.id),
+    grantedByUserId: text("granted_by_user_id").notNull().references(() => users.id),
+    hospitalId: text("hospital_id").references(() => hospitals.id), // optional scope
+    accessLevel: text("access_level").notNull().default("metadata"),
+    // metadata = name/alias, last appt, department, doctor, tests
+    // full = metadata + documents + lab reports + prescriptions
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }), // null = indefinite
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("pra_patient_idx").on(table.patientId),
+    index("pra_grantee_idx").on(table.grantedToUserId),
+    index("pra_grantor_idx").on(table.grantedByUserId),
+    uniqueIndex("pra_patient_grantee_hospital_idx").on(
+      table.patientId, table.grantedToUserId, table.hospitalId,
+    ),
+  ],
+);
+
 // P5 TABLE: previsit_briefs — AI-generated patient summaries sent to doctors before appointments
 export const previsitBriefs = sqliteTable(
   "previsit_briefs",

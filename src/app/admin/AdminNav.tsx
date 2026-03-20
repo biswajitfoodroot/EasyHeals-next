@@ -40,9 +40,18 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
     ],
   },
   {
+    heading: "Operations",
+    items: [
+      { href: "/admin?tab=appointments", label: "Appointments", icon: "📅" },
+      { href: "/admin?tab=patients", label: "Patients", icon: "🧑‍⚕️" },
+      { href: "/admin?tab=providers", label: "Providers", icon: "🏥" },
+    ],
+  },
+  {
     heading: "Community & Moderation",
     items: [
       { href: "/admin?tab=contributions", label: "Contributions", icon: "✏️" },
+      { href: "/admin?tab=kyc", label: "KYC Review", icon: "🪪" },
       { href: "/admin/audit-log", label: "Audit Log", icon: "📋" },
     ],
   },
@@ -50,6 +59,7 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
     heading: "Administration",
     items: [
       { href: "/admin/access", label: "Access & Users", icon: "👥", roles: ["owner", "admin"] },
+      { href: "/admin?tab=config", label: "Feature Flags", icon: "⚙️", roles: ["owner", "admin"] },
     ],
   },
 ];
@@ -60,6 +70,7 @@ export function AdminNav({ me }: NavProps) {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    router.refresh();
     router.push("/admin/login");
   }
 

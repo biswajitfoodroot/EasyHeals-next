@@ -29,9 +29,10 @@ export default async function DoctorDashboardPage() {
 
   return (
     <DoctorDashboardClient
-      userFullName={doctorName}
+      userFullName={auth.fullName}
       userRole={auth.role}
       doctorId={auth.entityId ?? undefined}
+      doctorName={doctorName}
     />
   );
 }

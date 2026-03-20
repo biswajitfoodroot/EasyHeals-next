@@ -2,8 +2,8 @@
  * Task 1.4 — Feature Flag System
  *
  * Resolution order:
- *   1. DB table `feature_flags` (source of truth, admin-controlled)
- *   2. Environment variable EH_FLAG_{KEY}=1 (deploy-time override)
+ *   1. Environment variable EH_FLAG_{KEY}=1 (deploy-time override — highest priority)
+ *   2. DB table `feature_flags` (runtime admin-controlled toggle)
  *   3. Hardcoded safe default (false for P2+, true for P1 core features)
  *
  * DB rows are cached in-process for 60s to avoid a DB hit on every request.
@@ -87,7 +87,8 @@ function hardcodedDefault(key: string): boolean {
 /**
  * Returns true if the feature flag `key` is enabled.
  *
- * Resolution: DB → env var EH_FLAG_{KEY} → hardcoded default.
+ * Resolution: env var EH_FLAG_{KEY} → DB row → hardcoded default.
+ * Env var takes highest priority so Vercel / deploy-time overrides always win.
  * Result is cached in-process for 60 seconds.
  */
 export async function isFeatureEnabled(key: string): Promise<boolean> {
@@ -95,7 +96,16 @@ export async function isFeatureEnabled(key: string): Promise<boolean> {
   const cached = getCached(key);
   if (cached !== undefined) return cached;
 
-  // 2. DB lookup
+  // 2. Environment variable override (highest priority — deploy-time wins)
+  const envKey = `EH_FLAG_${key.toUpperCase()}`;
+  const envVal = process.env[envKey];
+  if (envVal !== undefined) {
+    const value = envVal === "1" || envVal === "true";
+    setCached(key, value);
+    return value;
+  }
+
+  // 3. DB lookup (runtime toggle via admin UI)
   try {
     const rows = await db
       .select({ enabled: featureFlags.enabled })
@@ -109,16 +119,7 @@ export async function isFeatureEnabled(key: string): Promise<boolean> {
       return value;
     }
   } catch {
-    // DB unavailable — fall through to env/default
-  }
-
-  // 3. Environment variable override: EH_FLAG_APPOINTMENT_BOOKING=1
-  const envKey = `EH_FLAG_${key.toUpperCase()}`;
-  const envVal = process.env[envKey];
-  if (envVal !== undefined) {
-    const value = envVal === "1" || envVal === "true";
-    setCached(key, value);
-    return value;
+    // DB unavailable — fall through to hardcoded default
   }
 
   // 4. Hardcoded default
