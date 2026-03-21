@@ -80,6 +80,8 @@ interface SearchDoctor {
   fullName: string;
   specialization: string | null;
   phone: string | null;
+  city: string | null;
+  yearsOfExperience: number | null;
   verified: boolean;
 }
 
@@ -258,6 +260,19 @@ function AppointmentCard({
   );
 }
 
+// ── Specialty options (common Indian medical specializations) ─────────────────
+
+const SPECIALTIES = [
+  "General Physician", "Cardiologist", "Orthopaedic Surgeon", "Neurologist",
+  "Gynaecologist", "Paediatrician", "Dermatologist", "Psychiatrist",
+  "Endocrinologist", "Gastroenterologist", "Pulmonologist", "Nephrologist",
+  "Urologist", "Oncologist", "Ophthalmologist", "ENT Specialist",
+  "Diabetologist", "Rheumatologist", "Haematologist", "Radiologist",
+  "Anaesthesiologist", "General Surgeon", "Plastic Surgeon", "Dental Surgeon",
+  "Physiotherapist", "Nutritionist / Dietitian", "Ayurvedic Practitioner",
+  "Homeopath", "Pathologist",
+];
+
 // ── Add Doctor Modal ──────────────────────────────────────────────────────────
 
 function AddDoctorModal({ hospitalId, onClose, onDone }: {
@@ -266,35 +281,64 @@ function AddDoctorModal({ hospitalId, onClose, onDone }: {
   onDone: () => void;
 }) {
   const [mode, setMode] = useState<"search" | "create">("search");
-  const [search, setSearch] = useState("");
-  const [results, setResults] = useState<SearchDoctor[]>([]);
-  const [searching, setSearching] = useState(false);
+
+  // Search filters
+  const [filterName,     setFilterName]     = useState("");
+  const [filterPhone,    setFilterPhone]    = useState("");
+  const [filterSpecialty, setFilterSpecialty] = useState("");
+  const [filterCity,     setFilterCity]     = useState("");
+  const [results,        setResults]        = useState<SearchDoctor[]>([]);
+  const [searching,      setSearching]      = useState(false);
+  const [hasSearched,    setHasSearched]    = useState(false);
+
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg,    setMsg]    = useState<string | null>(null);
+
+  // Link affiliation options
+  const [linkRole,    setLinkRole]    = useState("Visiting Consultant");
+  const [linkFeeMin,  setLinkFeeMin]  = useState("");
+  const [linkFeeMax,  setLinkFeeMax]  = useState("");
 
   // Create form
-  const [form, setForm] = useState({ fullName: "", specialization: "", phone: "", email: "", role: "Visiting Consultant" });
+  const [form, setForm] = useState({
+    fullName: "", specialization: "", phone: "", email: "",
+    role: "Visiting Consultant", yearsOfExperience: "",
+    feeMin: "", feeMax: "",
+  });
 
-  async function doSearch(q: string) {
-    if (q.length < 2) { setResults([]); return; }
-    setSearching(true);
+  async function doSearch() {
+    if (!filterName && !filterPhone && !filterSpecialty && !filterCity) return;
+    setSearching(true); setHasSearched(true);
     try {
-      const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}&search=${encodeURIComponent(q)}`, { credentials: "include" });
+      const params = new URLSearchParams({ hospitalId });
+      if (filterName)      params.set("name",      filterName);
+      if (filterPhone)     params.set("phone",     filterPhone);
+      if (filterSpecialty) params.set("specialty", filterSpecialty);
+      if (filterCity)      params.set("city",      filterCity);
+      const res = await fetch(`/api/v1/portal/doctors?${params}`, { credentials: "include" });
       const j = await res.json() as { data: SearchDoctor[] };
       setResults(j.data ?? []);
     } finally { setSearching(false); }
   }
 
+  function clearFilters() {
+    setFilterName(""); setFilterPhone(""); setFilterSpecialty(""); setFilterCity("");
+    setResults([]); setHasSearched(false);
+  }
+
   async function linkDoctor(doctorId: string) {
     setSaving(true);
     try {
+      const body: Record<string, unknown> = { action: "link", doctorId, role: linkRole };
+      if (linkFeeMin) body.feeMin = parseFloat(linkFeeMin);
+      if (linkFeeMax) body.feeMax = parseFloat(linkFeeMax);
       const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "link", doctorId }),
+        body: JSON.stringify(body),
       });
       if (res.ok) { onDone(); onClose(); }
-      else { const j = await res.json(); setMsg(j?.error?.userMessage ?? "Failed to link doctor."); }
+      else { const j = await res.json() as { error?: { userMessage?: string } }; setMsg(j?.error?.userMessage ?? "Failed to link doctor."); }
     } finally { setSaving(false); }
   }
 
@@ -302,95 +346,222 @@ function AddDoctorModal({ hospitalId, onClose, onDone }: {
     if (!form.fullName) { setMsg("Full name is required."); return; }
     setSaving(true);
     try {
+      const body: Record<string, unknown> = { action: "create", ...form };
+      if (form.yearsOfExperience) body.yearsOfExperience = parseInt(form.yearsOfExperience);
+      if (form.feeMin)            body.feeMin = parseFloat(form.feeMin);
+      if (form.feeMax)            body.feeMax = parseFloat(form.feeMax);
       const res = await fetch(`/api/v1/portal/doctors?hospitalId=${hospitalId}`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", ...form }),
+        body: JSON.stringify(body),
       });
       if (res.ok) { onDone(); onClose(); }
-      else { const j = await res.json(); setMsg(j?.error?.userMessage ?? "Failed to create doctor."); }
+      else { const j = await res.json() as { error?: { userMessage?: string } }; setMsg(j?.error?.userMessage ?? "Failed to create doctor."); }
     } finally { setSaving(false); }
   }
 
+  const hasFilters = filterName || filterPhone || filterSpecialty || filterCity;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h2 className="text-base font-bold text-slate-800">Add Doctor to Hospital</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="overflow-y-auto flex-1 p-6 space-y-4">
           {/* Mode toggle */}
           <div className="flex gap-2 bg-slate-100 rounded-xl p-1">
             {(["search", "create"] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)}
+              <button key={m} onClick={() => { setMode(m); setMsg(null); }}
                 className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition ${mode === m ? "bg-white shadow text-slate-800" : "text-slate-500"}`}>
-                {m === "search" ? "Link Existing" : "Create New"}
+                {m === "search" ? "🔍 Link Existing Doctor" : "➕ Create New Doctor"}
               </button>
             ))}
           </div>
 
-          {msg && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-xl">{msg}</p>}
+          {msg && <p className="text-sm text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl">{msg}</p>}
 
           {mode === "search" ? (
-            <div className="space-y-3">
-              <input
-                type="text" placeholder="Search by name or specialization…"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); void doSearch(e.target.value); }}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              {searching && <p className="text-xs text-slate-400">Searching…</p>}
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {results.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{d.fullName}</p>
-                      <p className="text-xs text-slate-500">{d.specialization ?? "General"}</p>
-                    </div>
-                    <button
-                      onClick={() => void linkDoctor(d.id)}
-                      disabled={saving}
-                      className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg disabled:opacity-50"
-                      style={{ background: "#1B8A4A" }}
-                    >
-                      Link
-                    </button>
+            <div className="space-y-4">
+              {/* Multi-field filter panel */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Search Filters</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Doctor Name</label>
+                    <input
+                      type="text" placeholder="e.g. Dr. Priya"
+                      value={filterName}
+                      onChange={(e) => setFilterName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void doSearch()}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
                   </div>
-                ))}
-                {results.length === 0 && search.length >= 2 && !searching && (
-                  <p className="text-xs text-slate-400 text-center py-4">No doctors found. Try creating a new one.</p>
-                )}
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Phone Number</label>
+                    <input
+                      type="tel" placeholder="e.g. 98765"
+                      value={filterPhone}
+                      onChange={(e) => setFilterPhone(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void doSearch()}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Specialty</label>
+                    <select
+                      value={filterSpecialty}
+                      onChange={(e) => setFilterSpecialty(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="">Any specialty</option>
+                      {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">City / Location</label>
+                    <input
+                      type="text" placeholder="e.g. Mumbai"
+                      value={filterCity}
+                      onChange={(e) => setFilterCity(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void doSearch()}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void doSearch()}
+                    disabled={!hasFilters || searching}
+                    className="flex-1 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-40 transition flex items-center justify-center gap-2"
+                    style={{ background: "#1B8A4A" }}
+                  >
+                    {searching ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "🔍"}
+                    Search
+                  </button>
+                  {hasFilters && (
+                    <button onClick={clearFilters}
+                      className="px-4 py-2 text-sm font-semibold text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition">
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {/* Affiliation options (role + fees) */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Affiliation Details</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Role</label>
+                    <input type="text" value={linkRole} onChange={(e) => setLinkRole(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Fee Min (₹)</label>
+                    <input type="number" min="0" value={linkFeeMin} onChange={(e) => setLinkFeeMin(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Fee Max (₹)</label>
+                    <input type="number" min="0" value={linkFeeMax} onChange={(e) => setLinkFeeMax(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-800 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">An invitation will be sent to the doctor to accept this affiliation.</p>
+              </div>
+
+              {/* Results */}
+              {hasSearched && (
+                <div className="space-y-2">
+                  {results.length === 0 && !searching ? (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-slate-500">No matching doctors found.</p>
+                      <button onClick={() => setMode("create")}
+                        className="mt-2 text-xs text-emerald-600 font-semibold hover:underline">
+                        Create a new doctor profile instead →
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{results.length} result{results.length !== 1 ? "s" : ""}</p>
+                      {results.map((d) => (
+                        <div key={d.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-emerald-300 transition">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-slate-800">{d.fullName}</p>
+                              {d.verified && <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">✓ Verified</span>}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">{d.specialization ?? "General"}{d.city ? ` · ${d.city}` : ""}{d.yearsOfExperience ? ` · ${d.yearsOfExperience}y exp` : ""}</p>
+                            {d.phone && <p className="text-xs text-slate-400">{d.phone}</p>}
+                          </div>
+                          <button
+                            onClick={() => void linkDoctor(d.id)}
+                            disabled={saving}
+                            className="ml-3 shrink-0 px-3 py-1.5 text-xs font-semibold text-white rounded-lg disabled:opacity-50 transition"
+                            style={{ background: "#1B8A4A" }}
+                          >
+                            Invite
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {[
-                { label: "Full Name *", key: "fullName", type: "text", placeholder: "Dr. Priya Sharma" },
-                { label: "Specialization", key: "specialization", type: "text", placeholder: "Cardiologist" },
-                { label: "Phone", key: "phone", type: "tel", placeholder: "+91 98765 43210" },
-                { label: "Email", key: "email", type: "email", placeholder: "doctor@hospital.com" },
-                { label: "Role at Hospital", key: "role", type: "text", placeholder: "Visiting Consultant" },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="text-xs font-semibold text-slate-600 block mb-1">{f.label}</label>
-                  <input
-                    type={f.type}
-                    placeholder={f.placeholder}
-                    value={form[f.key as keyof typeof form]}
-                    onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+              <p className="text-xs text-slate-500">Creating a new doctor profile will link them to your hospital immediately.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Full Name *</label>
+                  <input type="text" placeholder="Dr. Priya Sharma"
+                    value={form.fullName}
+                    onChange={(e) => setForm((p) => ({ ...p, fullName: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
-              ))}
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold text-slate-600 block mb-1">Specialization</label>
+                  <select
+                    value={form.specialization}
+                    onChange={(e) => setForm((p) => ({ ...p, specialization: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="">Select specialty</option>
+                    {SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                {[
+                  { label: "Phone", key: "phone", type: "tel", placeholder: "+91 98765 43210" },
+                  { label: "Email", key: "email", type: "email", placeholder: "doctor@hospital.com" },
+                  { label: "Role at Hospital", key: "role", type: "text", placeholder: "Visiting Consultant" },
+                  { label: "Years of Experience", key: "yearsOfExperience", type: "number", placeholder: "e.g. 10" },
+                  { label: "Consultation Fee Min (₹)", key: "feeMin", type: "number", placeholder: "0" },
+                  { label: "Consultation Fee Max (₹)", key: "feeMax", type: "number", placeholder: "500" },
+                ].map((f) => (
+                  <div key={f.key}>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">{f.label}</label>
+                    <input
+                      type={f.type}
+                      placeholder={f.placeholder}
+                      value={form[f.key as keyof typeof form]}
+                      onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                ))}
+              </div>
               <button
                 onClick={() => void createDoctor()}
                 disabled={saving}
                 className="w-full py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
                 style={{ background: "#1B8A4A" }}
               >
-                {saving ? "Creating…" : "Create Doctor"}
+                {saving ? "Creating…" : "Create & Link Doctor"}
               </button>
             </div>
           )}
@@ -625,6 +796,7 @@ export default function HospitalDashboardClient({ userFullName, userRole, hospit
               { href: "/portal/schedule",     icon: "📆", label: "Schedule" },
               { href: "/portal/queue",        icon: "🎫", label: "OPD Queue" },
               { href: "/portal/subscription", icon: "💳", label: "Subscription" },
+              { href: "/portal/account",      icon: "👤", label: "My Account" },
             ].map((n) => (
               <Link key={n.label} href={n.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
-import AuthBookingModal from "@/components/AuthBookingModal";
+import AuthBookingModal, { type BookingDoctor } from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import styles from "@/components/profiles/profiles.module.css";
@@ -469,6 +469,12 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         onClose={() => setModalOpen(false)}
         hospitalId={data.hospital.id}
         hospitalName={data.hospital.name}
+        hospitalDoctors={data.doctors.map((d): BookingDoctor => ({
+          id: d.id,
+          name: d.name,
+          specialty: d.specialization,
+          avatarUrl: d.avatarUrl,
+        }))}
       />
 
       <ContributeModal

@@ -362,8 +362,10 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         doctorName={data.doctor.fullName}
-        hospitalId={primaryHospital?.hospital.id ?? ""}
-        hospitalName={primaryHospital?.hospital.name}
+        doctorId={data.doctor.id}
+        doctorHospitals={data.affiliations.map((a) => ({ id: a.hospital.id, name: a.hospital.name, city: a.hospital.city }))}
+        hospitalId={data.affiliations.length === 1 ? data.affiliations[0].hospital.id : undefined}
+        hospitalName={data.affiliations.length === 1 ? data.affiliations[0].hospital.name : undefined}
       />
 
       <ContributeModal

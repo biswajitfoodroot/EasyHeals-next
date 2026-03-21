@@ -51,9 +51,11 @@ export async function getTierStatus(patientId: string): Promise<TierStatus> {
   const tier = (row.subscriptionTier ?? "free") as SubscriptionTier;
   const now = Date.now();
 
-  // Check paid subscription (health_plus or health_pro with valid expiry)
+  // Check paid subscription (health_plus or health_pro)
+  // null expiry = treat as valid (manual admin/dev override; production always sets expiry via Razorpay)
   const subExpiry = row.subscriptionExpiresAt;
-  const hasPaidSub = (tier === "health_plus" || tier === "health_pro") && subExpiry && subExpiry.getTime() > now;
+  const hasPaidSub = (tier === "health_plus" || tier === "health_pro") &&
+    (!subExpiry || subExpiry.getTime() > now);
 
   // Check trial
   const trialStart = row.trialStartedAt;

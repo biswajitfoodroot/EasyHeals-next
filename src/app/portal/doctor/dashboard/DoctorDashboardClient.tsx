@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MainTab = "today" | "appointments" | "patients";
+type MainTab = "today" | "appointments" | "patients" | "invitations";
 
 interface Appointment {
   id: string;
@@ -36,6 +36,21 @@ interface PatientRow {
   lastHospitalName: string | null;
   appointmentCount: number;
   consultationTypes: string[];
+}
+
+interface HospitalInvitation {
+  affiliationId: string;
+  status: string;
+  role: string | null;
+  feeMin: number | null;
+  feeMax: number | null;
+  invitationNote: string | null;
+  createdAt: string | null;
+  hospitalId: string;
+  hospitalName: string;
+  hospitalCity: string | null;
+  hospitalPhone: string | null;
+  hospitalEmail: string | null;
 }
 
 interface AccessGrant {
@@ -251,6 +266,11 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
   const [selectedPatient, setSelectedPatient] = useState<PatientRow | null>(null);
   const [patientGrants, setPatientGrants] = useState<AccessGrant[]>([]);
 
+  // Invitation state
+  const [invitLoading, setInvitLoading] = useState(false);
+  const [invitations, setInvitations] = useState<HospitalInvitation[]>([]);
+  const [invitActioning, setInvitActioning] = useState<string | null>(null);
+
   // ── Data loaders ─────────────────────────────────────────────────────────
 
   const loadAppointments = useCallback(async () => {
@@ -281,10 +301,26 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
     } finally { setPatientLoading(false); }
   }, [doctorId]);
 
+  const loadInvitations = useCallback(async () => {
+    setInvitLoading(true);
+    try {
+      const res = await fetch("/api/v1/portal/doctors/invitations", { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json() as { data: HospitalInvitation[] };
+        setInvitations(j.data ?? []);
+      }
+    } catch { /* non-fatal */ }
+    finally { setInvitLoading(false); }
+  }, []);
+
   useEffect(() => {
     if (activeTab === "today" || activeTab === "appointments") void loadAppointments();
     if (activeTab === "patients") void loadPatients();
-  }, [activeTab, loadAppointments, loadPatients]);
+    if (activeTab === "invitations") void loadInvitations();
+  }, [activeTab, loadAppointments, loadPatients, loadInvitations]);
+
+  // Load invitation count on mount for badge
+  useEffect(() => { void loadInvitations(); }, [loadInvitations]);
 
   // ── Appointment actions ───────────────────────────────────────────────────
 
@@ -341,6 +377,24 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
     setPatientGrants((p) => p.filter((g) => g.grantedToUserId !== grantedToUserId));
   }
 
+  async function respondToInvitation(affiliationId: string, action: "accept" | "decline") {
+    setInvitActioning(affiliationId); setError(null);
+    try {
+      const res = await fetch("/api/v1/portal/doctors/invitations", {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ affiliationId, action }),
+      });
+      if (res.ok) {
+        setInvitations((prev) => prev.filter((inv) => inv.affiliationId !== affiliationId));
+      } else {
+        const j = await res.json().catch(() => ({})) as { error?: { message?: string } };
+        setError(j?.error?.message ?? "Action failed.");
+      }
+    } catch { setError("Network error."); }
+    finally { setInvitActioning(null); }
+  }
+
   async function handleSignOut() {
     await fetch("/api/portal/logout", { method: "POST", credentials: "include" }).catch(() => {});
     router.push("/portal/login");
@@ -365,10 +419,11 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
     { label: "Patients", value: patients.length,      icon: "👥", hi: false },
   ];
 
-  const navItems: { tab: MainTab; icon: string; label: string }[] = [
+  const navItems: { tab: MainTab; icon: string; label: string; badge?: number }[] = [
     { tab: "today",        icon: "📅", label: "Today's Schedule" },
     { tab: "appointments", icon: "📋", label: "All Appointments" },
     { tab: "patients",     icon: "👥", label: "My Patients" },
+    { tab: "invitations",  icon: "🏥", label: "Hospital Invites", badge: invitations.length },
   ];
 
   return (
@@ -392,8 +447,22 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
               style={activeTab === n.tab ? { background: "#1B8A4A" } : {}}
             >
-              <span className="text-base shrink-0">{n.icon}</span>
-              <span className="hidden lg:block">{n.label}</span>
+              <span className="text-base shrink-0 relative">
+                {n.icon}
+                {(n.badge ?? 0) > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {n.badge}
+                  </span>
+                )}
+              </span>
+              <span className="hidden lg:flex items-center gap-2 flex-1">
+                {n.label}
+                {(n.badge ?? 0) > 0 && (
+                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === n.tab ? "bg-white/20 text-white" : "bg-red-100 text-red-600"}`}>
+                    {n.badge}
+                  </span>
+                )}
+              </span>
             </button>
           ))}
 
@@ -401,6 +470,7 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
             {[
               { href: "/portal/doctor",    icon: "✏️", label: "Edit Profile" },
               { href: "/portal/schedule",  icon: "📆", label: "Schedule" },
+              { href: "/portal/account",   icon: "👤", label: "My Account" },
             ].map((n) => (
               <Link key={n.label} href={n.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
@@ -435,6 +505,7 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
               <h1 className="text-xl font-bold text-slate-800">
                 {activeTab === "today"        ? "Today's Schedule" :
                  activeTab === "appointments" ? "All Appointments" :
+                 activeTab === "invitations"  ? "Hospital Invitations" :
                  "My Patients"}
               </h1>
               <p className="text-sm text-slate-400">
@@ -543,6 +614,113 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── INVITATIONS TAB ───────────────────────────────────────────────── */}
+          {activeTab === "invitations" && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-800">
+                <strong>Hospital Association Requests:</strong> When a hospital invites you to join their network,
+                it appears here. Accepting allows the hospital to schedule appointments on your behalf.
+              </div>
+
+              {invitLoading ? (
+                <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-32" />)}</div>
+              ) : invitations.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
+                  <p className="text-4xl mb-3">🏥</p>
+                  <p className="text-slate-500 font-medium">No pending invitations</p>
+                  <p className="text-sm text-slate-400 mt-1">Hospital association requests will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{invitations.length} pending invitation{invitations.length !== 1 ? "s" : ""}</p>
+                  {invitations.map((inv) => {
+                    const busy = invitActioning === inv.affiliationId;
+                    return (
+                      <div key={inv.affiliationId} className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-bold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">Pending Your Response</span>
+                            </div>
+                            <p className="text-base font-bold text-slate-800">{inv.hospitalName}</p>
+                            {inv.hospitalCity && <p className="text-sm text-slate-500 mt-0.5">📍 {inv.hospitalCity}</p>}
+                            <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-600">
+                              {inv.role && (
+                                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Your Role</p>
+                                  <p className="font-semibold">{inv.role}</p>
+                                </div>
+                              )}
+                              {(inv.feeMin != null || inv.feeMax != null) && (
+                                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Consultation Fee</p>
+                                  <p className="font-semibold">
+                                    {inv.feeMin != null && inv.feeMax != null
+                                      ? `₹${inv.feeMin} – ₹${inv.feeMax}`
+                                      : inv.feeMin != null ? `From ₹${inv.feeMin}` : `Up to ₹${inv.feeMax}`}
+                                  </p>
+                                </div>
+                              )}
+                              {inv.hospitalPhone && (
+                                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Phone</p>
+                                  <p className="font-semibold">{inv.hospitalPhone}</p>
+                                </div>
+                              )}
+                              {inv.hospitalEmail && (
+                                <div className="bg-slate-50 rounded-lg px-3 py-2">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Email</p>
+                                  <p className="font-semibold">{inv.hospitalEmail}</p>
+                                </div>
+                              )}
+                            </div>
+                            {inv.invitationNote && (
+                              <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-slate-700">
+                                <span className="font-bold text-amber-700">Note from hospital:</span> {inv.invitationNote}
+                              </div>
+                            )}
+                            <p className="text-[10px] text-slate-400 mt-2">Invited {formatDate(inv.createdAt)}</p>
+                          </div>
+
+                          <div className="flex flex-col gap-2 items-end shrink-0">
+                            <button
+                              onClick={() => void respondToInvitation(inv.affiliationId, "accept")}
+                              disabled={busy}
+                              className="px-5 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center gap-2 transition shadow-sm"
+                              style={{ background: "#1B8A4A" }}
+                            >
+                              {busy ? <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "✓"}
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => void respondToInvitation(inv.affiliationId, "decline")}
+                              disabled={busy}
+                              className="px-5 py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition"
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Info card */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <p className="text-xs font-bold text-slate-700 mb-2">ℹ️ How Hospital Associations Work</p>
+                <ul className="text-xs text-slate-500 space-y-1.5">
+                  <li>• <strong>Accepting</strong> allows the hospital to schedule appointments under your profile</li>
+                  <li>• <strong>Declining</strong> removes the invitation — the hospital can re-invite later</li>
+                  <li>• You can be affiliated with multiple hospitals simultaneously</li>
+                  <li>• Your profile visibility on EasyHeals increases with hospital affiliations</li>
+                  <li>• You can request removal from a hospital through your profile settings</li>
+                </ul>
+              </div>
             </div>
           )}
 

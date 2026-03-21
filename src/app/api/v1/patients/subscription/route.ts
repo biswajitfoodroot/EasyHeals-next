@@ -8,16 +8,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withErrorHandler } from "@/lib/errors/app-error";
 import { requirePatientSession } from "@/lib/core/patient-session";
-import { getTierStatus, startTrialIfNew } from "@/lib/core/patient-trial";
+import { getTierStatus } from "@/lib/core/patient-trial";
+
+// Always read live from DB — never cache subscription status
+export const dynamic = "force-dynamic";
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await requirePatientSession(req);
 
-  // Auto-start trial on first call (so dashboard can show "X days left" immediately)
-  await startTrialIfNew(session.patientId);
+  // Pure read — trial starts only when a premium feature is first used (requirePremiumAccess)
   const status = await getTierStatus(session.patientId);
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     data: {
       tier: status.tier,
       inTrial: status.inTrial,
@@ -27,4 +29,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       subscriptionExpiresAt: status.subscriptionExpiresAt?.toISOString() ?? null,
     },
   });
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  return res;
 });

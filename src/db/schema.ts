@@ -25,6 +25,7 @@ export const users = sqliteTable(
     fullName: text("full_name").notNull(),
     email: text("email").notNull(),
     passwordHash: text("password_hash"),
+    phone: text("phone"),
     googleId: text("google_id"),
     googleAvatar: text("google_avatar"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
@@ -256,6 +257,93 @@ export const otpVerifications = sqliteTable("otp_verifications", {
   ),
 });
 
+// Patient family links — P5, links up to 5 family members as real EasyHeals patient accounts
+export const patientFamilyLinks = sqliteTable(
+  "patient_family_links",
+  {
+    id: id(),
+    primaryPatientId: text("primary_patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    linkedPatientId:  text("linked_patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    relation:         text("relation").notNull().default("Family"),
+    displayName:      text("display_name"),
+    createdAt:        integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [
+    uniqueIndex("family_links_pair_idx").on(t.primaryPatientId, t.linkedPatientId),
+    index("family_links_primary_idx").on(t.primaryPatientId),
+    index("family_links_linked_idx").on(t.linkedPatientId),
+  ],
+);
+
+// ─── Patient Health Profile ───────────────────────────────────────────────────
+export const patientHealthProfiles = sqliteTable(
+  "patient_health_profiles",
+  {
+    id: id(),
+    patientId:   text("patient_id").notNull().unique().references(() => patients.id, { onDelete: "cascade" }),
+    height:      text("height"),
+    weight:      text("weight"),
+    bloodGroup:  text("blood_group"),
+    conditions:  text("conditions"),
+    allergies:   text("allergies"),
+    updatedAt:   integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [index("hp_patient_idx").on(t.patientId)],
+);
+
+// ─── Patient Address ──────────────────────────────────────────────────────────
+export const patientAddresses = sqliteTable(
+  "patient_addresses",
+  {
+    id: id(),
+    patientId: text("patient_id").notNull().unique().references(() => patients.id, { onDelete: "cascade" }),
+    street:    text("street"),
+    state:     text("state"),
+    pincode:   text("pincode"),
+    altPhone:  text("alt_phone"),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [index("addr_patient_idx").on(t.patientId)],
+);
+
+// ─── Patient Vitals (time-series) ─────────────────────────────────────────────
+export const patientVitals = sqliteTable(
+  "patient_vitals",
+  {
+    id:           id(),
+    patientId:    text("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    recordedDate: text("recorded_date").notNull(),   // YYYY-MM-DD
+    weight:       text("weight"),
+    bp:           text("bp"),
+    glucose:      text("glucose"),
+    pulse:        text("pulse"),
+    notes:        text("notes"),
+    createdAt:    integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [index("vitals_patient_date_idx").on(t.patientId, t.recordedDate)],
+);
+
+// ─── Patient Medications / Reminders ─────────────────────────────────────────
+export const patientMedications = sqliteTable(
+  "patient_medications",
+  {
+    id:        id(),
+    patientId: text("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    name:      text("name").notNull(),
+    dosage:    text("dosage"),
+    frequency: text("frequency"),
+    times:     text("times", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    notes:     text("notes"),
+    isActive:  integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => [
+    index("meds_patient_idx").on(t.patientId),
+    index("meds_active_idx").on(t.patientId, t.isActive),
+  ],
+);
+
 // Patient sessions — DB fallback when Upstash Redis is not configured (local dev)
 export const patientSessions = sqliteTable(
   "patient_sessions",
@@ -352,6 +440,12 @@ export const doctorHospitalAffiliations = sqliteTable(
     feeMax: real("fee_max"),
     isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
     source: text("source").notNull().default("manual"),
+    // Two-way invite/accept: hospital sends invite → doctor accepts/declines
+    affiliationStatus: text("affiliation_status").notNull().default("active"),
+    // active | pending_doctor_accept | declined | removed
+    invitedBy: text("invited_by").references(() => users.id),
+    invitationNote: text("invitation_note"),
+    respondedAt: integer("responded_at", { mode: "timestamp_ms" }),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(

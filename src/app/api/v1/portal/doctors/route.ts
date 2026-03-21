@@ -9,7 +9,7 @@
  *   { action: "create", fullName, specialization, phone?, email?, ... } — create new + link
  */
 
-import { and, eq, like, or } from "drizzle-orm";
+import { and, eq, like, or, SQL } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -39,16 +39,35 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     throw new AppError("SYS_UNHANDLED", "Missing hospitalId", "Provide ?hospitalId= param.", 400);
   }
 
-  // Also support search for doctor linking (search by name)
-  const search = url.searchParams.get("search") ?? "";
+  // Multi-field search for doctor linking flow
+  const search      = url.searchParams.get("search") ?? "";
+  const nameQ       = url.searchParams.get("name") ?? "";
+  const phoneQ      = url.searchParams.get("phone") ?? "";
+  const specialtyQ  = url.searchParams.get("specialty") ?? "";
+  const cityQ       = url.searchParams.get("city") ?? "";
 
-  if (search) {
+  const isSearchMode = search || nameQ || phoneQ || specialtyQ || cityQ;
+
+  if (isSearchMode) {
     // Return doctors not yet linked to this hospital — for the "link existing" flow
     const linked = await db
       .select({ doctorId: doctorHospitalAffiliations.doctorId })
       .from(doctorHospitalAffiliations)
       .where(eq(doctorHospitalAffiliations.hospitalId, hospitalId));
     const linkedIds = linked.map((r) => r.doctorId);
+
+    // Build filter clauses
+    const clauses: SQL[] = [eq(doctors.isActive, true)];
+    if (search) {
+      clauses.push(or(
+        like(doctors.fullName, `%${search}%`),
+        like(doctors.specialization, `%${search}%`),
+      ) as SQL);
+    }
+    if (nameQ)      clauses.push(like(doctors.fullName, `%${nameQ}%`));
+    if (phoneQ)     clauses.push(like(doctors.phone, `%${phoneQ}%`));
+    if (specialtyQ) clauses.push(like(doctors.specialization, `%${specialtyQ}%`));
+    if (cityQ)      clauses.push(like(doctors.city, `%${cityQ}%`));
 
     const results = await db
       .select({
@@ -57,20 +76,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         specialization: doctors.specialization,
         phone: doctors.phone,
         email: doctors.email,
+        city: doctors.city,
         avatarUrl: doctors.avatarUrl,
         verified: doctors.verified,
+        yearsOfExperience: doctors.yearsOfExperience,
         isActive: doctors.isActive,
       })
       .from(doctors)
-      .where(
-        and(
-          eq(doctors.isActive, true),
-          or(
-            like(doctors.fullName, `%${search}%`),
-            like(doctors.specialization, `%${search}%`),
-          ),
-        ),
-      )
+      .where(and(...clauses))
       .limit(20);
 
     return NextResponse.json({
@@ -191,6 +204,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     doctorId = input.doctorId;
   }
 
+  // Determine affiliation status:
+  // - "create" action (hospital creates new doctor) → directly active (hospital owns the record)
+  // - "link" action (hospital inviting an existing doctor) → pending_doctor_accept (doctor must confirm)
+  const affiliationStatus = input.action === "create" ? "active" : "pending_doctor_accept";
+  const isActive = input.action === "create";
+
   // Create or restore affiliation
   await db
     .insert(doctorHospitalAffiliations)
@@ -201,19 +220,27 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       feeMin: input.feeMin,
       feeMax: input.feeMax,
       isPrimary: input.isPrimary ?? false,
-      isActive: true,
+      affiliationStatus,
+      invitedBy: auth.userId,
+      isActive,
       source: "portal",
     })
     .onConflictDoUpdate({
       target: [doctorHospitalAffiliations.doctorId, doctorHospitalAffiliations.hospitalId],
-      set: { isActive: true, role: input.role ?? "Visiting Consultant", updatedAt: new Date() },
+      set: {
+        affiliationStatus,
+        isActive,
+        invitedBy: auth.userId,
+        role: input.role ?? "Visiting Consultant",
+        updatedAt: new Date(),
+      },
     });
 
-  return NextResponse.json({
-    doctorId,
-    hospitalId,
-    message: input.action === "create" ? "Doctor created and linked." : "Doctor linked successfully.",
-  }, { status: 201 });
+  const message = input.action === "create"
+    ? "Doctor created and linked."
+    : "Invitation sent. Doctor will be notified to accept.";
+
+  return NextResponse.json({ doctorId, hospitalId, message, status: affiliationStatus }, { status: 201 });
 });
 
 // ── DELETE (remove affiliation) ────────────────────────────────────────────────

@@ -1249,12 +1249,20 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               <span className="text-teal-300 text-sm">({me.role})</span>
             </p>
           </div>
-          <button
-            onClick={onLogout}
-            className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors font-medium backdrop-blur-sm"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/portal/account"
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors font-medium backdrop-blur-sm text-sm"
+            >
+              👤 My Account
+            </a>
+            <button
+              onClick={onLogout}
+              className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors font-medium backdrop-blur-sm"
+            >
+              Sign Out
+            </button>
+          </div>
         </section>
 
         {error && (

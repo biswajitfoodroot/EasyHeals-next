@@ -88,12 +88,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const parsed = bookSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new AppError("SYS_UNHANDLED", "Validation error", parsed.error.issues[0]?.message ?? "Validation error", 400);
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new AppError("SYS_UNHANDLED", `Validation: ${issues}`, `Invalid booking data: ${issues}`, 400);
   }
 
   const { hospitalId, doctorId, slotId, type, scheduledAt, patientNotes } = parsed.data;
 
-  // 1. Consent gate — auto-upsert when consentGranted:true is in body (shown as checkbox in UI)
+  // 1. Consent gate
   const consentRecordId = await ensureConsent(patientId, "booking_appointment");
 
   // 2. Verify hospital is active
@@ -106,8 +107,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!hospitalRows.length || !hospitalRows[0].isActive) {
     throw new AppError("BOOK_HOSPITAL_CLOSED", "Hospital unavailable", "This hospital is not currently accepting appointments.", 409);
   }
-
-  // 3. Validate slot (if provided) — ensure it is not already booked
+  // 3. Validate slot (if provided)
   let resolvedScheduledAt: Date | undefined;
 
   if (slotId) {
@@ -128,19 +128,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     resolvedScheduledAt = new Date(scheduledAt);
   }
 
-  // 4. Blackout check — patient cannot book more than 3 appointments per day (rate limit per HLD §5.2)
+  // 4. Blackout check
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayBookings = await db
     .select({ id: appointments.id })
     .from(appointments)
     .where(and(eq(appointments.patientId, patientId), eq(appointments.status, "requested")));
-
   if (todayBookings.length >= 3) {
     throw new AppError("BOOK_PATIENT_BLACKOUT", "Booking limit reached", "You can book a maximum of 3 appointments per day.", 409);
   }
 
-  // 5. Insert appointment into shared DB
+  // 5. Insert appointment
   const [newAppt] = await db
     .insert(appointments)
     .values({
