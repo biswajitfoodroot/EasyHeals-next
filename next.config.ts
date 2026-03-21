@@ -11,9 +11,6 @@ const nextConfig: any = {
     ],
     dangerouslyAllowSVG: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
