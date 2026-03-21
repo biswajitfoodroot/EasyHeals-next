@@ -59,27 +59,25 @@ const SPECIALTY_RULES: SpecialtyRule[] = [
 ];
 
 const CITY_HINTS = [
-  "Pune",
-  "Mumbai",
-  "Delhi",
-  "Bengaluru",
-  "Bangalore",
-  "Chennai",
-  "Hyderabad",
-  "Kolkata",
-  "Ahmedabad",
-  "Jaipur",
-  "Nagpur",
+  "Pune", "Mumbai", "Delhi", "Bengaluru", "Bangalore", "Chennai",
+  "Hyderabad", "Kolkata", "Ahmedabad", "Jaipur", "Nagpur",
+  "Kochi", "Visakhapatnam", "Indore", "Bhopal", "Lucknow",
+  "Dhaka", "Chittagong", "Colombo", "Kathmandu", "Yangon",
+  "Dubai", "Abu Dhabi", "Sharjah", "Muscat", "Riyadh", "Jeddah",
+  "Kuwait City", "Doha", "Manama", "Nairobi", "Lagos", "Cairo",
 ];
 
 function detectLanguage(text: string): string {
   if (/[\u0900-\u097F]/.test(text)) return "hindi";
   if (/[\u0980-\u09FF]/.test(text)) return "bengali";
   if (/[\u0A80-\u0AFF]/.test(text)) return "gujarati";
+  if (/[\u0B00-\u0B7F]/.test(text)) return "odia";
   if (/[\u0B80-\u0BFF]/.test(text)) return "tamil";
   if (/[\u0C00-\u0C7F]/.test(text)) return "telugu";
   if (/[\u0C80-\u0CFF]/.test(text)) return "kannada";
   if (/[\u0D00-\u0D7F]/.test(text)) return "malayalam";
+  if (/[\u0D80-\u0DFF]/.test(text)) return "sinhala";
+  if (/[\u0600-\u06FF]/.test(text)) return "arabic";
   return "english";
 }
 

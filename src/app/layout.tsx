@@ -1,5 +1,17 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, DM_Sans, DM_Serif_Display } from "next/font/google";
+import {
+  Bricolage_Grotesque,
+  DM_Sans,
+  DM_Serif_Display,
+  Noto_Sans,
+  Noto_Sans_Arabic,
+  Noto_Sans_Bengali,
+  Noto_Sans_Kannada,
+  Noto_Sans_Malayalam,
+  Noto_Sans_Sinhala,
+  Noto_Sans_Tamil,
+  Noto_Sans_Telugu,
+} from "next/font/google";
 import { cookies } from "next/headers";
 
 import { LocaleProvider } from "@/i18n/LocaleContext";
@@ -27,34 +39,113 @@ const dmSerif = DM_Serif_Display({
   weight: "400",
 });
 
+// Indic script support — Devanagari covers Hindi & Marathi
+const notoSans = Noto_Sans({
+  variable: "--font-noto",
+  subsets: ["latin", "devanagari"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Bengali script support
+const notoBengali = Noto_Sans_Bengali({
+  variable: "--font-noto-bn",
+  subsets: ["bengali"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Tamil script support
+const notoTamil = Noto_Sans_Tamil({
+  variable: "--font-noto-ta",
+  subsets: ["tamil"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Malayalam script support
+const notoMalayalam = Noto_Sans_Malayalam({
+  variable: "--font-noto-ml",
+  subsets: ["malayalam"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Kannada script support
+const notoKannada = Noto_Sans_Kannada({
+  variable: "--font-noto-kn",
+  subsets: ["kannada"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Telugu script support
+const notoTelugu = Noto_Sans_Telugu({
+  variable: "--font-noto-te",
+  subsets: ["telugu"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Arabic script support (also covers Urdu, Persian)
+const notoArabic = Noto_Sans_Arabic({
+  variable: "--font-noto-ar",
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+// Sinhala script support
+const notoSinhala = Noto_Sans_Sinhala({
+  variable: "--font-noto-si",
+  subsets: ["sinhala"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://easyheals-next.com"),
+  metadataBase: new URL(process.env.APP_BASE_URL || "https://easy-heals-next.vercel.app"),
   title: {
-    default: "EasyHeals",
+    default: "EasyHeals — AI Healthcare Discovery Platform",
     template: "%s | EasyHeals",
   },
   description:
-    "EasyHeals offers AI-assisted healthcare search across hospitals, doctors, treatments, and symptoms.",
-  keywords: ["hospital", "doctor", "appointment", "healthcare", "ai search", "easyheals"],
+    "EasyHeals is India's AI-powered healthcare discovery platform. Find verified hospitals, specialist doctors, treatments, lab tests and book appointments. Multilingual search in Hindi, Tamil, Marathi, Bengali. Supported by IIM Lucknow, IIT Mandi & IIHMR.",
+  keywords: [
+    "hospital near me",
+    "doctor appointment India",
+    "healthcare platform",
+    "AI health search",
+    "EasyHeals",
+    "find doctor",
+    "best hospital",
+    "lab test booking",
+    "treatment cost",
+    "multilingual healthcare",
+    "appointment management",
+  ],
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "EasyHeals",
-    description: "AI-assisted healthcare discovery and operations platform.",
-    url: "https://easyheals-next.com",
+    title: "EasyHeals — AI Healthcare Discovery",
+    description: "Find hospitals, doctors, treatments across 50+ cities in India. AI-powered multilingual search. Free for patients.",
+    url: process.env.APP_BASE_URL || "https://easy-heals-next.vercel.app",
     siteName: "EasyHeals",
     locale: "en_IN",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "EasyHeals",
-    description: "Interactive AI healthcare search platform.",
+    title: "EasyHeals — AI Healthcare Discovery",
+    description: "Find the right hospitals, doctors & treatments across India with AI-powered search.",
+  },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },
 };
 
-const VALID_LOCALES = new Set<Locale>(["en", "hi", "mr", "ta", "bn"]);
+const VALID_LOCALES = new Set<Locale>(["en", "hi", "mr", "ta", "bn", "ml", "kn", "te", "ar", "si"]);
 
 export default async function RootLayout({
   children,
@@ -67,7 +158,7 @@ export default async function RootLayout({
 
   return (
     <html lang={initialLocale}>
-      <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable}`}>
+      <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable} ${notoSans.variable} ${notoBengali.variable} ${notoTamil.variable} ${notoMalayalam.variable} ${notoKannada.variable} ${notoTelugu.variable} ${notoArabic.variable} ${notoSinhala.variable}`}>
         <LocaleProvider initialLocale={initialLocale}>
           <SiteNav />
           {children}

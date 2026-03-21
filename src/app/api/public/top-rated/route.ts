@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, like, or } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { db } from "@/db/client";
@@ -15,12 +15,18 @@ const CATEGORY_SPECIALTY_MAP: Record<string, string[]> = {
 
 export async function GET(req: NextRequest) {
   const category = req.nextUrl.searchParams.get("category") ?? "hospital";
+  const city = req.nextUrl.searchParams.get("city") ?? "";
   const limit = Math.min(6, Math.max(3, Number(req.nextUrl.searchParams.get("limit") ?? 6)));
 
   try {
     const specialtyKeywords = CATEGORY_SPECIALTY_MAP[category] ?? [];
 
     const conditions = [eq(hospitals.isPrivate, true)];
+
+    // Filter by city when provided (case-insensitive prefix/contains match)
+    if (city.trim()) {
+      conditions.push(like(hospitals.city, `%${city.trim()}%`));
+    }
 
     if (specialtyKeywords.length > 0) {
       // Filter by any matching specialty keyword in the specialties JSON column
@@ -30,7 +36,8 @@ export async function GET(req: NextRequest) {
       conditions.push(or(...specialtyFilters)!);
     }
 
-    const rows = await db
+    // When city is specified, try city-filtered results first; fall back to global if empty
+    let rows = await db
       .select({
         id: hospitals.id,
         name: hospitals.name,
@@ -44,6 +51,31 @@ export async function GET(req: NextRequest) {
       .where(and(...conditions))
       .orderBy(desc(hospitals.rating), desc(hospitals.reviewCount))
       .limit(limit);
+
+    // Fall back to global top-rated if city returned no results
+    if (rows.length === 0 && city.trim()) {
+      const globalConditions = [eq(hospitals.isPrivate, true)];
+      if (specialtyKeywords.length > 0) {
+        const specialtyFilters = specialtyKeywords.map((kw) =>
+          like(hospitals.specialties, `%${kw}%`),
+        );
+        globalConditions.push(or(...specialtyFilters)!);
+      }
+      rows = await db
+        .select({
+          id: hospitals.id,
+          name: hospitals.name,
+          slug: hospitals.slug,
+          city: hospitals.city,
+          rating: hospitals.rating,
+          reviewCount: hospitals.reviewCount,
+          specialties: hospitals.specialties,
+        })
+        .from(hospitals)
+        .where(and(...globalConditions))
+        .orderBy(desc(hospitals.rating), desc(hospitals.reviewCount))
+        .limit(limit);
+    }
 
     const data = rows.map((row) => ({
       id: row.id,

@@ -13,8 +13,8 @@
   --secondary-light: #fff2ee;
   --accent: #7B1FA2;
   --accent-light: #f5eaff;
-  --font-sans: var(--font-dmsans);
-  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-dmsans), var(--font-noto), var(--font-noto-bn), var(--font-noto-ta), var(--font-noto-ml), var(--font-noto-kn), var(--font-noto-te), var(--font-noto-ar), var(--font-noto-si), sans-serif;
+  --font-display: var(--font-bricolage), var(--font-noto), var(--font-noto-bn), var(--font-noto-ta), var(--font-noto-ml), var(--font-noto-kn), var(--font-noto-te), var(--font-noto-ar), var(--font-noto-si), sans-serif;
 }
 
 * {
@@ -414,6 +414,10 @@ body {
   height: 1rem;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -467,3 +471,47 @@ body {
 
 .template-home{height:100dvh;width:100%;}
 .template-frame{display:block;width:100%;height:100%;border:0;background:#fff;}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Homepage White-Theme Overrides for ChatSearch & SearchResults
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="light"] > section {
+  margin-top: 0 !important;
+  border-radius: 20px !important;
+  border: 1.5px solid #D0E4D8 !important;
+  background: #fff !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 4px 24px rgba(27, 138, 74, 0.06) !important;
+}
+[data-theme="light"] [role="tablist"] { border-bottom-color: #D0E4D8 !important; }
+[data-theme="light"] [role="tab"] { color: #5A7367 !important; background: transparent !important; }
+[data-theme="light"] [role="tab"][aria-selected="true"] { color: #1B8A4A !important; border-bottom: 2px solid #1B8A4A !important; background: rgba(27,138,74,0.04) !important; }
+[data-theme="light"] article p { border-color: #D0E4D8 !important; background: #F8FAF9 !important; color: #1A2B23 !important; }
+[data-theme="light"] > section > div:not([role]) > button { border: 1px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #5A7367 !important; }
+[data-theme="light"] > section > div:not([role]) > button:hover { background: #E6F5EC !important; border-color: #1B8A4A !important; color: #1B8A4A !important; }
+[data-theme="light"] form { border-top: 1px solid #D0E4D8 !important; }
+[data-theme="light"] form textarea { border: 1.5px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #1A2B23 !important; }
+[data-theme="light"] form textarea::placeholder { color: #8FA39A !important; }
+[data-theme="light"] form > button { border: 1px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #5A7367 !important; }
+[data-theme="light"] form > button:last-child { background: linear-gradient(135deg, #1B8A4A, #22a85c) !important; border-color: transparent !important; color: #fff !important; }
+[data-theme="light"] > section > p:last-child { border-top: 1px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #8FA39A !important; }
+
+/* Search Results Overrides */
+[data-theme="light"] > section[aria-label] { min-height: auto !important; }
+[data-theme="light"] > section[aria-label] > div:first-child { border-bottom-color: #D0E4D8 !important; }
+[data-theme="light"] > section[aria-label] > div:first-child h3 { color: #8FA39A !important; }
+[data-theme="light"] > section[aria-label] > div:first-child > span { background: rgba(27,138,74,0.12) !important; color: #1B8A4A !important; }
+[data-theme="light"] > section[aria-label] > div:first-child > button { border: 1px solid #D0E4D8 !important; background: #fff !important; color: #5A7367 !important; }
+[data-theme="light"] > section[aria-label] h4 { color: #5A7367 !important; }
+[data-theme="light"] > section[aria-label] > div > p { color: #8FA39A !important; }
+[data-theme="light"] > section[aria-label] div button { border: 1px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #5A7367 !important; }
+[data-theme="light"] > section[aria-label] div button:hover { background: #E6F5EC !important; border-color: #1B8A4A !important; color: #1B8A4A !important; }
+[data-theme="light"] > section[aria-label] article { border-color: #D0E4D8 !important; background: #fff !important; }
+[data-theme="light"] > section[aria-label] article h4 { color: #1A2B23 !important; }
+[data-theme="light"] > section[aria-label] article > div > p { color: #5A7367 !important; }
+[data-theme="light"] > section[aria-label] article span { background: #E6F5EC !important; color: #1B8A4A !important; }
+[data-theme="light"] > section[aria-label] article strong { color: #1A2B23 !important; }
+[data-theme="light"] > section[aria-label] article small { color: #8FA39A !important; }
+[data-theme="light"] > section[aria-label] article a { border: 1px solid #D0E4D8 !important; background: #F8FAF9 !important; color: #5A7367 !important; text-decoration: none !important; }
+[data-theme="light"] > section[aria-label] article a:first-of-type { background: #E6F5EC !important; color: #1B8A4A !important; border-color: rgba(27,138,74,0.2) !important; }
