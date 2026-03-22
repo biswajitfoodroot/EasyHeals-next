@@ -5,7 +5,13 @@ import { useState, useEffect, useMemo } from "react";
 
 import { useTranslations } from "@/i18n/LocaleContext";
 import styles from "@/components/profiles/profiles.module.css";
-import { getTreatmentAbout, getTreatmentName, getTreatmentProcedures } from "@/lib/treatment-content";
+import {
+  getTreatmentData,
+  getSpecialtyData,
+  getAnyName,
+  getAnyAbout,
+  getAnyProcedures,
+} from "@/lib/treatment-content";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +80,10 @@ export function TreatmentProfileClient({ data }: Props) {
 
   const { treatment, relatedHospitals, relatedDoctors } = data;
 
+  // Rich content from static data files
+  const treatmentContent = getTreatmentData(treatment.slug);
+  const specialtyContent = getSpecialtyData(treatment.slug);
+
   // Sync city from localStorage / nav picker
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("eh_city") : null;
@@ -96,16 +106,16 @@ export function TreatmentProfileClient({ data }: Props) {
   };
 
   // Translated title (falls back to DB title if no translation entry)
-  const displayTitle = getTreatmentName(treatment.slug, locale) ?? treatment.title;
+  const displayTitle = getAnyName(treatment.slug, locale) ?? treatment.title;
 
   // Rich about text (falls back to DB description, then generic fallback)
   const richAbout =
-    getTreatmentAbout(treatment.slug, locale) ??
+    getAnyAbout(treatment.slug, locale) ??
     treatment.description ??
     `${t("treatment.aboutTitle")} ${displayTitle}`;
 
   // Procedures for this treatment
-  const procedures = getTreatmentProcedures(treatment.slug);
+  const procedures = getAnyProcedures(treatment.slug);
 
   // City-filtered hospitals and doctors
   const filteredHospitals = useMemo(() =>
@@ -230,6 +240,68 @@ export function TreatmentProfileClient({ data }: Props) {
               <p style={{ color: "#374151", lineHeight: "1.75", fontSize: "14px" }}>
                 {richAbout}
               </p>
+
+              {/* Treatment-specific: Causes and Next Steps */}
+              {treatmentContent && (
+                <>
+                  {treatmentContent.causes && (
+                    <div style={{ marginTop: "20px" }} data-testid="treatment-causes">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
+                        Causes / Typical Use Case
+                      </h3>
+                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
+                        {treatmentContent.causes}
+                      </p>
+                    </div>
+                  )}
+                  {treatmentContent.nextSteps && (
+                    <div style={{ marginTop: "16px" }} data-testid="treatment-next-steps">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
+                        Next Steps
+                      </h3>
+                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
+                        {treatmentContent.nextSteps}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Specialty-specific: Common Problems, Home Care, When to Visit */}
+              {specialtyContent && !treatmentContent && (
+                <>
+                  {specialtyContent.possibleProblems && (
+                    <div style={{ marginTop: "20px" }} data-testid="specialty-possible-problems">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
+                        Common Problems
+                      </h3>
+                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
+                        {specialtyContent.possibleProblems}
+                      </p>
+                    </div>
+                  )}
+                  {specialtyContent.homeCare && (
+                    <div style={{ marginTop: "16px" }} data-testid="specialty-home-care">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
+                        Safe Home Care
+                      </h3>
+                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
+                        {specialtyContent.homeCare}
+                      </p>
+                    </div>
+                  )}
+                  {specialtyContent.whenToVisit && (
+                    <div style={{ marginTop: "16px" }} data-testid="specialty-when-to-visit">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F5132", marginBottom: "6px" }}>
+                        When to Visit Doctor
+                      </h3>
+                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#DCFCE7", padding: "10px 14px", borderRadius: "8px", border: "1px solid #86EFAC" }}>
+                        {specialtyContent.whenToVisit}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Common Procedures */}
               {procedures.length > 0 && (
