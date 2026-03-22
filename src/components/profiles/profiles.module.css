@@ -1,11 +1,13 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   Profile Pages — White theme (matching homepage)
+   Hospital listing, Doctor listing, Hospital detail, Doctor detail, Treatment detail
+   ══════════════════════════════════════════════════════════════════════════════ */
+
 .page {
   min-height: 100dvh;
-  background:
-    radial-gradient(1200px 400px at 100% -10%, rgba(0, 184, 150, 0.16), transparent 60%),
-    radial-gradient(700px 260px at 0% -8%, rgba(59, 130, 246, 0.14), transparent 60%),
-    #030a16;
-  color: #e8eef8;
-  padding: 86px 20px 28px;
+  background: #FFFFFF;
+  color: #1A2B23;
+  padding: 76px 16px 28px;
 }
 
 .container {
@@ -15,23 +17,31 @@
   gap: 14px;
 }
 
+/* ── Breadcrumb ─────────────────────────────────────────────────────────────── */
+
 .breadcrumb {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
-  color: rgba(232, 238, 248, 0.62);
+  color: #8FA39A;
 }
 
 .breadcrumb a {
-  color: rgba(77, 255, 216, 0.9);
+  color: #1B8A4A;
   text-decoration: none;
 }
 
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+/* ── Hero Header ────────────────────────────────────────────────────────────── */
+
 .hero {
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: linear-gradient(135deg, rgba(7, 25, 50, 0.92), rgba(6, 47, 54, 0.72));
+  border-radius: 20px;
+  border: 1.5px solid #D0E4D8;
+  background: linear-gradient(135deg, #F8FAF9 0%, #EDF5F0 100%);
   padding: 20px;
 }
 
@@ -45,115 +55,146 @@
 .kicker {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 212, 176, 0.34);
-  padding: 4px 10px;
+  background: #E6F5EC;
+  border: 1px solid #D0E4D8;
+  padding: 4px 12px;
   font-size: 11px;
-  color: #4dffd8;
+  color: #1B8A4A;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .title {
   margin: 10px 0 0;
   font-family: var(--font-serif), serif;
-  font-size: clamp(28px, 4.7vw, 52px);
-  line-height: 1.05;
+  font-size: clamp(24px, 4.5vw, 44px);
+  line-height: 1.1;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: #1A2B23;
 }
 
 .subtitle {
-  margin: 10px 0 0;
-  font-size: 15px;
+  margin: 8px 0 0;
+  font-size: 14px;
   line-height: 1.6;
-  color: rgba(232, 238, 248, 0.72);
+  color: #5A7367;
 }
 
 .heroBadges {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .heroBadges span {
   border-radius: 999px;
-  padding: 6px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  font-size: 12px;
-  color: rgba(232, 238, 248, 0.84);
+  padding: 4px 10px;
+  border: 1px solid #D0E4D8;
+  background: #fff;
+  font-size: 11px;
+  color: #5A7367;
+  font-weight: 500;
 }
+
+/* ── Action Buttons ─────────────────────────────────────────────────────────── */
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: flex-start;
 }
 
 .actions a,
 .actions button {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: #d5e2f8;
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
+  color: #1A2B23;
   text-decoration: none;
   padding: 8px 14px;
   font-size: 12px;
+  font-weight: 600;
   font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.actions a:hover,
+.actions button:hover {
+  border-color: #1B8A4A;
+  color: #1B8A4A;
 }
 
 .actions .primaryAction {
-  background: linear-gradient(120deg, #00b896, #00d4b0);
-  color: #03231d;
-  border-color: transparent;
-  font-weight: 700;
+  background: #1B8A4A;
+  color: #fff;
+  border-color: #1B8A4A;
 }
+
+.actions .primaryAction:hover {
+  background: #136836;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 6px;
+  border: 1.5px solid #D0E4D8;
+  background: #F8FAF9;
+  padding: 5px;
 }
 
 .tabs button {
   border: none;
   border-radius: 10px;
-  padding: 8px 12px;
-  color: rgba(232, 238, 248, 0.68);
+  padding: 8px 14px;
+  color: #5A7367;
   background: transparent;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 600;
   font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tabs button:hover {
+  background: rgba(27, 138, 74, 0.06);
+  color: #1B8A4A;
 }
 
 .tabs .tabActive {
-  background: rgba(0, 184, 150, 0.16);
-  color: #4dffd8;
+  background: #1B8A4A;
+  color: #fff;
 }
+
+/* ── Content Panels ─────────────────────────────────────────────────────────── */
 
 .contentGrid {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .panel {
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  padding: 14px;
+  border-radius: 16px;
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
+  padding: 16px;
 }
 
 .panel h2,
 .panel h3 {
   margin: 0;
   font-family: var(--font-bricolage), sans-serif;
-  color: #fff;
+  color: #1A2B23;
 }
 
 .panel h2 {
@@ -165,14 +206,19 @@
 }
 
 .panel p {
-  color: rgba(232, 238, 248, 0.7);
+  color: #5A7367;
   line-height: 1.6;
+  font-size: 14px;
 }
+
+/* ── Split Layout ───────────────────────────────────────────────────────────── */
 
 .split {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
+
+/* ── Card Grid ──────────────────────────────────────────────────────────────── */
 
 .cardGrid {
   display: grid;
@@ -181,38 +227,50 @@
 
 .profileCard {
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
   padding: 12px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.profileCard:hover {
+  box-shadow: 0 4px 16px rgba(27, 138, 74, 0.08);
+  border-color: #1B8A4A;
 }
 
 .profileCard h4 {
   margin: 0;
-  font-size: 16px;
-  color: #fff;
+  font-size: 15px;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .profileCard p {
   margin: 0;
   font-size: 13px;
+  color: #5A7367;
 }
+
+/* ── Tags ───────────────────────────────────────────────────────────────────── */
 
 .tagRow {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .tagRow span {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 248, 0.9);
-  padding: 4px 8px;
+  border-radius: 6px;
+  background: #E6F5EC;
+  color: #1B8A4A;
+  padding: 3px 8px;
   font-size: 11px;
+  font-weight: 500;
 }
+
+/* ── Profile Card Footer ────────────────────────────────────────────────────── */
 
 .profileCardFooter {
   display: flex;
@@ -220,24 +278,36 @@
   gap: 8px;
   justify-content: space-between;
   align-items: center;
+  margin-top: 4px;
 }
 
 .profileCardFooter a,
 .profileCardFooter button {
   border-radius: 999px;
-  border: 1px solid rgba(0, 184, 150, 0.28);
-  background: rgba(0, 184, 150, 0.14);
-  color: #55ffdc;
+  border: 1.5px solid #1B8A4A;
+  background: #E6F5EC;
+  color: #1B8A4A;
   text-decoration: none;
-  padding: 6px 12px;
+  padding: 5px 12px;
   font-size: 12px;
+  font-weight: 600;
   font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
+.profileCardFooter a:hover,
+.profileCardFooter button:hover {
+  background: #1B8A4A;
+  color: #fff;
+}
+
+/* ── Map ────────────────────────────────────────────────────────────────────── */
+
 .mapWrap {
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1.5px solid #D0E4D8;
   min-height: 260px;
 }
 
@@ -247,11 +317,13 @@
   border: none;
 }
 
+/* ── Inline Field Editor ────────────────────────────────────────────────────── */
+
 .inlineField {
-  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  border-top: 1px solid #E8F0EC;
   padding: 10px 0;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .inlineField:first-child {
@@ -268,15 +340,16 @@
 
 .fieldLabel {
   margin: 0;
-  color: rgba(232, 238, 248, 0.6);
+  color: #8FA39A;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 .fieldValue {
-  margin: 4px 0 0;
-  color: rgba(232, 238, 248, 0.94);
+  margin: 2px 0 0;
+  color: #1A2B23;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -287,32 +360,42 @@
 }
 
 .fieldActions button {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 248, 0.82);
+  border: 1px solid #D0E4D8;
+  background: #F8FAF9;
+  color: #5A7367;
   border-radius: 8px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   font-size: 11px;
   font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
 }
+
+.fieldActions button:hover {
+  border-color: #1B8A4A;
+  color: #1B8A4A;
+}
+
+/* ── Inline Editor ──────────────────────────────────────────────────────────── */
 
 .inlineEditor {
   display: grid;
   gap: 8px;
   border-radius: 12px;
-  border: 1px solid rgba(0, 184, 150, 0.3);
-  background: rgba(0, 184, 150, 0.07);
+  border: 1.5px solid #1B8A4A;
+  background: #E6F5EC;
   padding: 10px;
 }
 
 .inlineEditor input,
 .inlineEditor textarea {
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(6, 16, 32, 0.8);
-  color: #fff;
+  border: 1px solid #D0E4D8;
+  background: #fff;
+  color: #1A2B23;
   padding: 8px 10px;
   font: inherit;
+  font-size: 14px;
 }
 
 .inlineEditor textarea {
@@ -327,29 +410,33 @@
 
 .inlineEditorButtons button {
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border: 1px solid #D0E4D8;
+  background: #fff;
+  color: #1A2B23;
   padding: 6px 10px;
   font-size: 12px;
+  cursor: pointer;
 }
 
 .inlineEditorButtons .saveBtn {
-  border-color: rgba(0, 184, 150, 0.3);
-  background: rgba(0, 184, 150, 0.25);
-  color: #51ffd9;
+  border-color: #1B8A4A;
+  background: #1B8A4A;
+  color: #fff;
 }
 
 .statusText {
   margin: 0;
   font-size: 12px;
-  color: #b6fbe9;
+  color: #1B8A4A;
 }
+
+/* ── Drawer (Contribute / Timeline) ─────────────────────────────────────────── */
 
 .drawerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(1, 6, 12, 0.78);
+  background: rgba(26, 43, 35, 0.4);
+  backdrop-filter: blur(4px);
   z-index: 500;
   display: flex;
   justify-content: flex-end;
@@ -358,15 +445,16 @@
 .drawer {
   width: min(500px, 100%);
   height: 100%;
-  background: #061426;
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  background: #fff;
+  border-left: 1.5px solid #D0E4D8;
   display: grid;
   grid-template-rows: auto 1fr;
+  box-shadow: -8px 0 32px rgba(26, 43, 35, 0.12);
 }
 
 .drawerHeader {
-  padding: 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 14px 16px;
+  border-bottom: 1px solid #E8F0EC;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -375,16 +463,20 @@
 
 .drawerHeader h3 {
   margin: 0;
-  color: #fff;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .drawerHeader button {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: #d3def4;
+  border: 1px solid #D0E4D8;
+  background: #F8FAF9;
+  color: #5A7367;
   border-radius: 8px;
   padding: 6px 10px;
+  cursor: pointer;
 }
+
+/* ── Timeline ───────────────────────────────────────────────────────────────── */
 
 .timeline {
   overflow-y: auto;
@@ -395,21 +487,22 @@
 
 .timelineItem {
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #D0E4D8;
+  background: #F8FAF9;
   padding: 10px;
 }
 
 .timelineItem h4 {
   margin: 0;
   font-size: 13px;
-  color: #fff;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .timelineItem p {
   margin: 6px 0 0;
   font-size: 12px;
-  color: rgba(232, 238, 248, 0.68);
+  color: #5A7367;
   line-height: 1.5;
 }
 
@@ -417,106 +510,389 @@
   margin-top: 8px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 
 .timelineMeta span {
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 248, 0.78);
+  border-radius: 6px;
+  background: #E6F5EC;
+  color: #1B8A4A;
   padding: 3px 8px;
   font-size: 11px;
+  font-weight: 500;
 }
+
+/* ── Directory Listing Page ─────────────────────────────────────────────────── */
 
 .directoryPage {
   min-height: 100dvh;
-  background:
-    radial-gradient(1000px 340px at 92% -10%, rgba(0, 184, 150, 0.15), transparent 60%),
-    #040d1a;
-  color: #eef4ff;
-  padding: 86px 20px 28px;
+  background: #FFFFFF;
+  color: #1A2B23;
+  padding: 76px 16px 28px;
 }
 
 .directoryHero {
   width: min(1180px, 100%);
   margin: 0 auto;
   border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(120deg, rgba(7, 25, 50, 0.9), rgba(10, 49, 64, 0.82));
-  padding: 18px;
+  border: 1.5px solid #D0E4D8;
+  background: linear-gradient(135deg, #F8FAF9 0%, #EDF5F0 100%);
+  padding: 20px;
 }
 
 .directoryHero h1 {
   margin: 8px 0 0;
   font-family: var(--font-serif), serif;
-  font-size: clamp(30px, 5vw, 54px);
-  color: #fff;
-  line-height: 1.05;
+  font-size: clamp(26px, 4.5vw, 44px);
+  color: #1A2B23;
+  line-height: 1.1;
 }
 
 .directoryHero p {
-  margin: 10px 0 0;
-  max-width: 760px;
-  color: rgba(232, 238, 248, 0.72);
+  margin: 8px 0 0;
+  max-width: 700px;
+  color: #5A7367;
   line-height: 1.6;
+  font-size: 14px;
 }
+
+/* ── Search Bar ─────────────────────────────────────────────────────────────── */
 
 .searchBar {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: 1fr 140px;
+  grid-template-columns: 1fr 160px;
   gap: 8px;
 }
 
 .searchBar input,
 .searchBar select {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  padding: 10px 14px;
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
+  color: #1A2B23;
+  padding: 10px 16px;
   font: inherit;
+  font-size: 14px;
+  transition: border-color 0.15s;
 }
+
+.searchBar input:focus,
+.searchBar select:focus {
+  outline: none;
+  border-color: #1B8A4A;
+  box-shadow: 0 0 0 3px rgba(27, 138, 74, 0.1);
+}
+
+.searchBar input::placeholder {
+  color: #8FA39A;
+}
+
+/* ── Directory Grid ─────────────────────────────────────────────────────────── */
 
 .directoryGrid {
   width: min(1180px, 100%);
-  margin: 12px auto 0;
+  margin: 14px auto 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
 }
 
 .directoryCard {
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
   padding: 14px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+}
+
+.directoryCard:hover {
+  box-shadow: 0 4px 16px rgba(27, 138, 74, 0.08);
+  border-color: #1B8A4A;
+  transform: translateY(-2px);
 }
 
 .directoryCard h2 {
   margin: 0;
-  font-size: 20px;
-  color: #fff;
+  font-size: 17px;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
 }
 
 .directoryCard p {
   margin: 0;
-  color: rgba(232, 238, 248, 0.7);
+  color: #5A7367;
+  font-size: 13px;
 }
 
-.directoryCard a {
-  justify-self: flex-start;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 184, 150, 0.28);
-  background: rgba(0, 184, 150, 0.16);
-  color: #55ffdc;
+/* .directoryCard a — replaced by .directoryCardView / .directoryCardBook (see below) */
+
+/* ── Directory Controls (filter pills + sort row) ──────────────────────────── */
+
+.directoryControls {
+  width: min(1180px, 100%);
+  margin: 10px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterScroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 2px;
+}
+
+.filterScroll::-webkit-scrollbar { display: none; }
+
+/* ── Universal card action buttons (shared across Hospital/Doctor/Treatment cards) ── */
+/* Matches React Native <Pressable> + <Text> pattern for RN parity                    */
+
+.directoryCardFooter,
+.profileCardFooter {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+/* Secondary ghost button — View Profile */
+.btnSecondary,
+.directoryCardView {
+  flex: 1;
+  text-align: center;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
   text-decoration: none;
-  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  display: block;
+  border: 1.5px solid #1B8A4A;
+  background: #E6F5EC;
+  color: #1B8A4A;
+  letter-spacing: 0.01em;
+}
+
+.btnSecondary:hover,
+.directoryCardView:hover { background: #1B8A4A; color: #fff; }
+
+/* Primary solid button — Book Appointment */
+.btnPrimary,
+.directoryCardBook {
+  flex: 1;
+  text-align: center;
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  display: block;
+  border: 1.5px solid #1B8A4A;
+  background: #1B8A4A;
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+
+.btnPrimary:hover,
+.directoryCardBook:hover { background: #136836; border-color: #136836; }
+
+/* Also override legacy profileCardFooter buttons to match */
+.profileCardFooter a,
+.profileCardFooter button {
+  border-radius: 12px !important;
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+
+/* ── Avatar (initials circle — RN-ready, maps to <View><Text> in React Native) ── */
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: var(--font-bricolage), sans-serif;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: -0.02em;
+}
+
+/* Color palette for avatars — index by first char code */
+.avatar[data-color="0"] { background: linear-gradient(135deg, #1B8A4A, #0e5e32); }
+.avatar[data-color="1"] { background: linear-gradient(135deg, #2563EB, #1d4ed8); }
+.avatar[data-color="2"] { background: linear-gradient(135deg, #7C3AED, #5b21b6); }
+.avatar[data-color="3"] { background: linear-gradient(135deg, #DC2626, #b91c1c); }
+.avatar[data-color="4"] { background: linear-gradient(135deg, #D97706, #b45309); }
+.avatar[data-color="5"] { background: linear-gradient(135deg, #0891B2, #0e7490); }
+.avatar[data-color="6"] { background: linear-gradient(135deg, #BE185D, #9d174d); }
+.avatar[data-color="7"] { background: linear-gradient(135deg, #065F46, #064e3b); }
+
+.cardHeader {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.cardHeaderText {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Colorful section type badges ────────────────────────────────────────────── */
+
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.typeBadge[data-type="specialty"]  { background: #EDE9FE; color: #5B21B6; }
+.typeBadge[data-type="treatment"]  { background: #DCFCE7; color: #166534; }
+.typeBadge[data-type="procedure"]  { background: #DBEAFE; color: #1E40AF; }
+.typeBadge[data-type="condition"]  { background: #FEE2E2; color: #991B1B; }
+.typeBadge[data-type="department"] { background: #FEF3C7; color: #92400E; }
+.typeBadge[data-type="hospital"]   { background: #E6F5EC; color: #166534; }
+.typeBadge[data-type="doctor"]     { background: #DBEAFE; color: #1E40AF; }
+
+/* ── Colorful section heading strip ─────────────────────────────────────────── */
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  color: #1A2B23;
+}
+
+.sectionHeading::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 18px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.sectionHeading[data-type="specialty"]::before  { background: #7C3AED; }
+.sectionHeading[data-type="treatment"]::before  { background: #1B8A4A; }
+.sectionHeading[data-type="procedure"]::before  { background: #2563EB; }
+.sectionHeading[data-type="condition"]::before  { background: #DC2626; }
+.sectionHeading[data-type="department"]::before { background: #D97706; }
+.sectionHeading[data-type="hospital"]::before   { background: #1B8A4A; }
+.sectionHeading[data-type="doctor"]::before     { background: #2563EB; }
+
+/* ── Card meta row (stars + verified) ──────────────────────────────────────── */
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #5A7367;
+}
+
+.starRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #F59E0B;
+  font-size: 13px;
+}
+
+.starRow span {
+  color: #5A7367;
   font-size: 12px;
 }
+
+.reviewCount {
+  color: #8FA39A;
+  font-size: 12px;
+}
+
+.verifiedBadge {
+  font-size: 11px;
+  color: #1B8A4A;
+  background: #E6F5EC;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 500;
+}
+
+.cardExtraRow {
+  margin: 0;
+  font-size: 12px;
+  color: #5A7367;
+}
+
+/* ── Load More ──────────────────────────────────────────────────────────────── */
+
+.loadMoreWrap {
+  width: min(1180px, 100%);
+  margin: 16px auto 0;
+  text-align: center;
+}
+
+.loadMoreBtn {
+  border-radius: 999px;
+  border: 1.5px solid #1B8A4A;
+  background: #E6F5EC;
+  color: #1B8A4A;
+  padding: 10px 28px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.loadMoreBtn:hover { background: #1B8A4A; color: #fff; }
+
+/* ── Empty state ────────────────────────────────────────────────────────────── */
+
+.emptyState {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #8FA39A;
+  padding: 32px 0;
+}
+
+/* ── Search bar 3-col on desktop ────────────────────────────────────────────── */
+
+@media (min-width: 640px) {
+  .searchBar {
+    grid-template-columns: 1fr 160px 140px;
+  }
+}
+
+/* ── Filter Pills ───────────────────────────────────────────────────────────── */
 
 .filterPill,
 .filterPillActive {
@@ -533,20 +909,20 @@
 }
 
 .filterPill {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(232, 238, 248, 0.7);
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
+  color: #5A7367;
 }
 
 .filterPill:hover {
-  border-color: rgba(0, 184, 150, 0.4);
-  color: #b8fff2;
+  border-color: #1B8A4A;
+  color: #1B8A4A;
 }
 
 .filterPillActive {
-  border: 1px solid rgba(0, 184, 150, 0.42);
-  background: rgba(0, 184, 150, 0.18);
-  color: #4dffd8;
+  border: 1.5px solid #1B8A4A;
+  background: #1B8A4A;
+  color: #fff;
   font-weight: 600;
 }
 
@@ -557,19 +933,23 @@
   min-width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(27, 138, 74, 0.12);
   color: inherit;
   font-size: 10px;
   padding: 0 4px;
 }
 
 .filterPillActive .filterPillCount {
-  background: rgba(0, 184, 150, 0.28);
+  background: rgba(255, 255, 255, 0.25);
 }
+
+/* ── Mobile Bottom Bar ──────────────────────────────────────────────────────── */
 
 .mobileBar {
   display: none;
 }
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
 
 @media (min-width: 940px) {
   .split {
@@ -594,31 +974,36 @@
     z-index: 120;
     display: flex;
     gap: 8px;
-    padding: 10px;
-    background: rgba(4, 13, 26, 0.96);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid #D0E4D8;
+    box-shadow: 0 -4px 16px rgba(26, 43, 35, 0.06);
   }
 
-  .mobileBar a {
+  .mobileBar a,
+  .mobileBar button {
     flex: 1;
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
+    border-radius: 12px;
+    border: 1.5px solid #D0E4D8;
+    background: #fff;
+    color: #1A2B23;
     text-decoration: none;
     text-align: center;
     padding: 10px;
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
   }
 
   .mobileBar .mobilePrimary {
-    background: rgba(0, 184, 150, 0.24);
-    border-color: rgba(0, 184, 150, 0.34);
-    color: #54ffd9;
+    background: #1B8A4A;
+    border-color: #1B8A4A;
+    color: #fff;
   }
 
   .page,
   .directoryPage {
-    padding-bottom: 88px;
+    padding-bottom: 80px;
   }
 }

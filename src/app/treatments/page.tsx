@@ -9,16 +9,20 @@ import { TreatmentsClient } from "./TreatmentsClient";
 export const revalidate = 3600;
 
 export const metadata: Metadata = buildMetadata({
-  title: "Treatments, Specialties & Procedures | EasyHeals",
-  description: "Browse medical treatments, specialties and procedures. Find top hospitals and specialist doctors for any healthcare need across India.",
+  title: "Medical Treatments, Specialties & Procedures | EasyHeals India",
+  description: "Browse 100+ medical treatments, specialties and procedures — Cardiology, Neurology, Orthopaedics, IVF, Knee Replacement, Dialysis, Cancer Care and more. Find verified hospitals and specialist doctors across India.",
   path: "/treatments",
 });
 
 export default async function TreatmentsPage() {
+  const { and, notInArray } = await import("drizzle-orm");
   const rows = await db
     .select()
     .from(taxonomyNodes)
-    .where(eq(taxonomyNodes.isActive, true))
+    .where(and(
+      eq(taxonomyNodes.isActive, true),
+      notInArray(taxonomyNodes.type, ["service", "symptom"]),
+    ))
     .orderBy(asc(taxonomyNodes.type), asc(taxonomyNodes.title));
 
   const grouped: Record<string, typeof rows> = {};

@@ -152,6 +152,10 @@ export type Dict = {
     viewHospitals: string;
     hospitalsFor: string;
     specialistsFor: string;
+    exploreMore: string;
+    commonProcedures: string;
+    noProcedures: string;
+    filterByCity: string;
   };
   registration: {
     title: string;
@@ -361,6 +365,10 @@ const en: Dict = {
     viewHospitals: "View Hospitals",
     hospitalsFor: "Hospitals for",
     specialistsFor: "Specialists for",
+    exploreMore: "Explore More",
+    commonProcedures: "Common Procedures",
+    noProcedures: "No procedures listed yet.",
+    filterByCity: "Filter by City",
   },
   registration: {
     title: "Register Your Hospital",
@@ -570,6 +578,10 @@ const hi: Dict = {
     viewHospitals: "अस्पताल देखें",
     hospitalsFor: "के लिए अस्पताल",
     specialistsFor: "के लिए विशेषज्ञ",
+    exploreMore: "अधिक जानें",
+    commonProcedures: "सामान्य प्रक्रियाएं",
+    noProcedures: "अभी कोई प्रक्रिया सूचीबद्ध नहीं है।",
+    filterByCity: "शहर से फ़िल्टर करें",
   },
   registration: {
     title: "अपना अस्पताल पंजीकृत करें",
@@ -779,6 +791,10 @@ const mr: Dict = {
     viewHospitals: "रुग्णालये पहा",
     hospitalsFor: "साठी रुग्णालये",
     specialistsFor: "साठी तज्ञ",
+    exploreMore: "अधिक पहा",
+    commonProcedures: "सामान्य प्रक्रिया",
+    noProcedures: "अद्याप कोणतीही प्रक्रिया सूचीबद्ध नाही.",
+    filterByCity: "शहरानुसार फिल्टर करा",
   },
   registration: {
     title: "तुमचे रुग्णालय नोंदणी करा",
@@ -988,6 +1004,10 @@ const ta: Dict = {
     viewHospitals: "மருத்துவமனைகள் பார்க்க",
     hospitalsFor: "க்கான மருத்துவமனைகள்",
     specialistsFor: "க்கான நிபுணர்கள்",
+    exploreMore: "மேலும் அறிய",
+    commonProcedures: "பொதுவான நடைமுறைகள்",
+    noProcedures: "இன்னும் நடைமுறைகள் பட்டியலிடப்படவில்லை.",
+    filterByCity: "நகரம் மூலம் வடிகட்டு",
   },
   registration: {
     title: "உங்கள் மருத்துவமனையை பதிவு செய்யுங்கள்",
@@ -1197,6 +1217,10 @@ const bn: Dict = {
     viewHospitals: "হাসপাতাল দেখুন",
     hospitalsFor: "এর জন্য হাসপাতাল",
     specialistsFor: "এর জন্য বিশেষজ্ঞ",
+    exploreMore: "আরো জানুন",
+    commonProcedures: "সাধারণ পদ্ধতি",
+    noProcedures: "এখনও কোনো পদ্ধতি তালিকাভুক্ত হয়নি।",
+    filterByCity: "শহর দ্বারা ফিল্টার করুন",
   },
   registration: {
     title: "আপনার হাসপাতাল নিবন্ধন করুন",
@@ -1406,6 +1430,10 @@ const ml: Dict = {
     viewHospitals: "ആശുപത്രികൾ കാണൂ",
     hospitalsFor: "ആശുപത്രികൾ",
     specialistsFor: "വിദഗ്ദ്ധർ",
+    exploreMore: "കൂടുതൽ അറിയൂ",
+    commonProcedures: "സാധാരണ നടപടിക്രമങ്ങൾ",
+    noProcedures: "ഇതുവരെ നടപടിക്രമങ്ങൾ ചേർത്തിട്ടില്ല.",
+    filterByCity: "നഗരം അനുസരിച്ച് ഫിൽട്ടർ",
   },
   registration: {
     title: "ആശുപത്രി രജിസ്റ്റർ ചെയ്യൂ",
@@ -1615,6 +1643,10 @@ const kn: Dict = {
     viewHospitals: "ಆಸ್ಪತ್ರೆಗಳನ್ನು ನೋಡಿ",
     hospitalsFor: "ಆಸ್ಪತ್ರೆಗಳು",
     specialistsFor: "ತಜ್ಞರು",
+    exploreMore: "ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ",
+    commonProcedures: "ಸಾಮಾನ್ಯ ವಿಧಾನಗಳು",
+    noProcedures: "ಇನ್ನೂ ವಿಧಾನಗಳನ್ನು ಪಟ್ಟಿ ಮಾಡಲಾಗಿಲ್ಲ.",
+    filterByCity: "ನಗರದ ಮೂಲಕ ಫಿಲ್ಟರ್ ಮಾಡಿ",
   },
   registration: {
     title: "ಆಸ್ಪತ್ರೆ ನೋಂದಾಯಿಸಿ",
@@ -1824,6 +1856,10 @@ const te: Dict = {
     viewHospitals: "ఆసుపత్రులు చూడండి",
     hospitalsFor: "ఆసుపత్రులు",
     specialistsFor: "నిపుణులు",
+    exploreMore: "మరింత తెలుసుకోండి",
+    commonProcedures: "సాధారణ విధానాలు",
+    noProcedures: "ఇంకా విధానాలు జాబితా చేయలేదు.",
+    filterByCity: "నగరం ద్వారా వడపోత",
   },
   registration: {
     title: "ఆసుపత్రి నమోదు చేయండి",
@@ -2033,6 +2069,10 @@ const ar: Dict = {
     viewHospitals: "عرض المستشفيات",
     hospitalsFor: "مستشفيات لـ",
     specialistsFor: "متخصصون في",
+    exploreMore: "استكشف المزيد",
+    commonProcedures: "الإجراءات الشائعة",
+    noProcedures: "لا توجد إجراءات مدرجة حتى الآن.",
+    filterByCity: "تصفية حسب المدينة",
   },
   registration: {
     title: "سجّل مستشفاك",
@@ -2242,6 +2282,10 @@ const si: Dict = {
     viewHospitals: "රෝහල් බලන්න",
     hospitalsFor: "රෝහල්",
     specialistsFor: "විශේෂඥයින්",
+    exploreMore: "තව දැනගන්න",
+    commonProcedures: "පොදු ක්‍රියාමාර්ග",
+    noProcedures: "තවම ක්‍රියාමාර්ග ලැයිස්තු නොකළ.",
+    filterByCity: "නගරය අනුව පෙරහන් කරන්න",
   },
   registration: {
     title: "රෝහල ලියාපදිංචි කරන්න",
