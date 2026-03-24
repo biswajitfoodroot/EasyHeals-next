@@ -35,6 +35,7 @@ export function SiteNav() {
   const [citySearch, setCitySearch] = useState("");
   const [city, setCity] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Restore saved city from localStorage
   useEffect(() => {
@@ -54,10 +55,14 @@ export function SiteNav() {
       const target = e.target as Element;
       if (!target.closest("[data-lang-picker]")) setLangOpen(false);
       if (!target.closest("[data-city-picker]")) { setCityOpen(false); setCitySearch(""); }
+      if (!target.closest("[data-mobile-menu]")) setMenuOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   function selectCity(name: string) {
     setCity(name);
@@ -411,6 +416,129 @@ export function SiteNav() {
         >
           List Hospital Free
         </Link>
+
+        {/* ── Hamburger (mobile only, hidden >= 640px) ── */}
+        <div data-mobile-menu style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="sitenav-burger"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Open menu"
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "10px",
+              border: "1.5px solid #D0E4D8",
+              background: menuOpen ? "#E6F5EC" : "#fff",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "5px",
+              cursor: "pointer",
+              flexShrink: 0,
+              padding: 0,
+            }}
+          >
+            <span style={{ display: "block", width: "16px", height: "2px", background: menuOpen ? "#1B8A4A" : "#5A7367", borderRadius: "2px", transition: "transform 0.2s", transform: menuOpen ? "translateY(7px) rotate(45deg)" : "none" }} />
+            <span style={{ display: "block", width: "16px", height: "2px", background: menuOpen ? "#1B8A4A" : "#5A7367", borderRadius: "2px", opacity: menuOpen ? 0 : 1, transition: "opacity 0.2s" }} />
+            <span style={{ display: "block", width: "16px", height: "2px", background: menuOpen ? "#1B8A4A" : "#5A7367", borderRadius: "2px", transition: "transform 0.2s", transform: menuOpen ? "translateY(-7px) rotate(-45deg)" : "none" }} />
+          </button>
+
+          {menuOpen && (
+            <div style={{
+              position: "absolute",
+              top: "calc(100% + 8px)",
+              right: 0,
+              background: "#fff",
+              border: "1px solid #D0E4D8",
+              borderRadius: "16px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              minWidth: "200px",
+              zIndex: 400,
+              overflow: "hidden",
+              padding: "8px",
+            }}>
+              {[
+                { href: "/treatments", label: t("nav.treatments") },
+                { href: "/hospitals", label: t("nav.hospitals") },
+                { href: "/doctors", label: t("nav.doctors") },
+                { href: "/diagnostics", label: "Diagnostics" },
+              ].map(({ href, label }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "11px 14px",
+                      borderRadius: "10px",
+                      textDecoration: "none",
+                      color: active ? "#1B8A4A" : "#1A2B23",
+                      fontWeight: active ? 700 : 500,
+                      fontSize: "15px",
+                      background: active ? "#E6F5EC" : "transparent",
+                      fontFamily: "var(--font-bricolage), sans-serif",
+                    }}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+
+              <div style={{ height: "1px", background: "#E8F0EB", margin: "6px 0" }} />
+
+              {/* Language options */}
+              <div style={{ padding: "4px 8px 2px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8FA39A" }}>Language</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "6px 6px 8px" }}>
+                {LOCALES.slice(0, 6).map((loc) => (
+                  <button
+                    key={loc.code}
+                    type="button"
+                    onClick={() => { setLocale(loc.code); setMenuOpen(false); }}
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: "8px",
+                      border: "1.5px solid",
+                      borderColor: loc.code === locale ? "#1B8A4A" : "#D0E4D8",
+                      background: loc.code === locale ? "#E6F5EC" : "#fff",
+                      color: loc.code === locale ? "#1B8A4A" : "#5A7367",
+                      fontSize: "12px",
+                      fontWeight: loc.code === locale ? 700 : 500,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {loc.nativeLabel}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ height: "1px", background: "#E8F0EB", margin: "2px 0 6px" }} />
+
+              <Link
+                href="/register"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "11px 14px",
+                  borderRadius: "10px",
+                  textDecoration: "none",
+                  color: "#fff",
+                  background: "#1B8A4A",
+                  fontWeight: 700,
+                  fontSize: "14px",
+                  fontFamily: "var(--font-bricolage), sans-serif",
+                }}
+              >
+                List Hospital Free →
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

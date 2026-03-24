@@ -53,10 +53,18 @@ body {
   display: none !important;
 }
 
+/* Burger menu: shown on mobile, hidden on desktop */
+.sitenav-burger {
+  display: flex !important;
+}
+
 @media (min-width: 640px) {
   .sitenav-links,
   .sitenav-lang {
     display: flex !important;
+  }
+  .sitenav-burger {
+    display: none !important;
   }
 }
 
