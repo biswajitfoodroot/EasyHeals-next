@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="20" fill="#1A237E"/>
+  <text x="60" y="52" text-anchor="middle" font-family="Georgia, serif" font-size="28" font-weight="bold" fill="#FF9800">IIT</text>
+  <text x="60" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#E0E0E0" letter-spacing="2">MANDI</text>
+  <line x1="30" y1="58" x2="90" y2="58" stroke="#FF9800" stroke-width="1"/>
+</svg>

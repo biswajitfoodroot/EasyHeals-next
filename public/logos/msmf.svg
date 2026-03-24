@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="20" fill="#6A1B9A"/>
+  <text x="60" y="50" text-anchor="middle" font-family="Georgia, serif" font-size="24" font-weight="bold" fill="#E1BEE7">MSMF</text>
+  <text x="60" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#CE93D8" letter-spacing="0.5">MAZUMDAR SHAW</text>
+  <text x="60" y="84" text-anchor="middle" font-family="Arial, sans-serif" font-size="7" fill="#CE93D8" letter-spacing="0.5">MEDICAL FDN</text>
+  <line x1="25" y1="56" x2="95" y2="56" stroke="#CE93D8" stroke-width="1"/>
+</svg>

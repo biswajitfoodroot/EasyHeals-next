@@ -15,6 +15,7 @@ import { SearchResults } from "@/components/search/SearchResults";
 import type { SearchIntent, SearchResponse, SearchResult } from "@/components/phase1/types";
 import { easyHealsPublicData } from "@/data/easyhealsPublicData";
 import { RewardsTeaser } from "@/components/gamification/RewardsTeaser";
+import HealthAssistant from "@/components/health-assistant/HealthAssistant";
 import styles from "@/components/homepage/homepage.module.css";
 
 type TopRatedEntry = {
@@ -324,6 +325,7 @@ export default function HomePage() {
 
           <nav className={styles.topNavLinks} aria-label="Main navigation">
             <Link href="/treatments">{t("nav.treatments")}</Link>
+            <Link href="/diagnostics">Diagnostics</Link>
             <Link href="/hospitals">{t("nav.hospitals")}</Link>
             <Link href="/doctors">{t("nav.doctors")}</Link>
           </nav>
@@ -462,7 +464,13 @@ export default function HomePage() {
             {t("home.heroSubtitle")}
           </p>
 
-          <div className={styles.heroChat} id="eh-chat" data-theme="light">
+          {/* ── Mobile: adaptive HealthAssistant (symptom flow + AI chat) ── */}
+          <div className="md:hidden w-full" style={{ height: 520 }}>
+            <HealthAssistant className="h-full shadow-lg" />
+          </div>
+
+          {/* ── Desktop: existing AI chat search ── */}
+          <div className={`${styles.heroChat} hidden md:block`} id="eh-chat" data-theme="light">
             <ChatSearch
               onSearchResult={handleSearch}
               onLoadingChange={setLoading}
@@ -498,8 +506,8 @@ export default function HomePage() {
             </article>
           </div>
 
-          {/* Search results appear here */}
-          <div className={styles.heroResults} data-theme="light">
+          {/* Search results — desktop only (mobile uses HealthAssistant inline) */}
+          <div className={`${styles.heroResults} hidden md:block`} data-theme="light">
             <SearchResults
               intent={intent}
               results={results}
@@ -578,6 +586,15 @@ export default function HomePage() {
               </svg>
             </span>
             {t("nav.treatments")}
+          </Link>
+          <Link href="/diagnostics" className={styles.quickCard}>
+            <span className={styles.quickIcon}>
+              {/* Test tube / diagnostics icon */}
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 2L20 7.5l-8.5 8.5a4.5 4.5 0 01-6.37-6.37L14.5 2z" /><path d="M15 7l-1 1" /><path d="M4 20h16" />
+              </svg>
+            </span>
+            Diagnostics
           </Link>
           <Link href="/symptoms" className={styles.quickCard}>
             <span className={styles.quickIcon}>
@@ -878,6 +895,7 @@ export default function HomePage() {
             <Link href="/hospitals">Hospitals</Link>
             <Link href="/doctors">Doctors</Link>
             <Link href="/treatments">Treatments</Link>
+            <Link href="/diagnostics">Diagnostics</Link>
             <Link href="/privacy">Privacy Policy</Link>
             <Link href="/register">Register Hospital</Link>
           </nav>

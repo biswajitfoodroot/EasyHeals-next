@@ -44,18 +44,17 @@ export async function POST(req: NextRequest) {
 
   const role = roleRows[0]?.role ?? "viewer";
 
-  const { sessionToken, expiresAt } = await createSession(user.id);
-  await setSessionCookie(sessionToken, expiresAt);
-
   // Only hospital_admin and doctor roles are allowed to use the portal login.
-  // Admin/owner/advisor accounts should use /admin — return a clear error instead
-  // of silently redirecting them.
+  // Check role BEFORE creating a session so no session is ever created for admin accounts here.
   if (!["hospital_admin", "doctor"].includes(role)) {
     return NextResponse.json(
-      { error: "This account does not have provider portal access. If you are an EasyHeals admin, please use the Admin Panel at /admin." },
+      { error: "This account does not have provider portal access. Please contact your EasyHeals administrator." },
       { status: 403 },
     );
   }
+
+  const { sessionToken, expiresAt } = await createSession(user.id);
+  await setSessionCookie(sessionToken, expiresAt);
 
   const portalUrl = role === "hospital_admin"
     ? "/portal/hospital/dashboard"

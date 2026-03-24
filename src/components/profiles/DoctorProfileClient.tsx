@@ -98,11 +98,11 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         data.doctor.specialization,
         data.doctor.city,
         data.doctor.state,
-        `${data.doctor.rating.toFixed(1)}?`,
+        `★ ${data.doctor.rating.toFixed(1)} (${data.doctor.reviewCount.toLocaleString("en-IN")})`,
       ]
         .filter(Boolean)
         .join(" · "),
-    [data.doctor.city, data.doctor.rating, data.doctor.specialization, data.doctor.state],
+    [data.doctor.city, data.doctor.rating, data.doctor.reviewCount, data.doctor.specialization, data.doctor.state],
   );
 
   const primaryHospital = data.affiliations.find((item) => item.isPrimary) ?? data.affiliations[0] ?? null;
@@ -151,9 +151,16 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
               <h1 className={styles.title}>{data.doctor.fullName}</h1>
               <p className={styles.subtitle}>{heroMeta}</p>
               <div className={styles.heroBadges}>
-                <span>{data.doctor.verified ? t("common.verified") : t("common.communityVerified")}</span>
-                <span>Bidirectional Hospital Mapping</span>
-                <span>Consultation Ready</span>
+                <span>✅ {data.doctor.verified ? t("common.verified") : t("common.communityVerified")}</span>
+                {data.doctor.yearsOfExperience ? (
+                  <span>{data.doctor.yearsOfExperience}+ {t("common.yearsExp")}</span>
+                ) : null}
+                {(data.doctor.consultationFee ?? data.doctor.feeMin) ? (
+                  <span>₹{(data.doctor.consultationFee ?? data.doctor.feeMin)?.toLocaleString("en-IN")} {t("common.fee")}</span>
+                ) : null}
+                {primaryHospital ? (
+                  <span>🏥 {primaryHospital.hospital.name}</span>
+                ) : null}
               </div>
             </div>
 

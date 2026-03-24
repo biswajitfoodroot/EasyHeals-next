@@ -476,6 +476,7 @@ export async function getTreatmentProfileBySlug(slug: string) {
       title: node.title,
       type: node.type,
       description: node.description,
+      metadata: node.metadata ?? null,
     },
     relatedHospitals,
     relatedDoctors,

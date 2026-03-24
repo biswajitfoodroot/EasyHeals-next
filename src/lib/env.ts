@@ -8,6 +8,8 @@ const envSchema = z.object({
   TURSO_AUTH_TOKEN: z.string().default(""),
   GEMINI_API_KEY: z.string().optional().default(""),
   GEMINI_MODEL: z.string().optional().default("gemini-2.5-flash"),
+  // Faster model used for real-time chatbot responses (lower latency over capability)
+  GEMINI_CHAT_MODEL: z.string().optional().default("gemini-2.5-flash"),
   GOOGLE_AI_API_KEY: z.string().optional().default(""),
   GOOGLE_PLACES_API_KEY: z.string().optional().default(""),
   GOOGLE_SEARCH_API_KEY: z.string().optional().default(""),
@@ -103,6 +105,7 @@ const parsed = envSchema.parse({
   TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  GEMINI_CHAT_MODEL: process.env.GEMINI_CHAT_MODEL,
   GOOGLE_AI_API_KEY: process.env.GOOGLE_AI_API_KEY,
   GOOGLE_PLACES_API_KEY: process.env.GOOGLE_PLACES_API_KEY,
   GOOGLE_SEARCH_API_KEY: process.env.GOOGLE_SEARCH_API_KEY,

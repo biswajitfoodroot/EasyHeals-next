@@ -29,8 +29,10 @@ export default async function DoctorsPage() {
         state: row.state,
         specialties: row.specialties.length ? row.specialties : row.specialization ? [row.specialization] : [],
         rating: row.rating,
+        reviewCount: row.reviewCount,
         verified: row.verified,
-        subtitle: row.yearsOfExperience ? `${row.yearsOfExperience}+ years experience` : row.specialization,
+        yearsOfExperience: row.yearsOfExperience,
+        subtitle: row.specialization ?? undefined,
         url: `/doctors/${row.slug}`,
       }))}
     />

@@ -17,6 +17,7 @@ type Hospital = {
   email: string | null;
   slug: string;
   isActive: boolean;
+  specialties: string[] | null;
 };
 type TaxonomyNode = {
   id: string;
@@ -25,6 +26,7 @@ type TaxonomyNode = {
   slug: string;
   isActive: boolean;
   description: string | null;
+  hasAiContent?: boolean;
 };
 
 type Props = {
@@ -127,7 +129,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc" | "content";
 
 type BrochureDiff = {
   dryRun: true;
@@ -157,7 +159,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -311,6 +313,22 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [editModeId, setEditModeId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, any>>({});
 
+  // ── Content tab state ────────────────────────────────────────────────────────
+  const [contentNodes, setContentNodes] = useState<Array<{id:string,slug:string,title:string,type:string,description:string|null,isActive:boolean,hasAiContent?:boolean}>>([]);
+  const [contentLoaded, setContentLoaded] = useState(false);
+  const [contentSearch, setContentSearch] = useState("");
+  const [contentTypeFilter, setContentTypeFilter] = useState("all");
+  const [contentBusy, setContentBusy] = useState(false);
+  const [contentMsg, setContentMsg] = useState<{type:"success"|"error",text:string}|null>(null);
+  const [editingContentId, setEditingContentId] = useState<string|null>(null);
+  const [contentEditDraft, setContentEditDraft] = useState<{title:string,description:string,type:string,isActive:boolean}>({title:"",description:"",type:"",isActive:true});
+  const [aiGenerating, setAiGenerating] = useState<string|null>(null);
+  const [aiPreview, setAiPreview] = useState<{nodeId:string, data:Record<string,unknown>}|null>(null);
+  const [showAddContent, setShowAddContent] = useState(false);
+  const [newContentDraft, setNewContentDraft] = useState({title:"",type:"specialty",description:""});
+  type ProcedureCandidate = { name: string; proposedSlug: string; parentNodeId: string; similarNode: { id: string; slug: string; title: string; type: string } };
+  const [procedureCandidates, setProcedureCandidates] = useState<ProcedureCandidate[]>([]);
+
   const selectedDiscoveryRows = useMemo(
     () => discoveryResults.filter((item) => selectedDiscoveryLinks.includes(item.link)),
     [discoveryResults, selectedDiscoveryLinks],
@@ -382,6 +400,24 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         .replace(/^-+|-+$/g, ""),
     [nodeTitle],
   );
+
+  // ── Content tab load ────────────────────────────────────────────────────────
+  async function loadContentNodes() {
+    setContentBusy(true);
+    const res = await fetch("/api/admin/content");
+    setContentBusy(false);
+    if (!res.ok) return;
+    const data = await res.json();
+    setContentNodes(data.nodes ?? []);
+    setContentLoaded(true);
+  }
+
+  useEffect(() => {
+    if (activeTab === "content" && !contentLoaded) {
+      loadContentNodes();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, contentLoaded]);
 
   // ── Hospital Management Actions ─────────────────────────────────────────────
   async function onSaveHospital(hospitalId: string) {
@@ -1274,11 +1310,12 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
               taxonomy: { label: "Taxonomy", icon: "🏷️", count: initialNodes.length },
+              content: { label: "Content", icon: "📝", count: undefined },
               ai_research: { label: "AI Research", icon: "🔍" },
               brochure: { label: "Brochure Extract", icon: "📄" },
               contributions: { label: "Contributions", icon: "✏️" },
@@ -1479,6 +1516,20 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                 }`}
                               >
                                 {h.isActive ? "Deactivate" : "Activate"}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const deptList = h.specialties?.length
+                                    ? ` — departments: ${h.specialties.slice(0, 8).join(", ")}`
+                                    : " — departments: cardiology, general medicine, orthopaedics, neurology, oncology, gastroenterology, nephrology, urology";
+                                  setAgentQuery(`Find full details, packages, doctors and services for: ${h.name}, ${h.city}${deptList}`);
+                                  setActiveTab("ai_research");
+                                  window.scrollTo({ top: 0, behavior: "smooth" });
+                                }}
+                                title="AI Research & Enrich this hospital"
+                                className="px-2 py-1 text-xs border border-purple-200 rounded-md hover:bg-purple-50 text-purple-700 font-semibold"
+                              >
+                                🤖
                               </button>
                               <button
                                 onClick={() => onDeleteHospital(h)}
@@ -2135,6 +2186,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                   <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none" value={nodeType} onChange={(e) => setNodeType(e.target.value)}>
                     <option value="specialty">Specialty</option>
                     <option value="treatment">Treatment</option>
+                    <option value="pathology">🧪 Pathology</option>
+                    <option value="radiology">🔬 Radiology</option>
                     <option value="symptom">Symptom</option>
                     <option value="procedure">Procedure</option>
                     <option value="department">Department</option>
@@ -2169,7 +2222,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
             </div>
             <div className="p-4">
               {/* Group by type */}
-              {(["specialty", "treatment", "symptom", "procedure", "department", "facility"] as const).map((t) => {
+              {(["specialty", "treatment", "pathology", "radiology", "symptom", "procedure", "department", "facility"] as const).map((t) => {
                 const group = initialNodes.filter((n) => n.type === t);
                 if (!group.length) return null;
                 return (
@@ -2298,8 +2351,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                         {agentBatchResult.saved.hospitals.length > 0 && (
                           <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                             <p className="text-xs font-bold text-emerald-700 mb-1">🏥 Hospitals/Clinics</p>
-                            {agentBatchResult.saved.hospitals.map((h) => (
-                              <p key={h.id} className="text-xs text-emerald-800">
+                            {agentBatchResult.saved.hospitals.map((h, i) => (
+                              <p key={`${h.id}-${i}`} className="text-xs text-emerald-800">
                                 <span className={`inline-block w-14 font-semibold ${h.action === "created" ? "text-emerald-600" : "text-blue-600"}`}>{h.action === "created" ? "+ Created" : "↺ Updated"}</span>
                                 {h.name}
                               </p>
@@ -2309,8 +2362,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                         {agentBatchResult.saved.doctors.length > 0 && (
                           <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
                             <p className="text-xs font-bold text-emerald-700 mb-1">👨‍⚕️ Doctors</p>
-                            {agentBatchResult.saved.doctors.map((d) => (
-                              <p key={d.id} className="text-xs text-emerald-800">
+                            {agentBatchResult.saved.doctors.map((d, i) => (
+                              <p key={`${d.id}-${i}`} className="text-xs text-emerald-800">
                                 <span className={`inline-block w-14 font-semibold ${d.action === "created" ? "text-emerald-600" : "text-blue-600"}`}>{d.action === "created" ? "+ Created" : "↺ Updated"}</span>
                                 {d.name}
                                 {d.linkedHospital && <span className="text-slate-500 ml-1">→ {d.linkedHospital}</span>}
@@ -2947,7 +3000,452 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
           <AdminProvidersTab />
         )}
 
+        {/* ── CONTENT TAB ──────────────────────────────────────────────── */}
+        {activeTab === "content" && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Treatment &amp; Specialty Content</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Manage descriptions, SEO, procedures and linking for all taxonomy entries</p>
+              </div>
+              <button onClick={() => setShowAddContent(true)} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700">
+                + Add Entry
+              </button>
+            </div>
+
+            {/* Message */}
+            {contentMsg && (
+              <div className={`px-4 py-3 rounded-lg text-sm font-medium ${contentMsg.type === "success" ? "bg-green-50 text-green-800 border border-green-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+                {contentMsg.text}
+              </div>
+            )}
+
+            {/* Filters */}
+            <div className="flex gap-3 flex-wrap">
+              <input
+                value={contentSearch}
+                onChange={e => setContentSearch(e.target.value)}
+                placeholder="Search by name or slug..."
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-48"
+              />
+              <select
+                value={contentTypeFilter}
+                onChange={e => setContentTypeFilter(e.target.value)}
+                className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="all">All Types</option>
+                <option value="specialty">Specialty</option>
+                <option value="treatment">Treatment</option>
+                <option value="pathology">🧪 Pathology</option>
+                <option value="radiology">🔬 Radiology</option>
+                <option value="procedure">Procedure</option>
+                <option value="condition">Condition</option>
+                <option value="department">Department</option>
+                <option value="service">Service</option>
+                <option value="symptom">Symptom</option>
+              </select>
+              <button onClick={() => { setContentLoaded(false); }} className="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
+                ↻ Refresh
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm("Auto-fix all nodes with missing/invalid type using static data mappings?")) return;
+                  setContentBusy(true);
+                  const res = await fetch("/api/admin/content/fix-types", { method: "POST" });
+                  setContentBusy(false);
+                  const d = await res.json() as { fixed: number; message?: string; results?: Array<{slug:string;oldType:string;newType:string}> };
+                  if (res.ok) {
+                    setContentMsg({ type: "success", text: d.fixed === 0 ? (d.message ?? "All types OK.") : `Fixed ${d.fixed} node(s): ${(d.results ?? []).map(r => `${r.slug} → ${r.newType}`).join(", ")}` });
+                    if (d.fixed > 0) { setContentLoaded(false); }
+                    setTimeout(() => setContentMsg(null), 8000);
+                  } else {
+                    setContentMsg({ type: "error", text: "Fix types failed." });
+                  }
+                }}
+                disabled={contentBusy}
+                className="px-3 py-2 border border-orange-200 rounded-lg text-sm text-orange-600 hover:bg-orange-50 font-medium disabled:opacity-40"
+              >
+                🔧 Fix Types
+              </button>
+            </div>
+
+            {/* Stats strip */}
+            {contentNodes.length > 0 && (
+              <div className="flex gap-4 text-xs text-slate-500">
+                <span>Total: <strong>{contentNodes.length}</strong></span>
+                {["specialty","treatment","pathology","radiology","procedure"].map(t => (
+                  <span key={t}>{t}: <strong>{contentNodes.filter(n=>n.type===t).length}</strong></span>
+                ))}
+              </div>
+            )}
+
+            {/* Add new form */}
+            {showAddContent && (
+              <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-3">
+                <h3 className="font-semibold text-teal-800 text-sm">New Entry</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <input value={newContentDraft.title} onChange={e => setNewContentDraft(p=>({...p,title:e.target.value}))} placeholder="Title (English)" className="border rounded-lg px-3 py-2 text-sm col-span-2" />
+                  <select value={newContentDraft.type} onChange={e => setNewContentDraft(p=>({...p,type:e.target.value}))} className="border rounded-lg px-3 py-2 text-sm">
+                    <option value="specialty">Specialty</option>
+                    <option value="treatment">Treatment</option>
+                    <option value="pathology">🧪 Pathology</option>
+                    <option value="radiology">🔬 Radiology</option>
+                    <option value="procedure">Procedure</option>
+                    <option value="condition">Condition</option>
+                    <option value="department">Department</option>
+                  </select>
+                  <textarea value={newContentDraft.description} onChange={e => setNewContentDraft(p=>({...p,description:e.target.value}))} placeholder="Description (optional)" rows={2} className="border rounded-lg px-3 py-2 text-sm col-span-3" />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!newContentDraft.title.trim()) return;
+                      setContentBusy(true);
+                      const res = await fetch("/api/admin/content", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(newContentDraft) });
+                      setContentBusy(false);
+                      if (res.ok) {
+                        const d = await res.json();
+                        setContentNodes(prev => [d.node, ...prev]);
+                        setShowAddContent(false);
+                        setNewContentDraft({title:"",type:"specialty",description:""});
+                        setContentMsg({type:"success",text:"Entry created."});
+                        setTimeout(()=>setContentMsg(null),3000);
+                      } else {
+                        const d = await res.json().catch(()=>({})) as {error?:string};
+                        setContentMsg({type:"error",text:d.error??"Failed to create"});
+                      }
+                    }}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 disabled:opacity-50"
+                    disabled={contentBusy}
+                  >
+                    Create
+                  </button>
+                  <button onClick={() => setShowAddContent(false)} className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Table */}
+            {contentBusy && !contentLoaded ? (
+              <div className="text-center py-12 text-slate-400 text-sm">Loading...</div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Title / Slug</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Description</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-40">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {contentNodes
+                      .filter(n => {
+                        const q = contentSearch.toLowerCase();
+                        const matchSearch = !q || n.title.toLowerCase().includes(q) || n.slug.toLowerCase().includes(q);
+                        const matchType = contentTypeFilter === "all" || n.type === contentTypeFilter;
+                        return matchSearch && matchType;
+                      })
+                      .map(node => (
+                        <React.Fragment key={node.id}>
+                          <tr className={`hover:bg-slate-50 transition-colors ${!node.isActive ? "opacity-50" : ""}`}>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-slate-800">{node.title}</span>
+                                {node.hasAiContent && (
+                                  <span title="AI content saved" className="px-1.5 py-0.5 rounded text-xs font-semibold bg-teal-100 text-teal-700 border border-teal-200">🤖 AI</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-400 font-mono mt-0.5">{node.slug}</div>
+                              <a href={`/treatments/${node.slug}`} target="_blank" rel="noreferrer" className="text-xs text-teal-600 underline mt-0.5 inline-block">↗ View page</a>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 capitalize">{node.type}</span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 text-xs max-w-xs">
+                              {node.description ? node.description.slice(0, 120) + (node.description.length > 120 ? "…" : "") : <span className="text-slate-300 italic">No description</span>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex gap-1 flex-wrap">
+                                <button
+                                  onClick={() => {
+                                    if (editingContentId === node.id) { setEditingContentId(null); return; }
+                                    setEditingContentId(node.id);
+                                    setContentEditDraft({ title: node.title, description: node.description ?? "", type: node.type, isActive: node.isActive });
+                                    setAiPreview(null);
+                                  }}
+                                  className="px-2 py-1 text-xs border border-slate-200 rounded-md hover:bg-slate-50 text-slate-600"
+                                >
+                                  {editingContentId === node.id ? "Close" : "Edit"}
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    setAiGenerating(node.id);
+                                    setAiPreview(null);
+                                    const res = await fetch("/api/admin/content/ai-generate", {
+                                      method: "POST",
+                                      headers: {"Content-Type":"application/json"},
+                                      body: JSON.stringify({ slug: node.slug, title: node.title, type: node.type, existingDescription: node.description }),
+                                    });
+                                    setAiGenerating(null);
+                                    if (res.ok) {
+                                      const d = await res.json() as {content: Record<string,unknown>};
+                                      setAiPreview({ nodeId: node.id, data: d.content });
+                                      setEditingContentId(node.id);
+                                      setContentEditDraft({
+                                        title: node.title,
+                                        description: (d.content.description as string) ?? node.description ?? "",
+                                        type: node.type,
+                                        isActive: node.isActive,
+                                      });
+                                    } else {
+                                      const d = await res.json().catch(()=>({})) as {error?:string};
+                                      setContentMsg({ type: "error", text: d.error ?? "AI generation failed" });
+                                    }
+                                  }}
+                                  disabled={aiGenerating === node.id}
+                                  className="px-2 py-1 text-xs border border-teal-200 rounded-md hover:bg-teal-50 text-teal-700 font-semibold disabled:opacity-40"
+                                >
+                                  {aiGenerating === node.id ? "⏳" : "🤖 AI"}
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`Delete "${node.title}"?`)) return;
+                                    setContentBusy(true);
+                                    const res = await fetch(`/api/admin/content?id=${node.id}`, { method: "DELETE" });
+                                    setContentBusy(false);
+                                    if (res.ok) {
+                                      setContentNodes(prev => prev.filter(n => n.id !== node.id));
+                                      setContentMsg({type:"success",text:"Deleted."});
+                                      setTimeout(()=>setContentMsg(null),3000);
+                                    } else {
+                                      const d = await res.json().catch(()=>({})) as {error?:string};
+                                      setContentMsg({type:"error",text:d.error??"Delete failed"});
+                                    }
+                                  }}
+                                  className="px-2 py-1 text-xs border border-red-200 rounded-md hover:bg-red-50 text-red-600"
+                                >
+                                  Del
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Inline edit + AI preview row */}
+                          {editingContentId === node.id && (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-4 bg-slate-50 border-b border-slate-200">
+                                <div className="space-y-4">
+                                  {/* Edit form */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                    <input value={contentEditDraft.title} onChange={e => setContentEditDraft(p=>({...p,title:e.target.value}))} placeholder="Title" className="border rounded-lg px-3 py-2 text-sm sm:col-span-2" />
+                                    <select value={contentEditDraft.type} onChange={e => setContentEditDraft(p=>({...p,type:e.target.value}))} className="border rounded-lg px-3 py-2 text-sm">
+                                      <option value="specialty">Specialty</option>
+                                      <option value="treatment">Treatment</option>
+                                      <option value="pathology">🧪 Pathology</option>
+                                      <option value="radiology">🔬 Radiology</option>
+                                      <option value="procedure">Procedure</option>
+                                      <option value="condition">Condition</option>
+                                      <option value="department">Department</option>
+                                      <option value="service">Service</option>
+                                      <option value="symptom">Symptom</option>
+                                    </select>
+                                    <label className="flex items-center gap-2 text-sm text-slate-600 px-2">
+                                      <input type="checkbox" checked={contentEditDraft.isActive} onChange={e => setContentEditDraft(p=>({...p,isActive:e.target.checked}))} />
+                                      Active
+                                    </label>
+                                    <textarea value={contentEditDraft.description} onChange={e => setContentEditDraft(p=>({...p,description:e.target.value}))} placeholder="Description" rows={3} className="border rounded-lg px-3 py-2 text-sm sm:col-span-4" />
+                                  </div>
+
+                                  {/* AI Preview panel */}
+                                  {aiPreview?.nodeId === node.id && (
+                                    <div className="bg-teal-50 border border-teal-200 rounded-xl p-4 space-y-2">
+                                      <h4 className="text-sm font-bold text-teal-800">🤖 AI Generated Content</h4>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                        {aiPreview.data.description ? (
+                                          <div><span className="font-semibold text-slate-600">Description:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.description)}</p></div>
+                                        ) : null}
+                                        {(aiPreview.data.causes || aiPreview.data.possibleProblems) ? (
+                                          <div><span className="font-semibold text-slate-600">{node.type === "specialty" ? "Possible Problems" : "Causes"}:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.causes ?? aiPreview.data.possibleProblems ?? "")}</p></div>
+                                        ) : null}
+                                        {(aiPreview.data.nextSteps || aiPreview.data.whenToVisit) ? (
+                                          <div><span className="font-semibold text-slate-600">{node.type === "specialty" ? "When to Visit" : "Next Steps"}:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.nextSteps ?? aiPreview.data.whenToVisit ?? "")}</p></div>
+                                        ) : null}
+                                        {aiPreview.data.homeCare ? (
+                                          <div><span className="font-semibold text-slate-600">Home Care:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.homeCare)}</p></div>
+                                        ) : null}
+                                        {Array.isArray(aiPreview.data.relatedProcedures) && (
+                                          <div className="sm:col-span-2"><span className="font-semibold text-slate-600">Procedures:</span><div className="flex flex-wrap gap-1 mt-1">{(aiPreview.data.relatedProcedures as string[]).map(proc=><span key={proc} className="px-2 py-0.5 bg-white border border-teal-200 rounded-full text-xs text-teal-700">{proc}</span>)}</div></div>
+                                        )}
+                                        {aiPreview.data.seoTitle ? (
+                                          <div><span className="font-semibold text-slate-600">SEO Title:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.seoTitle)}</p></div>
+                                        ) : null}
+                                        {aiPreview.data.seoDescription ? (
+                                          <div><span className="font-semibold text-slate-600">SEO Desc:</span><p className="text-slate-700 mt-0.5">{String(aiPreview.data.seoDescription)}</p></div>
+                                        ) : null}
+                                        {aiPreview.data.names && typeof aiPreview.data.names === "object" ? (
+                                          <div className="sm:col-span-2">
+                                            <span className="font-semibold text-slate-600">Translations:</span>
+                                            <div className="flex flex-wrap gap-2 mt-1">
+                                              {Object.entries(aiPreview.data.names as Record<string,string>).map(([lang,val])=>(
+                                                <span key={lang} className="px-2 py-0.5 bg-white border border-slate-200 rounded text-xs"><span className="font-semibold text-slate-400 uppercase">{lang}:</span> {val}</span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <p className="text-xs text-teal-600 mt-2">Description has been auto-filled above. Copy other fields to update your data files.</p>
+                                    </div>
+                                  )}
+
+                                  {/* Save button */}
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={async () => {
+                                        setContentBusy(true);
+                                        // Build metadata from AI preview if available
+                                        const aiMeta = aiPreview?.nodeId === node.id ? {
+                                          causes: aiPreview.data.causes as string | undefined,
+                                          possibleProblems: aiPreview.data.possibleProblems as string | undefined,
+                                          nextSteps: aiPreview.data.nextSteps as string | undefined,
+                                          whenToVisit: aiPreview.data.whenToVisit as string | undefined,
+                                          homeCare: aiPreview.data.homeCare as string | undefined,
+                                          relatedProcedures: aiPreview.data.relatedProcedures as string[] | undefined,
+                                          seoTitle: aiPreview.data.seoTitle as string | undefined,
+                                          seoDescription: aiPreview.data.seoDescription as string | undefined,
+                                          seoKeywords: aiPreview.data.seoKeywords as string[] | undefined,
+                                          names: aiPreview.data.names as Record<string,string> | undefined,
+                                        } : undefined;
+                                        const res = await fetch("/api/admin/content", {
+                                          method: "PATCH",
+                                          headers: {"Content-Type":"application/json"},
+                                          body: JSON.stringify({ id: node.id, ...contentEditDraft, ...(aiMeta ? { metadata: aiMeta } : {}) }),
+                                        });
+                                        setContentBusy(false);
+                                        if (res.ok) {
+                                          const d = await res.json() as {node: {id:string,slug:string,title:string,type:string,description:string|null,isActive:boolean,metadata?:Record<string,unknown>}, proceduresUpserted?: Array<{slug:string,title:string,action:string}>, procedureCandidates?: ProcedureCandidate[]};
+                                          setContentNodes(prev => prev.map(n => n.id === node.id ? { ...d.node, hasAiContent: !!(d.node.metadata && Object.keys(d.node.metadata).length > 0) } : n));
+                                          setEditingContentId(null);
+                                          setAiPreview(null);
+                                          const created = d.proceduresUpserted?.filter(p => p.action === "created") ?? [];
+                                          const candidates = d.procedureCandidates ?? [];
+                                          if (candidates.length > 0) setProcedureCandidates(candidates);
+                                          const parts: string[] = ["Saved."];
+                                          if (created.length > 0) parts.push(`Auto-created ${created.length} procedure page${created.length > 1 ? "s" : ""}: ${created.map(p=>p.title).join(", ")}.`);
+                                          if (candidates.length > 0) parts.push(`${candidates.length} procedure${candidates.length > 1 ? "s" : ""} need your review.`);
+                                          setContentMsg({type:"success",text:parts.join(" ")});
+                                          if (created.length > 0) loadContentNodes();
+                                          setTimeout(()=>setContentMsg(null),8000);
+                                        } else {
+                                          const d = await res.json().catch(()=>({})) as {error?:string};
+                                          setContentMsg({type:"error",text:d.error??"Save failed"});
+                                        }
+                                      }}
+                                      disabled={contentBusy}
+                                      className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 disabled:opacity-50"
+                                    >
+                                      Save Changes
+                                    </button>
+                                    <button onClick={() => { setEditingContentId(null); setAiPreview(null); }} className="px-4 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))
+                    }
+                  </tbody>
+                </table>
+                {contentNodes.filter(n => {
+                  const q = contentSearch.toLowerCase();
+                  return (contentTypeFilter === "all" || n.type === contentTypeFilter) && (!q || n.title.toLowerCase().includes(q) || n.slug.toLowerCase().includes(q));
+                }).length === 0 && (
+                  <div className="text-center py-8 text-slate-400 text-sm">No entries found.</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
+
+      {/* ── Procedure Candidates Review Modal ───────────────────────────────── */}
+      {procedureCandidates.length > 0 && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9998] flex items-end sm:items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Review Procedure Pages</h3>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  These procedures are similar to existing nodes. "Create new page" adds a new URL. "Link to existing" remaps the link to the existing node's page.
+                </p>
+              </div>
+              <button onClick={() => setProcedureCandidates([])} className="text-slate-400 hover:text-slate-600 text-lg leading-none mt-0.5">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+              {procedureCandidates.map((c, i) => (
+                <div key={i} className="px-6 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 truncate">"{c.name}"</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        Similar to existing: <span className="font-medium">{c.similarNode.title}</span>
+                        <span className="text-slate-400 ml-1">({c.similarNode.type})</span>
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={async () => {
+                          const res = await fetch("/api/admin/content/procedures", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ name: c.name }),
+                          });
+                          if (res.ok) {
+                            loadContentNodes();
+                            setContentMsg({ type: "success", text: `Created procedure page: ${c.name}` });
+                            setTimeout(() => setContentMsg(null), 5000);
+                          }
+                          setProcedureCandidates(prev => prev.filter((_, j) => j !== i));
+                        }}
+                        className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-semibold hover:bg-teal-700"
+                      >
+                        Create new page
+                      </button>
+                      <button
+                        onClick={async () => {
+                          // Remap the procedure name in parent metadata to the existing node's title,
+                          // so the profile link resolves to the existing slug instead of a missing one.
+                          await fetch("/api/admin/content/procedures", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ parentNodeId: c.parentNodeId, oldName: c.name, newName: c.similarNode.title }),
+                          });
+                          setProcedureCandidates(prev => prev.filter((_, j) => j !== i));
+                        }}
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        Link to existing
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 py-3 border-t border-slate-100">
+              <button
+                onClick={() => setProcedureCandidates([])}
+                className="text-sm text-slate-500 hover:text-slate-700"
+              >
+                Dismiss all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Candidates Picker Modal (works from any tab) ─────────────────── */}
       {brochureCandidates && brochureCandidateMeta && !brochureConfirmOpen && (

@@ -27,6 +27,7 @@ export default async function HospitalsPage() {
         state: row.state,
         specialties: row.specialties,
         rating: row.rating,
+        reviewCount: row.reviewCount,
         verified: row.verified,
         subtitle: row.description,
         url: `/hospitals/${row.slug}`,

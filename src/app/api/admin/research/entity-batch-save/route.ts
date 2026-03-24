@@ -42,7 +42,7 @@ const entitySchema = z.object({
 });
 
 const batchSchema = z.object({
-  entities: z.array(entitySchema).min(1).max(30),
+  entities: z.array(entitySchema).min(1).max(100),
 });
 
 export type BatchSaveResult = {
@@ -226,6 +226,12 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  // Deduplicate saved arrays by ID (same entity may resolve multiple times)
+  const seenH = new Set<string>();
+  result.saved.hospitals = result.saved.hospitals.filter(h => { if (seenH.has(h.id)) return false; seenH.add(h.id); return true; });
+  const seenD = new Set<string>();
+  result.saved.doctors = result.saved.doctors.filter(d => { if (seenD.has(d.id)) return false; seenD.add(d.id); return true; });
+
   return NextResponse.json({ data: result });
 }
 
@@ -254,35 +260,33 @@ async function resolveHospital(
     }
   }
 
-  // Fuzzy slug + name search
-  const baseSlug = slugify(`${name} ${city || ""}`.trim());
   const candidates: BatchSaveResult["ambiguous"][number]["candidates"] = [];
+  const seen = new Set<string>();
 
-  if (baseSlug) {
-    const bySlug = await db
+  // 1. City-scoped name search (most precise) — meaningful words only (skip "Hospital", "Clinic" etc.)
+  const stopWords = new Set(["hospital", "clinic", "centre", "center", "nursing", "home", "medical", "health", "care", "and", "the"]);
+  const nameParts = name.split(/\s+/).filter((w) => w.length > 2 && !stopWords.has(w.toLowerCase()));
+
+  if (nameParts.length > 0 && city) {
+    // Require city match AND any name-word match — avoids cross-city false positives
+    const nameConditions = nameParts.map((w) => like(hospitals.name, `%${w}%`));
+    const cityScoped = await db
       .select({ id: hospitals.id, name: hospitals.name, slug: hospitals.slug, city: hospitals.city, state: hospitals.state, phone: hospitals.phone, isActive: hospitals.isActive })
       .from(hospitals)
-      .where(like(hospitals.slug, `${baseSlug}%`))
-      .limit(3);
-    candidates.push(...bySlug);
+      .where(and(like(hospitals.city, `%${city}%`), or(...nameConditions)))
+      .limit(6);
+    for (const r of cityScoped) { if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); } }
   }
 
-  const nameParts = name.split(/\s+/).filter((w) => w.length > 3);
-  if (nameParts.length > 0) {
-    const fuzzyConditions = [
-      ...nameParts.map((w) => like(hospitals.name, `%${w}%`)),
-      ...(city ? [like(hospitals.city, `%${city}%`)] : []),
-    ];
+  // 2. Name-only fuzzy fallback (no city filter) — only if city search found nothing
+  if (candidates.length === 0 && nameParts.length > 0) {
+    const nameConditions = nameParts.map((w) => like(hospitals.name, `%${w}%`));
     const byName = await db
       .select({ id: hospitals.id, name: hospitals.name, slug: hospitals.slug, city: hospitals.city, state: hospitals.state, phone: hospitals.phone, isActive: hospitals.isActive })
       .from(hospitals)
-      .where(or(...fuzzyConditions))
-      .limit(6);
-
-    const seen = new Set(candidates.map((c) => c.id));
-    for (const r of byName) {
-      if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); }
-    }
+      .where(and(...nameConditions))  // AND: all name parts must match
+      .limit(5);
+    for (const r of byName) { if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); } }
   }
 
   if (candidates.length === 0) {
@@ -298,7 +302,7 @@ async function resolveHospital(
     return { type: "saved", action: "updated", id: match.id, slug: match.slug };
   }
 
-  // Multiple candidates → ambiguous
+  // Multiple candidates → ambiguous (show for manual selection)
   return { type: "ambiguous", candidates };
 }
 

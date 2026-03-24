@@ -47,7 +47,8 @@ const ICON_MAP: IconEntry[] = [
   { keys: ["immuno", "allerg", "autoimmun", "rheumato", "lupus"],                            emoji: "🛡️", color: "#ECFDF5" },
   { keys: ["nutrition", "diet", "weight", "bariatric", "sleeve gastrectom", "gastric"],     emoji: "🥗",  color: "#F0FDF4" },
   { keys: ["physio", "rehab", "sport"],                                                      emoji: "🏃",  color: "#ECFDF5" },
-  { keys: ["radiolog", "imaging", "mri", "ct scan", "ultrasound", "echocardiog", "ecg", "mammog"], emoji: "🔬", color: "#E0F2FE" },
+  { keys: ["radiolog", "imaging", "mri", "ct scan", "ultrasound", "echocardiog", "ecg", "mammog", "x-ray", "xray", "pet scan", "dexa", "fluoroscop", "angiog"], emoji: "🔬", color: "#E0F2FE" },
+  { keys: ["patholog", "biopsy", "histopath", "cytolog", "haematol", "blood test", "urine test", "stool test", "culture", "pcr", "cbc", "lipid", "thyroid test", "hba1c", "liver function", "kidney function", "lft", "rft", "kft", "cmp"], emoji: "🧪", color: "#FEF9C3" },
   { keys: ["palliative", "hospice"],                                                          emoji: "🕊️", color: "#F8FAFC" },
   { keys: ["transplant", "organ"],                                                            emoji: "🏥",  color: "#E6F5EC" },
   { keys: ["emergency", "icu", "critical", "trauma", "ecmo"],                                emoji: "🚨",  color: "#FEE2E2" },
@@ -121,6 +122,8 @@ export function TreatmentsClient({
   const typeLabel: Record<string, string> = {
     specialty:  t("treatment.typeSpecialty"),
     treatment:  t("treatment.typeTreatment"),
+    pathology:  "🧪 Pathology Tests",
+    radiology:  "🔬 Radiology & Imaging",
     procedure:  t("treatment.typeProcedure"),
     condition:  t("treatment.typeCondition"),
     department: t("treatment.typeDepartment"),

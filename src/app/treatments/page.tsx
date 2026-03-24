@@ -15,20 +15,20 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function TreatmentsPage() {
-  const { and, notInArray } = await import("drizzle-orm");
+  const { and, inArray } = await import("drizzle-orm");
+  const VALID_TYPES = ["specialty", "treatment", "pathology", "radiology", "procedure", "condition", "department"];
   const rows = await db
     .select()
     .from(taxonomyNodes)
     .where(and(
       eq(taxonomyNodes.isActive, true),
-      notInArray(taxonomyNodes.type, ["service", "symptom"]),
+      inArray(taxonomyNodes.type, VALID_TYPES),
     ))
     .orderBy(asc(taxonomyNodes.type), asc(taxonomyNodes.title));
 
   const grouped: Record<string, typeof rows> = {};
   for (const row of rows) {
-    const type = row.type ?? "other";
-    (grouped[type] ??= []).push(row);
+    (grouped[row.type] ??= []).push(row);
   }
   const types = Object.keys(grouped).sort();
 

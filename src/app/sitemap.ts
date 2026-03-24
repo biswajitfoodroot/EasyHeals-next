@@ -15,6 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/hospitals`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/doctors`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/treatments`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${base}/diagnostics`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
   ];
 
   const hospitalRoutes: MetadataRoute.Sitemap = hospitals.map((slug) => ({

@@ -133,10 +133,10 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
       [
         data.hospital.city,
         data.hospital.state,
-        `Rating ${ratingText(data.hospital.rating, data.hospital.reviewCount)}`,
+        `★ ${ratingText(data.hospital.rating, data.hospital.reviewCount)}`,
       ]
         .filter(Boolean)
-        .join(" Â· "),
+        .join(" · "),
     [data.hospital.city, data.hospital.reviewCount, data.hospital.rating, data.hospital.state],
   );
 
@@ -185,10 +185,13 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               <h1 className={styles.title}>{data.hospital.name}</h1>
               <p className={styles.subtitle}>{titleMeta}</p>
               <div className={styles.heroBadges}>
-                <span>Private Listing</span>
-                <span>Bidirectional Doctor Links</span>
-                <span>ISR 1h</span>
-                <span>Map Navigation Ready</span>
+                <span>✅ {t("common.verified")}</span>
+                {data.hospital.specialties.slice(0, 3).map((s) => (
+                  <span key={s}>{s}</span>
+                ))}
+                {data.doctors.length > 0 && (
+                  <span>{data.doctors.length} {t("hospital.tabDoctors")}</span>
+                )}
               </div>
             </div>
 

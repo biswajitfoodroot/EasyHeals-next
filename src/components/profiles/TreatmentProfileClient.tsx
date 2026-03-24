@@ -1,16 +1,20 @@
 "use client";
 
+import type React from "react";
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 
 import { useTranslations } from "@/i18n/LocaleContext";
+import { stripMarkdown } from "@/lib/strings";
 import styles from "@/components/profiles/profiles.module.css";
+import { slugify } from "@/lib/strings";
 import {
   getTreatmentData,
   getSpecialtyData,
   getAnyName,
   getAnyAbout,
   getAnyProcedures,
+  getSpecialtyTreatments,
 } from "@/lib/treatment-content";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -45,12 +49,25 @@ type TreatmentDoctor = {
   profileUrl: string;
 };
 
+type TreatmentMeta = {
+  causes?: string;
+  possibleProblems?: string;
+  nextSteps?: string;
+  whenToVisit?: string;
+  homeCare?: string;
+  relatedProcedures?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  names?: Record<string, string>;
+};
+
 type TreatmentData = {
   id: string;
   slug: string;
   title: string;
   type: string;
   description: string | null;
+  metadata: TreatmentMeta | null;
 };
 
 type Props = {
@@ -84,6 +101,13 @@ export function TreatmentProfileClient({ data }: Props) {
   const treatmentContent = getTreatmentData(treatment.slug);
   const specialtyContent = getSpecialtyData(treatment.slug);
 
+  // Internal linking — specialty's mapped treatments (for specialty pages)
+  const specialtyTreatments = specialtyContent ? getSpecialtyTreatments(treatment.slug) : [];
+
+  // Internal linking — primary specialty link (for treatment pages)
+  const primarySpecialtySlug = treatmentContent?.primarySpecialtySlug ?? null;
+  const primarySpecialtyName = treatmentContent?.primarySpecialtyName ?? null;
+
   // Sync city from localStorage / nav picker
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("eh_city") : null;
@@ -108,14 +132,27 @@ export function TreatmentProfileClient({ data }: Props) {
   // Translated title (falls back to DB title if no translation entry)
   const displayTitle = getAnyName(treatment.slug, locale) ?? treatment.title;
 
-  // Rich about text (falls back to DB description, then generic fallback)
+  // DB description takes priority (admin-managed); static file used as locale-aware fallback
   const richAbout =
+    (treatment.description && treatment.description.trim().length > 0 ? treatment.description : null) ??
     getAnyAbout(treatment.slug, locale) ??
-    treatment.description ??
     `${t("treatment.aboutTitle")} ${displayTitle}`;
 
-  // Procedures for this treatment
-  const procedures = getAnyProcedures(treatment.slug);
+  // DB metadata (AI-saved) takes priority over static file data
+  const meta = treatment.metadata;
+  const dbCauses = meta?.causes ?? meta?.possibleProblems ?? null;
+  const dbNextSteps = meta?.nextSteps ?? meta?.whenToVisit ?? null;
+  const dbHomeCare = meta?.homeCare ?? null;
+  const dbProcedures = meta?.relatedProcedures ?? null;
+
+  // Causes / problems
+  const displayCauses = dbCauses ?? treatmentContent?.causes ?? specialtyContent?.possibleProblems ?? null;
+  // Next steps / when to visit
+  const displayNextSteps = dbNextSteps ?? treatmentContent?.nextSteps ?? specialtyContent?.whenToVisit ?? null;
+  // Home care
+  const displayHomeCare = dbHomeCare ?? specialtyContent?.homeCare ?? null;
+  // Procedures for this treatment/specialty
+  const procedures = dbProcedures ?? getAnyProcedures(treatment.slug);
 
   // City-filtered hospitals and doctors
   const filteredHospitals = useMemo(() =>
@@ -127,6 +164,39 @@ export function TreatmentProfileClient({ data }: Props) {
     city === "all" ? relatedDoctors : relatedDoctors.filter((d) => d.city === city),
     [relatedDoctors, city],
   );
+
+  // ── Structured text renderer ──
+  // Comma/semicolon lists → chips. Multi-sentence prose → short paragraph.
+  function RichText({ text }: { text: string }) {
+    const clean = stripMarkdown(text).trim();
+    // Detect comma/semicolon-separated key-point lists (short items, no full stops mid-text)
+    const isKeyList = /,|;/.test(clean) && !(/\.\s+[A-Z]/.test(clean));
+    if (isKeyList) {
+      const items = clean.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+      return (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "2px" }}>
+          {items.map((item, i) => (
+            <span key={i} style={{
+              background: "#fff",
+              border: "1px solid #6EE7B7",
+              borderRadius: "999px",
+              padding: "3px 11px",
+              fontSize: "12.5px",
+              color: "#065F46",
+              fontWeight: 500,
+            }}>{item}</span>
+          ))}
+        </div>
+      );
+    }
+    // Prose — split on sentence boundaries, show as compact lines (max 5)
+    const sentences = clean.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0).slice(0, 5);
+    return (
+      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13.5px", margin: 0 }}>
+        {sentences.join(" ")}
+      </p>
+    );
+  }
 
   // ── City Selector ── (shared across hospitals + doctors tabs)
   function CitySelector({ label }: { label: string }) {
@@ -189,9 +259,31 @@ export function TreatmentProfileClient({ data }: Props) {
         <header className={styles.hero}>
           <div className={styles.heroTop}>
             <div>
-              <span className={styles.kicker} data-testid="treatment-type-kicker">
-                {treatment.type?.replace(/_/g, " ")}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span className={styles.kicker} data-testid="treatment-type-kicker">
+                  {treatment.type?.replace(/_/g, " ")}
+                </span>
+                {primarySpecialtySlug && primarySpecialtyName && (
+                  <Link
+                    href={`/treatments/${primarySpecialtySlug}`}
+                    data-testid="primary-specialty-link"
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "#fff",
+                      background: "#1B8A4A",
+                      borderRadius: "999px",
+                      padding: "4px 12px",
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    ↗ {primarySpecialtyName}
+                  </Link>
+                )}
+              </div>
               <h1 className={styles.title} data-testid="treatment-title">{displayTitle}</h1>
               <p className={styles.subtitle} style={{ maxWidth: "680px" }}>
                 {richAbout.length > 220 ? `${richAbout.slice(0, 220)}…` : richAbout}
@@ -238,66 +330,74 @@ export function TreatmentProfileClient({ data }: Props) {
                 {t("treatment.aboutTitle")} {displayTitle}
               </h2>
               <p style={{ color: "#374151", lineHeight: "1.75", fontSize: "14px" }}>
-                {richAbout}
+                {stripMarkdown(richAbout)}
               </p>
 
-              {/* Treatment-specific: Causes and Next Steps */}
-              {treatmentContent && (
-                <>
-                  {treatmentContent.causes && (
-                    <div style={{ marginTop: "20px" }} data-testid="treatment-causes">
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
-                        Causes / Typical Use Case
-                      </h3>
-                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
-                        {treatmentContent.causes}
-                      </p>
-                    </div>
-                  )}
-                  {treatmentContent.nextSteps && (
-                    <div style={{ marginTop: "16px" }} data-testid="treatment-next-steps">
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
-                        Next Steps
-                      </h3>
-                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
-                        {treatmentContent.nextSteps}
-                      </p>
-                    </div>
-                  )}
-                </>
+              {/* Causes / Common Problems */}
+              {displayCauses && (
+                <div style={{ marginTop: "20px", background: "#F0FDF4", padding: "14px 16px", borderRadius: "10px", border: "1px solid #BBF7D0" }} data-testid="treatment-causes">
+                  <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#166534", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {treatment.type === "specialty" ? "Common Problems" : "Causes / Typical Use Case"}
+                  </h3>
+                  <RichText text={displayCauses} />
+                </div>
               )}
 
-              {/* Specialty-specific: Common Problems, Home Care, When to Visit */}
+              {/* Next Steps / When to Visit */}
+              {displayNextSteps && (
+                <div style={{ marginTop: "12px", background: "#F0FDF4", padding: "14px 16px", borderRadius: "10px", border: "1px solid #BBF7D0" }} data-testid="treatment-next-steps">
+                  <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#166534", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {treatment.type === "specialty" ? "When to Visit Doctor" : "Next Steps"}
+                  </h3>
+                  <RichText text={displayNextSteps} />
+                </div>
+              )}
+
+              {/* Home Care */}
+              {displayHomeCare && (
+                <div style={{ marginTop: "12px", background: "#DCFCE7", padding: "14px 16px", borderRadius: "10px", border: "1px solid #86EFAC" }} data-testid="specialty-home-care">
+                  <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#14532D", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Safe Home Care
+                  </h3>
+                  <RichText text={displayHomeCare} />
+                </div>
+              )}
+
+              {/* Specialty mapped treatments section */}
               {specialtyContent && !treatmentContent && (
                 <>
-                  {specialtyContent.possibleProblems && (
-                    <div style={{ marginTop: "20px" }} data-testid="specialty-possible-problems">
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
-                        Common Problems
+
+                  {/* Mapped Treatments — clickable internal links */}
+                  {specialtyTreatments.length > 0 && (
+                    <div style={{ marginTop: "20px" }} data-testid="specialty-mapped-treatments">
+                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "10px" }}>
+                        Related Treatments & Procedures
                       </h3>
-                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
-                        {specialtyContent.possibleProblems}
-                      </p>
-                    </div>
-                  )}
-                  {specialtyContent.homeCare && (
-                    <div style={{ marginTop: "16px" }} data-testid="specialty-home-care">
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1A2B23", marginBottom: "6px" }}>
-                        Safe Home Care
-                      </h3>
-                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#F0FDF4", padding: "10px 14px", borderRadius: "8px", border: "1px solid #BBF7D0" }}>
-                        {specialtyContent.homeCare}
-                      </p>
-                    </div>
-                  )}
-                  {specialtyContent.whenToVisit && (
-                    <div style={{ marginTop: "16px" }} data-testid="specialty-when-to-visit">
-                      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F5132", marginBottom: "6px" }}>
-                        When to Visit Doctor
-                      </h3>
-                      <p style={{ color: "#374151", lineHeight: "1.7", fontSize: "13px", background: "#DCFCE7", padding: "10px 14px", borderRadius: "8px", border: "1px solid #86EFAC" }}>
-                        {specialtyContent.whenToVisit}
-                      </p>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        {specialtyTreatments.map((item) => (
+                          <Link
+                            key={item.slug}
+                            href={`/treatments/${item.slug}`}
+                            data-testid="mapped-treatment-link"
+                            style={{
+                              fontSize: "12.5px",
+                              fontWeight: 700,
+                              color: "#0F5132",
+                              background: "#fff",
+                              border: "2px solid #1B8A4A",
+                              borderRadius: "8px",
+                              padding: "6px 14px",
+                              textDecoration: "none",
+                              whiteSpace: "nowrap",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "5px",
+                            }}
+                          >
+                            {item.name} ↗
+                          </Link>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
@@ -310,26 +410,40 @@ export function TreatmentProfileClient({ data }: Props) {
                     {t("treatment.commonProcedures")}
                   </h3>
                   <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "8px" }}>
-                    {procedures.map((proc) => (
-                      <li
-                        key={proc}
-                        data-testid="procedure-item"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          fontSize: "13.5px",
-                          color: "#374151",
-                          padding: "8px 12px",
-                          background: "#F0FDF4",
-                          borderRadius: "8px",
-                          border: "1px solid #BBF7D0",
-                        }}
-                      >
-                        <span style={{ color: "#1B8A4A", fontWeight: 700, fontSize: "15px", flexShrink: 0 }}>✓</span>
-                        {proc}
-                      </li>
-                    ))}
+                    {procedures.map((proc) => {
+                      const procSlug = slugify(proc) || null;
+                      const inner = (
+                        <>
+                          <span style={{ color: "#1B8A4A", fontWeight: 700, fontSize: "15px", flexShrink: 0 }}>✓</span>
+                          <span style={{ flex: 1 }}>{proc}</span>
+                          {procSlug && <span style={{ fontSize: "12px", color: "#1B8A4A", fontWeight: 700 }}>↗</span>}
+                        </>
+                      );
+                      const itemStyle: React.CSSProperties = {
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        fontSize: "13.5px",
+                        color: "#374151",
+                        padding: "8px 12px",
+                        background: "#F0FDF4",
+                        borderRadius: "8px",
+                        border: procSlug ? "1.5px solid #1B8A4A" : "1px solid #BBF7D0",
+                        textDecoration: "none",
+                        cursor: procSlug ? "pointer" : "default",
+                      };
+                      return procSlug ? (
+                        <li key={proc} data-testid="procedure-item">
+                          <Link href={`/treatments/${procSlug}`} style={itemStyle}>
+                            {inner}
+                          </Link>
+                        </li>
+                      ) : (
+                        <li key={proc} data-testid="procedure-item" style={itemStyle}>
+                          {inner}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -337,6 +451,29 @@ export function TreatmentProfileClient({ data }: Props) {
 
             {/* Quick stats sidebar */}
             <aside className={styles.panel}>
+              {/* Primary specialty back-link (treatment pages only) */}
+              {primarySpecialtySlug && primarySpecialtyName && (
+                <div style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #E5F0E8" }} data-testid="sidebar-specialty-link">
+                  <p style={{ fontSize: "11px", color: "#5A7367", fontWeight: 600, marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Specialty
+                  </p>
+                  <Link
+                    href={`/treatments/${primarySpecialtySlug}`}
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#1B8A4A",
+                      textDecoration: "underline",
+                      textUnderlineOffset: "3px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                  >
+                    {primarySpecialtyName} →
+                  </Link>
+                </div>
+              )}
               <h3 style={{ fontSize: "15px", marginBottom: "12px" }}>{t("treatment.quickStats")}</h3>
               <p style={{ color: "#5A7367", fontSize: "13px", marginBottom: "8px" }}>
                 <strong style={{ color: "#1A2B23" }}>{relatedHospitals.length}</strong>{" "}

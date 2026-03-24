@@ -92,7 +92,7 @@ function detectSearchType(query: string): SearchIntent["searchType"] {
   return "general";
 }
 
-function heuristicIntent(query: string): SearchIntent {
+export function heuristicIntent(query: string): SearchIntent {
   const normalized = query.trim();
   const rule =
     SPECIALTY_RULES.find((item) => item.pattern.test(normalized)) ??

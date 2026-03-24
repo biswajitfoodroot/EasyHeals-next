@@ -138,6 +138,7 @@ export default function PortalLoginPage() {
               <button
                 key={m}
                 onClick={() => { setMode(m); setError(null); }}
+                suppressHydrationWarning
                 className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
                   mode === m
                     ? "bg-white text-teal-700 shadow-sm"
@@ -166,6 +167,7 @@ export default function PortalLoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  suppressHydrationWarning
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm"
                   placeholder="you@hospital.com"
                 />
@@ -177,6 +179,7 @@ export default function PortalLoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  suppressHydrationWarning
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm"
                   placeholder="••••••••"
                 />
@@ -223,6 +226,7 @@ function SubmitButton({ busy, label }: { busy: boolean; label: string }) {
     <button
       type="submit"
       disabled={busy}
+      suppressHydrationWarning
       className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-60 flex items-center justify-center gap-2"
     >
       {busy ? (

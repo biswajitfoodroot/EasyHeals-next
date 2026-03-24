@@ -971,3 +971,133 @@ export const SPECIALTIES: SpecialtyData[] = [
 export const SPECIALTIES_BY_SLUG: Record<string, SpecialtyData> = Object.fromEntries(
   SPECIALTIES.map((s) => [s.slug, s])
 );
+
+// ── Specialty → Treatment mapping (from Treatment_Specialty_Map sheet) ────────
+// Keyed by specialty slug; value = array of {slug, name} for each mapped treatment
+export const SPECIALTY_TREATMENT_MAP: Record<string, { slug: string; name: string }[]> = {
+  "anaesthesiology": [],
+  "bariatric-surgery": [
+    { slug: "bariatric-weight-loss-surgery", name: "Bariatric Weight Loss Surgery" },
+    { slug: "gastric-sleeve-surgery", name: "Gastric Sleeve Surgery" },
+  ],
+  "cardiology": [
+    { slug: "angioplasty-stenting", name: "Angioplasty & Stenting" },
+    { slug: "ecg-electrocardiogram", name: "ECG (Electrocardiogram)" },
+    { slug: "echocardiogram", name: "Echocardiogram" },
+    { slug: "pacemaker-implantation", name: "Pacemaker Implantation" },
+  ],
+  "cardiothoracic-surgery": [
+    { slug: "bypass-surgery-cabg", name: "Bypass Surgery (CABG)" },
+    { slug: "heart-valve-replacement", name: "Heart Valve Replacement" },
+  ],
+  "colorectal-surgery": [],
+  "dental-oral-surgery": [
+    { slug: "dental-implants", name: "Dental Implants" },
+    { slug: "root-canal-treatment", name: "Root Canal Treatment" },
+  ],
+  "dermatology": [],
+  "emergency-medicine": [
+    { slug: "icu-critical-care", name: "ICU & Critical Care" },
+  ],
+  "endocrinology": [],
+  "ent-ear-nose-throat": [
+    { slug: "cochlear-implant", name: "Cochlear Implant" },
+    { slug: "endoscopic-sinus-surgery", name: "Endoscopic Sinus Surgery" },
+    { slug: "tonsillectomy", name: "Tonsillectomy" },
+  ],
+  "gastroenterology": [
+    { slug: "colonoscopy", name: "Colonoscopy" },
+    { slug: "endoscopy", name: "Endoscopy" },
+    { slug: "ercp", name: "ERCP" },
+  ],
+  "general-medicine-internal-medicine": [
+    { slug: "blood-test-pathology", name: "Blood Test (Pathology)" },
+    { slug: "full-body-health-checkup", name: "Full Body Health Checkup" },
+  ],
+  "general-surgery": [
+    { slug: "appendectomy", name: "Appendectomy" },
+    { slug: "gallbladder-removal-cholecystectomy", name: "Gallbladder Removal (Cholecystectomy)" },
+    { slug: "hernia-repair", name: "Hernia Repair" },
+    { slug: "laparoscopy", name: "Laparoscopy" },
+    { slug: "thyroidectomy", name: "Thyroidectomy" },
+  ],
+  "geriatrics": [],
+  "gynaecology-obstetrics": [
+    { slug: "caesarean-section", name: "Caesarean Section" },
+    { slug: "hysterectomy", name: "Hysterectomy" },
+    { slug: "normal-delivery-vbac", name: "Normal Delivery (VBAC)" },
+  ],
+  "haematology": [
+    { slug: "bone-marrow-transplant", name: "Bone Marrow Transplant" },
+  ],
+  "hepatology": [],
+  "immunology-allergy": [
+    { slug: "vaccination-immunisation", name: "Vaccination & Immunisation" },
+  ],
+  "neonatology": [],
+  "nephrology": [
+    { slug: "dialysis", name: "Dialysis" },
+  ],
+  "neurology": [],
+  "neurosurgery": [
+    { slug: "deep-brain-stimulation", name: "Deep Brain Stimulation" },
+  ],
+  "nutrition-dietetics": [],
+  "oncology": [
+    { slug: "chemotherapy", name: "Chemotherapy" },
+    { slug: "mastectomy", name: "Mastectomy" },
+    { slug: "radiotherapy", name: "Radiotherapy" },
+  ],
+  "ophthalmology": [
+    { slug: "cataract-surgery", name: "Cataract Surgery" },
+    { slug: "corneal-transplant", name: "Corneal Transplant" },
+    { slug: "lasik-eye-surgery", name: "LASIK Eye Surgery" },
+  ],
+  "orthopaedics": [
+    { slug: "hip-replacement", name: "Hip Replacement" },
+    { slug: "knee-arthroscopy", name: "Knee Arthroscopy" },
+    { slug: "knee-replacement", name: "Knee Replacement" },
+  ],
+  "paediatric-surgery": [],
+  "paediatrics": [],
+  "palliative-care": [],
+  "physical-medicine-rehabilitation": [
+    { slug: "physiotherapy-rehabilitation", name: "Physiotherapy & Rehabilitation" },
+  ],
+  "plastic-reconstructive-surgery": [
+    { slug: "hair-transplant", name: "Hair Transplant" },
+    { slug: "liposuction", name: "Liposuction" },
+    { slug: "rhinoplasty", name: "Rhinoplasty" },
+  ],
+  "psychiatry": [],
+  "pulmonology": [
+    { slug: "bronchoscopy", name: "Bronchoscopy" },
+  ],
+  "radiology-imaging": [
+    { slug: "ct-scan", name: "CT Scan" },
+    { slug: "mri-scan", name: "MRI Scan" },
+    { slug: "ultrasound-scan", name: "Ultrasound Scan" },
+  ],
+  "reproductive-medicine-ivf": [
+    { slug: "ivf-in-vitro-fertilisation", name: "IVF (In Vitro Fertilisation)" },
+  ],
+  "rheumatology": [],
+  "spine-surgery": [
+    { slug: "spinal-fusion", name: "Spinal Fusion" },
+  ],
+  "sports-medicine": [],
+  "transplant-medicine": [
+    { slug: "kidney-transplant", name: "Kidney Transplant" },
+    { slug: "liver-transplant", name: "Liver Transplant" },
+  ],
+  "urology": [
+    { slug: "cystoscopy", name: "Cystoscopy" },
+    { slug: "lithotripsy", name: "Lithotripsy" },
+    { slug: "prostate-biopsy", name: "Prostate Biopsy" },
+    { slug: "prostatectomy", name: "Prostatectomy" },
+    { slug: "varicocelectomy", name: "Varicocelectomy" },
+  ],
+  "vascular-surgery": [
+    { slug: "aneurysm-repair", name: "Aneurysm Repair" },
+  ],
+};

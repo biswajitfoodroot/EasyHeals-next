@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <rect width="120" height="120" rx="20" fill="#004D40"/>
+  <text x="60" y="52" text-anchor="middle" font-family="Georgia, serif" font-size="22" font-weight="bold" fill="#80CBC4">IIHMR</text>
+  <text x="60" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#B2DFDB" letter-spacing="1">HEALTH MGMT</text>
+  <line x1="25" y1="58" x2="95" y2="58" stroke="#80CBC4" stroke-width="1"/>
+</svg>

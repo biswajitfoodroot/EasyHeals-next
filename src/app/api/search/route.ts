@@ -7,7 +7,8 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { doctors, hospitals, leads, searchLogs } from "@/db/schema";
 import { env } from "@/lib/env";
-import { extractSearchIntent } from "@/lib/gemini";
+import { extractSearchIntent, heuristicIntent } from "@/lib/gemini";
+import { lookupBestMatch, buildGuidanceBlock, lookupFewShots } from "@/lib/chatbot-knowledge";
 
 const historySchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -248,6 +249,109 @@ function parseAssistantJson(text: string): AssistantResponse | null {
   }
 }
 
+type ChatbotState =
+  | "EMERGENCY"
+  | "BUSINESS"
+  | "SYMPTOM_GUIDANCE"
+  | "DISEASE_INFO"
+  | "PROCEDURE_INFO"
+  | "SPECIALTY_SEARCH"
+  | "SPECIALTY_SUGGESTED"
+  | "LOCATION_CAPTURED"
+  | "LEAD_CAPTURE";
+
+const EMERGENCY_PATTERNS = [
+  "severe chest pain", "chest pain", "chest tightness sweating",
+  "difficulty breathing", "can't breathe", "cannot breathe",
+  "stroke", "seizure", "unconscious", "fainting", "fainted",
+  "severe bleeding", "vomiting blood", "blood in vomit",
+  "suicidal", "self harm", "self-harm",
+  "sudden weakness", "face droop", "slurred speech",
+  "severe abdominal pain", "tight abdomen", "swollen abdomen",
+  "lips turning blue", "low oxygen", "not breathing",
+];
+
+const BUSINESS_PATTERNS = [
+  "tie-up", "tie up", "onboard hospital", "list hospital",
+  "partner with", "i am an agent", "i am a broker",
+  "hospital partnership", "register hospital", "hospital onboarding",
+];
+
+function detectEmergency(texts: string[]): boolean {
+  const combined = texts.join(" ").toLowerCase();
+  // Check pairs of concern first (chest pain alone is not always emergency)
+  const hasChestPain = combined.includes("chest pain") || combined.includes("chest tightness");
+  const hasSevere = combined.includes("severe") || combined.includes("sweating") || combined.includes("breathless");
+  if (hasChestPain && hasSevere) return true;
+  // Check definitive emergency patterns
+  return [
+    "difficulty breathing", "can't breathe", "cannot breathe",
+    "stroke", "seizure", "unconscious", "fainting",
+    "vomiting blood", "blood in vomit",
+    "suicidal", "self harm", "self-harm",
+    "sudden weakness one side", "face droop", "slurred speech",
+    "lips turning blue", "low oxygen",
+  ].some(p => combined.includes(p));
+}
+
+function detectBusiness(text: string): boolean {
+  const lower = text.toLowerCase();
+  return BUSINESS_PATTERNS.some(p => lower.includes(p));
+}
+
+const DISEASE_KEYWORDS = [
+  "gallbladder", "kidney stone", "diabetes", "thyroid", "hypertension", "blood pressure",
+  "cholesterol", "fatty liver", "hepatitis", "jaundice", "hernia", "appendix",
+  "piles", "fistula", "fissure", "sinusitis", "tonsil", "adenoid",
+  "arthritis", "spondylosis", "spondylitis", "osteoporosis",
+  "epilepsy", "parkinson", "alzheimer", "migraine",
+  "asthma", "copd", "bronchitis", "pneumonia", "tuberculosis", " tb ",
+  "ulcer", "gastritis", "colitis", "ibs", "crohn", "celiac",
+  "psoriasis", "eczema", "vitiligo", "alopecia",
+  "pcod", "pcos", "endometriosis", "fibroids", "ovarian cyst",
+  "cataract", "glaucoma", "retina detachment",
+  "varicocele", "prostate", "bph", "kidney failure", "dialysis",
+  "dengue", "malaria", "typhoid", "chikungunya",
+  "cancer", "tumour", "tumor", "lymphoma", "leukemia",
+];
+
+function detectDiseaseQuery(query: string): boolean {
+  const lower = query.toLowerCase();
+  return DISEASE_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+function detectChatbotState(
+  query: string,
+  history: Array<{ role: "user" | "assistant"; text: string }>,
+  ctx: PatientContextData,
+  mode: string,
+  intentSearchType?: string,
+): ChatbotState {
+  const allUserText = [query, ...history.filter(h => h.role === "user").map(h => h.text)];
+  if (detectEmergency(allUserText)) return "EMERGENCY";
+  if (detectBusiness(query)) return "BUSINESS";
+  if (mode === "name") return "LOCATION_CAPTURED";
+
+  const hasCity = !!ctx.city;
+  const hasPhone = !!ctx.phone;
+  const userTurnCount = history.filter(h => h.role === "user").length;
+
+  // Progressive lead capture: once city/phone are captured, stay in conversion flow
+  if (hasCity && hasPhone) return "LEAD_CAPTURE";
+  if (hasCity) return "LOCATION_CAPTURED";
+
+  // Intent-based routing on first 1-2 turns before city is known
+  if (userTurnCount <= 1) {
+    if (intentSearchType === "doctor_name" || intentSearchType === "hospital_name") return "SPECIALTY_SEARCH";
+    if (intentSearchType === "treatment" || intentSearchType === "lab_test") return "PROCEDURE_INFO";
+    if (intentSearchType === "general" && detectDiseaseQuery(query)) return "DISEASE_INFO";
+  }
+
+  // Allow 3 diagnostic turns before pushing to city/specialist routing
+  if (userTurnCount >= 4) return "SPECIALTY_SUGGESTED";
+  return "SYMPTOM_GUIDANCE";
+}
+
 async function generateAssistant(params: {
   query: string;
   cityFilter: string | undefined;
@@ -257,122 +361,262 @@ async function generateAssistant(params: {
   userLanguage?: string;
   patientContext?: PatientContextData;
   mode?: "chat" | "symptom" | "name";
-}): Promise<{ assistant: AssistantResponse; model: string; degraded: boolean }> {
-  const fallback = buildFallbackAssistant(
+}): Promise<{ assistant: AssistantResponse; model: string; degraded: boolean; chatbotState: ChatbotState }> {
+  const ctx = params.patientContext ?? {};
+  const state = detectChatbotState(
     params.query,
-    params.cityFilter,
-    params.intent,
-    params.topResults.length,
+    params.history,
+    ctx,
+    params.mode ?? "chat",
+    params.intent.searchType,
   );
 
+  const fallback = buildFallbackAssistant(params.query, params.cityFilter, params.intent, params.topResults.length);
+
   if (!env.GOOGLE_AI_API_KEY) {
-    return { assistant: fallback, model: "fallback", degraded: true };
+    return { assistant: fallback, model: "fallback", degraded: true, chatbotState: state };
   }
 
-  try {
-    const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
+  // Knowledge base lookup + few-shot examples — both run before model call
+  const [knowledgeMatch, fewShots] = await Promise.all([
+    (state === "SYMPTOM_GUIDANCE" || state === "EMERGENCY" || state === "DISEASE_INFO" || state === "PROCEDURE_INFO")
+      ? lookupBestMatch(params.query).catch(() => null)
+      : Promise.resolve(null),
+    (state === "SYMPTOM_GUIDANCE" || state === "DISEASE_INFO")
+      ? lookupFewShots(
+          params.intent.symptoms[0] ?? null,
+          params.intent.language ?? "English",
+          2,
+        ).catch(() => [] as Array<{ input: string; output: string }>)
+      : Promise.resolve([] as Array<{ input: string; output: string }>),
+  ]);
 
+  try {
+    // Use faster chat model (gemini-2.0-flash) to reduce response latency
+    const chatModel = env.GEMINI_CHAT_MODEL || "gemini-2.0-flash";
+    const model = getGeminiClient().getGenerativeModel({ model: chatModel });
+
+    // Limit history to last 4 turns (8 messages) to keep prompt small
     const historyText = params.history.length
-      ? params.history
-          .slice(-6)
-          .map((item) => `${item.role.toUpperCase()}: ${item.text}`)
-          .join("\n")
+      ? params.history.slice(-4).map(h => `${h.role.toUpperCase()}: ${h.text}`).join("\n")
       : "No prior context";
 
     const topText = params.topResults.length
-      ? params.topResults
-          .slice(0, 6)
-          .map(
-            (item) =>
-              `- [${item.type}] ${item.name} (${item.city}${item.state ? `, ${item.state}` : ""}) | rating ${item.rating.toFixed(1)} | verified ${item.verified ? "yes" : "no"}`,
-          )
-          .join("\n")
+      ? params.topResults.slice(0, 6).map(r =>
+          `- [${r.type}] ${r.name} (${r.city}${r.state ? `, ${r.state}` : ""}) | rating ${r.rating.toFixed(1)} | verified ${r.verified ? "yes" : "no"}`
+        ).join("\n")
       : "- No direct listing found";
 
     const responseLanguage = params.userLanguage && params.userLanguage !== "english"
       ? params.userLanguage
-      : params.intent.language !== "english"
-        ? params.intent.language
-        : "english";
+      : params.intent.language !== "english" ? params.intent.language : "english";
 
     const langInstruction = responseLanguage !== "english"
-      ? `IMPORTANT: Write your entire response (answer and followUps) in ${responseLanguage}. Do not use English.`
+      ? `IMPORTANT: Write your entire response in ${responseLanguage}. Do not use English.`
       : "Reply in English.";
 
-    // Summarise what we already know about the patient
-    const ctx = params.patientContext ?? {};
-    const knownFields = Object.entries({
-      Name: ctx.name, Age: ctx.age, Sex: ctx.sex,
-      City: ctx.city, "Prior conditions": ctx.priorConditions, Phone: ctx.phone,
+    // Summarise known patient info — never re-ask for these
+    const knownParts = Object.entries({
+      Name: ctx.name, Age: ctx.age, Gender: ctx.sex,
+      City: ctx.city, "Prior conditions": ctx.priorConditions,
     }).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`);
+    const knownSummary = knownParts.length ? `Already known: ${knownParts.join(", ")}.` : "No patient info collected yet.";
+    const userTurnCount = params.history.filter(h => h.role === "user").length;
 
-    const missingIntake = [
-      !ctx.name && "name",
-      !ctx.age && "age",
-      !ctx.sex && "gender",
-      !ctx.city && "city",
-      !ctx.priorConditions && "any existing medical conditions",
-    ].filter(Boolean);
+    // ── State-specific instruction ───────────────────────────────────────────
+    let stateInstruction: string;
 
-    const patientSummary = knownFields.length
-      ? `Known patient info: ${knownFields.join(", ")}.`
-      : "No patient info collected yet.";
+    if (state === "EMERGENCY") {
+      stateInstruction = [
+        "=== EMERGENCY MODE ===",
+        "The user's symptoms suggest a potential medical emergency. Your response MUST:",
+        "1. answer: State clearly this sounds urgent and they should go to the nearest emergency department or call 112 immediately. List 2-3 specific warning signs present in their message. Keep under 60 words. Do NOT ask any questions.",
+        "2. clarifyQuestion: null.",
+        "3. followUps: [\"Find nearest emergency hospital\", \"Call ambulance 112\", \"What are warning signs?\"].",
+        "4. Do NOT ask for name, age, city, or any demographic info.",
+        "5. Do NOT delay with intake questions.",
+      ].join("\n");
 
-    // Which field to ask for next (first missing one)
-    const nextMissingField = missingIntake[0] ?? null;
+    } else if (state === "BUSINESS") {
+      stateInstruction = [
+        "=== BUSINESS / PARTNER ROUTING ===",
+        "The user is asking about hospital listing, partnership, or agent/broker onboarding.",
+        "1. answer: Warmly acknowledge this is for providers/partners. Mention they can list their hospital free on EasyHeals. Keep under 50 words.",
+        "2. clarifyQuestion: null.",
+        "3. followUps: [\"List Hospital Free\", \"Hospital partnership enquiry\", \"Agent / broker onboarding\", \"Contact EasyHeals team\"].",
+      ].join("\n");
 
-    // Name search mode skips intake — user just wants to find a specific entity
-    const intakeMode = missingIntake.length > 0 && params.mode !== "name";
-    const phoneMode = !ctx.phone && missingIntake.length === 0 && params.mode !== "name";
+    } else if (state === "DISEASE_INFO") {
+      stateInstruction = [
+        "=== DISEASE INFORMATION MODE ===",
+        "User is asking about a specific disease or condition (not just symptoms). Your response MUST:",
+        "1. answer: (a) Explain what the condition is in 1-2 plain sentences. (b) Common symptoms as a short comma-separated list. (c) Name the specialist who handles it. (d) 1 sentence on when to seek urgent care. Under 90 words, no markdown.",
+        "2. clarifyQuestion: 'Are you or a family member affected by this? Which city are you in so I can help find the right specialist?'",
+        "3. followUps: ['I have this condition', 'It is for a family member', 'Need a specialist in Pune', 'Tell me about treatment options'].",
+        "CRITICAL RULES:",
+        "- Do NOT ask for name, age, or gender yet.",
+        "- Do NOT mix symptom-guidance flow into this response.",
+        "- Do NOT diagnose or prescribe.",
+        knownSummary,
+      ].join("\n");
 
-    const modeInstruction = params.mode === "name"
-      ? "You are EasyHeals AI in NAME SEARCH mode. The user is searching for a specific hospital or doctor by name. Focus on identifying the entity, sharing its location, specialties, and contact info from the listings. Skip the patient intake flow — go straight to search results."
-      : params.mode === "symptom"
-        ? "You are EasyHeals AI in SYMPTOM ANALYSIS mode. The user wants a detailed symptom analysis. After intake, provide thorough differential diagnosis, urgency level, recommended specialist type, and tests needed."
-        : "You are EasyHeals AI in AI CHAT mode — a warm, conversational healthcare navigation assistant for India.";
+    } else if (state === "PROCEDURE_INFO") {
+      stateInstruction = [
+        "=== PROCEDURE / TREATMENT INFORMATION MODE ===",
+        "User is asking about a specific medical procedure, surgery, or treatment. Your response MUST:",
+        "1. answer: (a) Briefly explain what the procedure is and when it is needed (2 sentences). (b) Name the specialist who performs it. (c) If the query mentions active or severe symptoms, add 1 red-flag sentence. Under 80 words, no markdown.",
+        "2. clarifyQuestion: 'Is this for an upcoming procedure, or are you evaluating options? Which city are you in?'",
+        "3. followUps: ['Doctor already recommended this', 'I am evaluating options', 'Find a hospital for this procedure', 'Just researching'].",
+        "CRITICAL RULES:",
+        "- Do NOT ask for full patient profile.",
+        "- If active emergency symptoms are mentioned, advise urgent care immediately.",
+        "- Do NOT prescribe or recommend specific drugs.",
+        knownSummary,
+      ].join("\n");
+
+    } else if (state === "SPECIALTY_SEARCH") {
+      const cityName = ctx.city ?? params.cityFilter;
+      stateInstruction = [
+        "=== SPECIALTY / DOCTOR SEARCH MODE ===",
+        "User is looking for a specific doctor, specialist, or hospital. Skip symptom collection — go straight to connection.",
+        "1. answer: (a) Acknowledge what they are looking for. (b) Name 1-2 matching results from the listings below if available. (c) If city not yet known, ask for it. Keep under 70 words.",
+        cityName ? `City is known: ${cityName}.` : "2. clarifyQuestion: 'Which city are you looking in? I will find the best options there.'",
+        cityName ? "2. clarifyQuestion: 'Would you like to book a consultation or request a callback from EasyHeals?'" : "",
+        "3. followUps: ['Show more options', 'Request a callback', 'Hospitals with this specialty', 'Book appointment'].",
+        "Matched results to name in your answer:",
+        topText,
+        knownSummary,
+      ].filter(Boolean).join("\n");
+
+    } else if (state === "SYMPTOM_GUIDANCE") {
+      // Turn-aware: 3 diagnostic rounds before routing to city/specialist
+      const diagTurn = userTurnCount; // 0 = first message, 1 = second, 2 = third, 3 = fourth
+
+      if (diagTurn === 0) {
+        // ROUND 1 — Initial overview + first clinical questions
+        stateInstruction = [
+          "=== DIAGNOSTIC ROUND 1 (First contact) ===",
+          "Give a quick structured overview then ask your FIRST set of clinical questions.",
+          "answer (under 70 words, 5 short lines):",
+          "  Line 1: 1 warm acknowledgement sentence.",
+          "  Line 2: Causes — 3-4 possible causes, comma-separated.",
+          "  Line 3: Home care — 2-3 immediate steps, comma-separated.",
+          "  Line 4: Red flags — start with 'Seek urgent care if:' then 2 warning signs.",
+          "  Line 5: Likely specialist — 1 sentence.",
+          "DO NOT put questions in answer field.",
+          "clarifyQuestion: Ask 2 targeted clinical questions in ONE sentence. Focus on: (a) do you have associated pain? where? (b) any other symptoms — fever, nausea, vomiting, constipation, diarrhoea?",
+          "followUps: 4 quick replies (e.g. 'Yes, mild pain', 'No pain', 'Also have fever', 'No other symptoms').",
+          "Do NOT ask name, age, gender, or city.",
+          knownSummary,
+        ].join("\n");
+
+      } else if (diagTurn === 1) {
+        // ROUND 2 — Deepen based on answers
+        stateInstruction = [
+          "=== DIAGNOSTIC ROUND 2 (Deepen the picture) ===",
+          "The user has answered your initial questions. Now dig deeper.",
+          "answer (under 60 words): Acknowledge what they said. Briefly comment on what their answers suggest (e.g. 'Pain after eating often points to gastritis or gallbladder issues'). Keep it educational, not diagnostic.",
+          "DO NOT put questions in answer field.",
+          "clarifyQuestion: Ask 2 more specific clinical questions to narrow down. Choose from: (a) How long has this been going on? Is it getting worse? (b) Does it happen after eating, at a specific time, or constantly? (c) Have you had any tests, scans, or blood work done recently?",
+          "followUps: 4 quick replies matching the clarifyQuestion (e.g. 'More than a week', 'After meals', 'Had blood test recently', 'No tests done').",
+          "Do NOT ask name, age, gender, or city.",
+          knownSummary,
+        ].join("\n");
+
+      } else if (diagTurn === 2) {
+        // ROUND 3 — Prescription / history + narrow possibilities
+        stateInstruction = [
+          "=== DIAGNOSTIC ROUND 3 (Narrow down + prescription check) ===",
+          "Based on everything shared so far, start narrowing possibilities.",
+          "answer (under 80 words): (a) Acknowledge their latest reply. (b) Based on all info in the conversation history, name 2-3 most likely possibilities in plain language (e.g. 'Based on what you described, this could be gastritis, IBS, or a gallbladder issue'). (c) Mention that if they have an existing prescription or test report, sharing those details can help give more specific guidance.",
+          "DO NOT put questions in answer field.",
+          "clarifyQuestion: Ask EITHER 'Do you have an existing prescription or test report? If yes, please describe the medication or findings.' OR a final clarifying clinical question most needed based on history.",
+          "followUps: ['Yes, I have a prescription', 'Had a scan/blood test', 'No previous reports', 'Never seen a doctor for this'].",
+          "Do NOT ask name, age, gender, or city.",
+          knownSummary,
+        ].join("\n");
+
+      } else {
+        // ROUND 4 — Summarise and route (same as SPECIALTY_SUGGESTED)
+        stateInstruction = [
+          "=== DIAGNOSTIC SUMMARY + ROUTING ===",
+          "You have gathered enough clinical context. Now summarise and route to care.",
+          "answer (under 90 words): (a) Summarise what the user has described. (b) Name the 1-2 most likely conditions based on all context. (c) Name the right specialist. (d) Give 1 red-flag sentence. (e) Say you can help find the right doctor once you know their city.",
+          "clarifyQuestion: 'Which city are you in? I can help find the right specialist there.'",
+          "followUps: ['Pune', 'Mumbai', 'Delhi', 'Bangalore', 'I will search myself'].",
+          knownSummary,
+        ].join("\n");
+      }
+
+    } else if (state === "SPECIALTY_SUGGESTED") {
+      stateInstruction = [
+        "=== SPECIALTY + CITY MODE ===",
+        "Diagnostic context has been gathered. Now route to care.",
+        "1. answer (under 80 words): (a) Briefly summarise what the conversation has established. (b) Name the right specialist and why. (c) 1 red-flag sentence. (d) Ask which city they are in.",
+        "2. clarifyQuestion: \"Which city are you in? I can help find the right specialist there.\"",
+        "3. followUps: [\"Pune\", \"Mumbai\", \"Delhi\", \"Bangalore\", \"I'll search myself\"].",
+        "CRITICAL RULES:",
+        "- Do NOT re-ask for info already provided.",
+        "- If city is already known, skip asking and mention it.",
+        knownSummary,
+      ].join("\n");
+
+    } else if (state === "LOCATION_CAPTURED") {
+      const cityName = ctx.city ?? params.cityFilter ?? "your city";
+      stateInstruction = [
+        `=== CONNECTION MODE (City: ${cityName}) ===`,
+        "City is known. Now connect the user to care options.",
+        "1. answer: (a) Acknowledge city. (b) Confirm the relevant specialty. (c) Name 1-2 specific hospitals or doctors from the listings if available, OR say you can help find them. (d) Offer 3 options: doctor consultation, hospital options, or callback from EasyHeals. Keep under 80 words.",
+        "2. clarifyQuestion: \"Would you like doctor options, hospital options, or a callback from our care team?\"",
+        "3. followUps: [\"Show me doctors\", \"Show me hospitals\", \"Request a callback\", \"I'll decide later\"].",
+        "4. Name listings from the matched results below when relevant:",
+        topText,
+        knownSummary,
+      ].join("\n");
+
+    } else { // LEAD_CAPTURE
+      const cityName = ctx.city ?? params.cityFilter ?? "your city";
+      stateInstruction = [
+        `=== LEAD CAPTURE MODE (City: ${cityName}) ===`,
+        "User wants to connect. Capture contact details.",
+        "1. answer: Confirm you will connect them with the right specialist in their city. Ask for their name and phone number so the care team can reach out. Keep under 60 words.",
+        "2. clarifyQuestion: \"What is your name and phone number? Our care team will contact you shortly.\"",
+        "3. followUps: [\"I prefer not to share\", \"WhatsApp me instead\", \"Book online instead\", \"I'll call directly\"].",
+        knownSummary,
+      ].join("\n");
+    }
+
+    // ── QA guardrail ─────────────────────────────────────────────────────────
+    const guardrail = [
+      "RULES: No re-asking info already given. Never ask name+age+city all at once. No markdown in answer. No drug names. No certain diagnosis. Move forward on partial answers.",
+      langInstruction,
+    ].join(" ");
+
+    const guidanceSection = knowledgeMatch
+      ? ["\n[STRUCTURED KNOWLEDGE BASE LOOKUP — use this as your factual foundation, do NOT invent causes or red flags]", buildGuidanceBlock(knowledgeMatch), "[END KNOWLEDGE BASE]\n"].join("\n")
+      : "";
+
+    const fewShotSection = fewShots.length > 0
+      ? `[TONE REF] ${fewShots.map(ex => ex.output.slice(0, 150)).join(" | ")}`
+      : "";
 
     const prompt = [
-      modeInstruction,
+      "You are EasyHeals AI Health Assistant — a warm, trustworthy healthcare navigation assistant for India.",
       "You MUST return ONLY valid JSON matching this schema exactly:",
       '{"answer":"string","followUps":["string"],"clarifyQuestion":"string or null","confidenceHint":"low|medium|high","patientInfoExtracted":{"name":"string or null","age":"string or null","sex":"string or null","city":"string or null","priorConditions":"string or null","phone":"string or null"}}',
-      langInstruction,
-      "ALWAYS extract patient details from THIS message into patientInfoExtracted. Set each field to null if not mentioned.",
+      "ALWAYS extract patient details from the current message into patientInfoExtracted (null for anything not mentioned).",
       "",
-      intakeMode
-        ? [
-            "=== INTAKE MODE — STRICT ===",
-            "Patient intake is NOT complete yet. You MUST follow these rules:",
-            "1. answer: Acknowledge their concern warmly in 1 sentence, then ask for ALL of the following in ONE combined question: name, age, gender, and any existing medical conditions. Make it feel like a caring intake form, not an interrogation. Keep answer under 80 words.",
-            "2. clarifyQuestion: null (you already asked everything in the answer).",
-            "3. followUps: Give 3-4 quick-reply options like 'I have no prior conditions', 'I have diabetes/hypertension', etc.",
-            "4. DO NOT give any medical advice, diagnosis, specialist recommendations, or conditions in this response.",
-          ].join("\n")
-        : phoneMode
-          ? [
-              "=== PHONE COLLECTION MODE ===",
-              "All patient info gathered. Now:",
-              "1. answer: Summarize what you know and explain you will connect them with the right care (max 2 sentences).",
-              "2. clarifyQuestion: Ask for their phone number to connect them with a care team.",
-              "3. followUps: Give options like 'I prefer not to share', 'WhatsApp me instead', etc.",
-            ].join("\n")
-          : [
-              "=== FULL GUIDANCE MODE ===",
-              "All intake fields AND phone collected. Provide complete guidance:",
-              "1. answer: Discuss possible conditions based on symptoms. Suggest specialist type and relevant tests/treatments. Name specific hospitals/doctors from listings below.",
-              "2. clarifyQuestion: Ask for more symptom details if helpful.",
-              "3. followUps: Give 4-5 care navigation prompts.",
-            ].join("\n"),
+      stateInstruction,
+      guidanceSection,
+      fewShotSection,
+      guardrail,
       "",
       `User query: ${params.query}`,
       `Detected intent: ${params.intent.specialtyKey} / ${params.intent.searchType}`,
-      `User selected language: ${responseLanguage}`,
-      `City: ${params.cityFilter ?? "not specified"}`,
-      patientSummary,
-      "Conversation context:",
+      `City filter: ${params.cityFilter ?? "not specified"}`,
+      `Conversation history:`,
       historyText,
-      intakeMode ? "" : "Matched EasyHeals listings (name these in your answer when relevant):",
-      intakeMode ? "" : topText,
-    ].filter(Boolean).join("\n");
+    ].join("\n");
 
     const response = await model.generateContent(prompt);
     const parsed = parseAssistantJson(response.response.text());
@@ -381,9 +625,10 @@ async function generateAssistant(params: {
       assistant: parsed ?? fallback,
       model: parsed ? env.GEMINI_MODEL : "fallback",
       degraded: !parsed,
+      chatbotState: state,
     };
   } catch {
-    return { assistant: fallback, model: "fallback", degraded: true };
+    return { assistant: fallback, model: "fallback", degraded: true, chatbotState: state };
   }
 }
 
@@ -434,13 +679,19 @@ export async function POST(req: NextRequest) {
 
     const { query, city, page, limit, history = [], language, patientContext, mode } = parsed.data;
 
-    // ── Parallel: run Gemini intent extraction + broad DB queries simultaneously ──
-    // Broad queries use the raw query string; intent result refines ranking in-memory.
+    // ── Intent extraction: use heuristic for chat mode to avoid 2nd Gemini call ──
+    // Chat mode only needs approximate intent (state machine handles routing).
+    // Only use Gemini intent for direct search queries (mode=name) or first-turn search.
+    const isSearchMode = mode === "name" || (mode !== "chat" && history.length === 0);
+
     const broadQ = `%${query.trim()}%`;
     const broadCityFilter = city ? `%${city}%` : undefined;
 
+    // For multi-turn chat: skip DB listing queries mid-conversation (turns 1-3 are diagnostic)
+    const isMidConversation = mode === "chat" && history.length >= 2;
+
     const [intent, hospitalRowsBroad, doctorRowsBroad] = await Promise.all([
-      extractSearchIntent(query),
+      isSearchMode ? extractSearchIntent(query) : Promise.resolve(heuristicIntent(query)),
       db
         .select({
           id: hospitals.id,
@@ -472,36 +723,38 @@ export async function POST(req: NextRequest) {
           ),
         )
         .orderBy(asc(hospitals.name))
-        .limit(160),
-      db
-        .select({
-          id: doctors.id,
-          name: doctors.fullName,
-          slug: doctors.slug,
-          city: doctors.city,
-          state: doctors.state,
-          rating: doctors.rating,
-          verified: doctors.verified,
-          specialties: doctors.specialties,
-          description: doctors.bio,
-          phone: doctors.phone,
-        })
-        .from(doctors)
-        .where(
-          and(
-            eq(doctors.isActive, true),
-            broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
-            or(
-              like(doctors.fullName, broadQ),
-              like(doctors.specialization, broadQ),
-              like(doctors.specialties, broadQ),
-              like(doctors.bio, broadQ),
-              like(doctors.city, broadQ),
+        .limit(isMidConversation ? 0 : 160),
+      isMidConversation
+        ? Promise.resolve([])
+        : db
+          .select({
+            id: doctors.id,
+            name: doctors.fullName,
+            slug: doctors.slug,
+            city: doctors.city,
+            state: doctors.state,
+            rating: doctors.rating,
+            verified: doctors.verified,
+            specialties: doctors.specialties,
+            description: doctors.bio,
+            phone: doctors.phone,
+          })
+          .from(doctors)
+          .where(
+            and(
+              eq(doctors.isActive, true),
+              broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
+              or(
+                like(doctors.fullName, broadQ),
+                like(doctors.specialization, broadQ),
+                like(doctors.specialties, broadQ),
+                like(doctors.bio, broadQ),
+                like(doctors.city, broadQ),
+              ),
             ),
-          ),
-        )
-        .orderBy(asc(doctors.fullName))
-        .limit(160),
+          )
+          .orderBy(asc(doctors.fullName))
+          .limit(160),
     ]);
 
     const cityFilter = city ?? intent.location ?? undefined;
@@ -711,7 +964,7 @@ export async function POST(req: NextRequest) {
 
     const paged = ranked.slice((page - 1) * limit, page * limit);
 
-    const { assistant, model, degraded } = await generateAssistant({
+    const { assistant, model, degraded, chatbotState } = await generateAssistant({
       query,
       cityFilter,
       history,
@@ -775,6 +1028,7 @@ export async function POST(req: NextRequest) {
       page,
       limit,
       patientContextUpdate: assistant.patientInfoExtracted ?? null,
+      chatbotState,
       leadCreated,
     });
   } catch (error) {

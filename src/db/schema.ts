@@ -705,12 +705,26 @@ export const ingestionResearchQueue = sqliteTable("ingestion_research_queue", {
   ),
 });
 
+export type TaxonomyNodeMeta = {
+  causes?: string;
+  possibleProblems?: string;
+  nextSteps?: string;
+  whenToVisit?: string;
+  homeCare?: string;
+  relatedProcedures?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string[];
+  names?: Record<string, string>; // locale -> translated name
+};
+
 export const taxonomyNodes = sqliteTable("taxonomy_nodes", {
   id: id(),
   type: text("type").notNull(),
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),
   description: text("description"),
+  metadata: text("metadata", { mode: "json" }).$type<TaxonomyNodeMeta>(),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
     sql`(unixepoch() * 1000)`,
@@ -1478,6 +1492,75 @@ export const patientRecordAccess = sqliteTable(
     uniqueIndex("pra_patient_grantee_hospital_idx").on(
       table.patientId, table.grantedToUserId, table.hospitalId,
     ),
+  ],
+);
+
+// ─── Chatbot Knowledge Base ───────────────────────────────────────────────────
+// Structured symptom/report/intent catalog for fast RAG lookup before Gemini call
+export type ChatbotKnowledgeType = "symptom" | "report" | "intent";
+
+export type SymptomKnowledgeData = {
+  commonCauses: string[];
+  keyQuestions: string[];
+  safeInitialAdvice: string;
+  redFlags: string[];
+  likelySpecialty: string;
+  urgencyPattern: string;        // "routine" | "within_week" | "urgent" | "emergency"
+  baseResponseTemplate: string;
+};
+
+export type ReportKnowledgeData = {
+  possibleProblem: string;
+  patientFriendlyMeaning: string;
+  nextStep: string;
+  urgencyHint: string;           // "routine" | "within_week" | "urgent" | "emergency"
+};
+
+export type IntentKnowledgeData = {
+  botAction: string;
+  escalationRule: string;
+  followUps: string[];
+};
+
+export type ChatbotKnowledgeData = SymptomKnowledgeData | ReportKnowledgeData | IntentKnowledgeData;
+
+export const chatbotKnowledge = sqliteTable(
+  "chatbot_knowledge",
+  {
+    id: id(),
+    type: text("type").notNull(),          // symptom | report | intent
+    key: text("key").notNull(),            // primary term e.g. "chest pain"
+    aliases: text("aliases", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    data: text("data", { mode: "json" }).$type<ChatbotKnowledgeData>().notNull(),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("chatbot_knowledge_type_key_idx").on(table.type, table.key),
+    index("chatbot_knowledge_type_idx").on(table.type),
+  ],
+);
+
+// Few-shot training examples from JSONL dataset (multilingual, V3 2000 + V4 4000 entries)
+export const chatbotTrainingExamples = sqliteTable(
+  "chatbot_training_examples",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    language: text("language").notNull().default("English"),
+    intent: text("intent"),          // symptom | report | procedure | doctor_search | hospital_search | emergency | business
+    subtype: text("subtype"),        // specific e.g. "fever", "headache", "ECG abnormal"
+    input: text("input").notNull(),
+    output: text("output").notNull(),
+    cluster: text("cluster"),        // cluster key e.g. "infectious_general"
+    qualityTag: text("quality_tag"), // e.g. "real_world_synthetic_v4"
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("chatbot_training_lang_idx").on(table.language),
+    index("chatbot_training_intent_idx").on(table.intent),
+    index("chatbot_training_subtype_idx").on(table.subtype),
   ],
 );
 

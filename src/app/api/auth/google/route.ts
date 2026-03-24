@@ -117,9 +117,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const { sessionToken, expiresAt } = await createSession(userId);
-  await setSessionCookie(sessionToken, expiresAt);
-
   // Fetch the saved user + role for response
   const [savedUser] = await db
     .select({ fullName: users.fullName, email: users.email, googleAvatar: users.googleAvatar })
@@ -127,7 +124,8 @@ export async function POST(req: NextRequest) {
     .where(eq(users.id, userId))
     .limit(1);
 
-  // If this is a portal login, return role + portalUrl
+  // If this is a portal login, check role before creating a session.
+  // Only hospital_admin and doctor may access the provider portal.
   if (portalLogin) {
     const roleRows = await db
       .select({ code: roles.code })
@@ -137,11 +135,20 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     const role = roleRows[0]?.code ?? "contributor";
-    let portalUrl: string;
-    if (role === "hospital_admin") portalUrl = "/portal/hospital/dashboard";
-    else if (role === "doctor") portalUrl = "/portal/doctor/dashboard";
-    else if (["owner", "admin", "advisor", "admin_manager", "admin_editor"].includes(role)) portalUrl = "/admin";
-    else portalUrl = "/portal/kyc-request";
+
+    if (!["hospital_admin", "doctor"].includes(role)) {
+      return NextResponse.json(
+        { error: "This Google account does not have provider portal access. Please contact your EasyHeals administrator." },
+        { status: 403 },
+      );
+    }
+
+    const { sessionToken, expiresAt } = await createSession(userId);
+    await setSessionCookie(sessionToken, expiresAt);
+
+    const portalUrl = role === "hospital_admin"
+      ? "/portal/hospital/dashboard"
+      : "/portal/doctor/dashboard";
 
     return NextResponse.json({
       data: {
@@ -154,6 +161,9 @@ export async function POST(req: NextRequest) {
       },
     });
   }
+
+  const { sessionToken, expiresAt } = await createSession(userId);
+  await setSessionCookie(sessionToken, expiresAt);
 
   return NextResponse.json({
     userId,

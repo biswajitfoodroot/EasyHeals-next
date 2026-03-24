@@ -150,6 +150,7 @@ export function AdminNav({ me }: NavProps) {
             type="button"
             onClick={() => void logout()}
             className="text-xs text-slate-400 hover:text-white transition-colors"
+            suppressHydrationWarning
           >
             Sign out
           </button>
