@@ -1450,6 +1450,8 @@ export const entityAccessRequests = sqliteTable(
     kycDocuments: text("kyc_documents", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
     contactPhone: text("contact_phone"),
     contactEmail: text("contact_email"),
+    requestType: text("request_type").notNull().default("claim"),
+    // 'claim' | 'deletion_request'
     notes: text("notes"),
     status: text("status").notNull().default("pending"),
     // pending | under_review | approved | rejected | info_requested
@@ -1561,6 +1563,478 @@ export const chatbotTrainingExamples = sqliteTable(
     index("chatbot_training_lang_idx").on(table.language),
     index("chatbot_training_intent_idx").on(table.intent),
     index("chatbot_training_subtype_idx").on(table.subtype),
+  ],
+);
+
+// PROVIDER MANAGEMENT: coordinator_permissions — per-person configurable access for coordinator role
+export const coordinatorPermissions = sqliteTable(
+  "coordinator_permissions",
+  {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    // Individual permission flags (false = hidden, true = accessible)
+    canViewKpis:           integer("can_view_kpis", { mode: "boolean" }).notNull().default(false),
+    canViewProviders:      integer("can_view_providers", { mode: "boolean" }).notNull().default(true),
+    canEditProviders:      integer("can_edit_providers", { mode: "boolean" }).notNull().default(false),
+    canViewAgreements:     integer("can_view_agreements", { mode: "boolean" }).notNull().default(true),
+    canEditAgreements:     integer("can_edit_agreements", { mode: "boolean" }).notNull().default(false),
+    canViewKyc:            integer("can_view_kyc", { mode: "boolean" }).notNull().default(true),
+    canApproveKyc:         integer("can_approve_kyc", { mode: "boolean" }).notNull().default(false),
+    canViewUsers:          integer("can_view_users", { mode: "boolean" }).notNull().default(false),
+    canManageUsers:        integer("can_manage_users", { mode: "boolean" }).notNull().default(false),
+    notes: text("notes"),  // admin notes on this coordinator's access config
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("coord_perm_user_idx").on(table.userId),
+  ],
+);
+
+// PHASE 2: provider_agreements — EasyHeals network agreement per provider entity
+export const providerAgreements = sqliteTable(
+  "provider_agreements",
+  {
+    id: id(),
+    hospitalId: text("hospital_id").references(() => hospitals.id, { onDelete: "cascade" }),  // null if solo doctor
+    doctorId: text("doctor_id").references(() => doctors.id, { onDelete: "cascade" }),       // null if hospital
+    entityType: text("entity_type").notNull().default("hospital"),    // 'hospital' | 'doctor'
+    agreementType: text("agreement_type").notNull().default("network_partnership"),
+    // 'network_partnership' | 'referral_only' | 'destination_only'
+    scopeJson: text("scope_json"),            // JSON: which services are covered
+    termsVersion: text("terms_version").notNull().default("v1"),
+    customTerms: text("custom_terms"),        // case-specific override notes (free text)
+    status: text("status").notNull().default("draft"),
+    // draft | published | accepted | rejected | expired | terminated
+    publishedAt: integer("published_at", { mode: "timestamp_ms" }),
+    acceptedAt: integer("accepted_at", { mode: "timestamp_ms" }),
+    acceptedByUserId: text("accepted_by_user_id").references(() => users.id),
+    acceptedIp: text("accepted_ip"),
+    rejectedAt: integer("rejected_at", { mode: "timestamp_ms" }),
+    rejectionReason: text("rejection_reason"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),  // null = perpetual
+    tierCode: text("tier_code"),       // 'basic' | 'partner' | 'premium'
+    commissionPercent: integer("commission_percent"),
+    commissionFlat: integer("commission_flat"),        // flat INR per case in paise
+    revenueShareNotes: text("revenue_share_notes"),
+    createdBy: text("created_by").references(() => users.id),  // EasyHeals operator
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("agreement_hospital_idx").on(table.hospitalId),
+    index("agreement_doctor_idx").on(table.doctorId),
+    index("agreement_status_idx").on(table.status),
+  ],
+);
+
+// PHASE 2: agreement_events — full audit trail of agreement state changes
+export const agreementEvents = sqliteTable(
+  "agreement_events",
+  {
+    id: id(),
+    agreementId: text("agreement_id").notNull().references(() => providerAgreements.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),  // created | published | accepted | rejected | expired | terminated
+    actorId: text("actor_id"),                // userId who triggered
+    actorType: text("actor_type"),            // 'operator' | 'provider'
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("agreement_event_idx").on(table.agreementId),
+  ],
+);
+
+// PHASE 2: commission_entries — operator-entered per-case commission records
+export const commissionEntries = sqliteTable(
+  "commission_entries",
+  {
+    id: id(),
+    agreementId: text("agreement_id").notNull().references(() => providerAgreements.id),
+    hospitalId: text("hospital_id").references(() => hospitals.id),
+    doctorId: text("doctor_id").references(() => doctors.id),
+    appointmentId: text("appointment_id").references(() => appointments.id),
+    referralCaseId: text("referral_case_id"),   // FK added after referral_cases table defined
+    amountPaise: integer("amount_paise").notNull(),
+    status: text("status").notNull().default("pending"),
+    // pending | confirmed | locked | paid | disputed | reversed
+    notes: text("notes"),
+    enteredBy: text("entered_by").references(() => users.id),
+    lockedAt: integer("locked_at", { mode: "timestamp_ms" }),
+    notifiedAt: integer("notified_at", { mode: "timestamp_ms" }),
+    providerAcceptedAt: integer("provider_accepted_at", { mode: "timestamp_ms" }),
+    disputedAt: integer("disputed_at", { mode: "timestamp_ms" }),
+    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("commission_agreement_idx").on(table.agreementId),
+    index("commission_hospital_idx").on(table.hospitalId),
+    index("commission_status_idx").on(table.status),
+  ],
+);
+
+// PHASE 2: commission_disputes — provider raises dispute on a commission entry
+export const commissionDisputes = sqliteTable(
+  "commission_disputes",
+  {
+    id: id(),
+    entryId: text("entry_id").notNull().references(() => commissionEntries.id),
+    raisedByUserId: text("raised_by_user_id").references(() => users.id),
+    reason: text("reason").notNull(),
+    status: text("status").notNull().default("open"),  // open | under_review | resolved | closed
+    resolution: text("resolution"),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("dispute_entry_idx").on(table.entryId),
+  ],
+);
+
+// PHASE 2: referral_cases — core referral lifecycle table
+export const referralCases = sqliteTable(
+  "referral_cases",
+  {
+    id: id(),
+    referralCode: text("referral_code").unique().$defaultFn(() =>
+      `REF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2,5).toUpperCase()}`
+    ),
+    patientId: text("patient_id").references(() => patients.id),
+    patientName: text("patient_name"),   // for anonymous/non-registered patients
+    patientPhone: text("patient_phone"),
+    sourceType: text("source_type").notNull().default("doctor"),
+    // doctor | clinic | hospital | agent | patient | ai
+    referringProviderId: text("referring_provider_id"),  // doctor id
+    referringOrganizationId: text("referring_organization_id"),  // hospital id
+    referralType: text("referral_type").notNull().default("doctor_to_hospital"),
+    // doctor_to_doctor | doctor_to_hospital | procedure | diagnostics | second_opinion
+    clinicalCategory: text("clinical_category"),  // specialty
+    suspectedCondition: text("suspected_condition"),
+    urgency: text("urgency").notNull().default("routine"),
+    // routine | priority | urgent | emergency_transfer
+    clinicalNotes: text("clinical_notes"),
+    destinationMode: text("destination_mode").notNull().default("selected_provider"),
+    // auto_match | selected_provider | assisted_by_easyheals
+    selectedDestinationProviderId: text("selected_destination_provider_id"),
+    selectedDestinationOrgId: text("selected_destination_org_id"),
+    destinationCity: text("destination_city"),
+    destinationState: text("destination_state"),
+    outstationRequired: integer("outstation_required", { mode: "boolean" }).default(false),
+    accommodationRequired: integer("accommodation_required", { mode: "boolean" }).default(false),
+    estimatedPriceMin: integer("estimated_price_min"),
+    estimatedPriceMax: integer("estimated_price_max"),
+    status: text("status").notNull().default("draft"),
+    // draft | submitted | triaging | destination_suggested | accepted | patient_contacted
+    // | booked | consulted | completed | billed | commission_locked | payout_ready | paid
+    // | rejected | redirected | patient_unreachable | dropped | disputed
+    statusReason: text("status_reason"),
+    assignedCoordinatorId: text("assigned_coordinator_id").references(() => users.id),
+    agreementId: text("agreement_id").references(() => providerAgreements.id),
+    consentGiven: integer("consent_given", { mode: "boolean" }).default(false),
+    createdByActorType: text("created_by_actor_type").notNull().default("provider_staff"),
+    createdByActorId: text("created_by_actor_id").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    closedAt: integer("closed_at", { mode: "timestamp_ms" }),
+  },
+  (table) => [
+    index("referral_referring_org_idx").on(table.referringOrganizationId),
+    index("referral_referring_prov_idx").on(table.referringProviderId),
+    index("referral_status_idx").on(table.status),
+    index("referral_urgency_idx").on(table.urgency),
+    index("referral_coordinator_idx").on(table.assignedCoordinatorId),
+  ],
+);
+
+// PHASE 2: referral_case_events — timeline of all events on a referral case
+export const referralCaseEvents = sqliteTable(
+  "referral_case_events",
+  {
+    id: id(),
+    referralCaseId: text("referral_case_id").notNull().references(() => referralCases.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    // submitted | triaged | redirected | accepted | rejected | booked | admitted
+    // | billed | dispute_opened | note_added | document_attached | coordinator_assigned
+    eventPayload: text("event_payload"),  // JSON
+    createdByActorType: text("created_by_actor_type").notNull().default("system"),
+    createdByActorId: text("created_by_actor_id").notNull().default(""),
+    note: text("note"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ref_event_case_idx").on(table.referralCaseId),
+  ],
+);
+
+// PHASE 2: referral_documents — documents attached to a referral case
+export const referralDocuments = sqliteTable(
+  "referral_documents",
+  {
+    id: id(),
+    referralCaseId: text("referral_case_id").notNull().references(() => referralCases.id, { onDelete: "cascade" }),
+    documentId: text("document_id"),   // links existing patient document
+    fileName: text("file_name"),
+    fileUrl: text("file_url"),
+    source: text("source").notNull().default("uploaded"),
+    // uploaded | shared_existing | emr_export
+    uploadedByActorId: text("uploaded_by_actor_id"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ref_doc_case_idx").on(table.referralCaseId),
+  ],
+);
+
+// PHASE 2: provider_referral_preferences — incoming referral settings per provider
+export const providerReferralPreferences = sqliteTable(
+  "provider_referral_preferences",
+  {
+    id: id(),
+    entityId: text("entity_id").notNull(),   // hospital or doctor id
+    entityType: text("entity_type").notNull().default("hospital"),
+    acceptsIncomingReferrals: integer("accepts_incoming", { mode: "boolean" }).default(true),
+    referralSpecialties: text("referral_specialties"),  // JSON array of accepted specialties
+    defaultResponseSlaMins: integer("default_response_sla_mins").default(60),
+    acceptedGeographies: text("accepted_geographies"),  // JSON: districts/states
+    acceptedReferralTypes: text("accepted_referral_types"),  // JSON array
+    indicativePriceJson: text("indicative_price_json"),  // rough price band per specialty
+    requiresPreapproval: integer("requires_preapproval", { mode: "boolean" }).default(false),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ref_pref_entity_idx").on(table.entityId),
+  ],
+);
+
+// PHASE 2: billable_events — bill uploads (portal) + operator entries (/provider-management)
+export const billableEvents = sqliteTable(
+  "billable_events",
+  {
+    id: id(),
+    referralCaseId: text("referral_case_id").references(() => referralCases.id),
+    appointmentId: text("appointment_id").references(() => appointments.id),
+    hospitalId: text("hospital_id").references(() => hospitals.id),
+    billingAmount: integer("billing_amount"),   // in paise
+    currency: text("currency").notNull().default("INR"),
+    source: text("source").notNull(),   // hospital_portal_upload | ops_verified | system
+    fileUrl: text("file_url"),          // uploaded bill document
+    verificationStatus: text("verification_status").notNull().default("pending"),
+    // pending | verified | rejected
+    verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+    verifiedAt: integer("verified_at", { mode: "timestamp_ms" }),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("billable_hospital_idx").on(table.hospitalId),
+    index("billable_referral_idx").on(table.referralCaseId),
+  ],
+);
+
+// PHASE 2: provider_payout_profiles — bank/UPI/PAN details per provider
+export const providerPayoutProfiles = sqliteTable(
+  "provider_payout_profiles",
+  {
+    id: id(),
+    entityId: text("entity_id").notNull().unique(),
+    entityType: text("entity_type").notNull().default("hospital"),
+    beneficiaryName: text("beneficiary_name"),
+    bankAccountNumber: text("bank_account_number"),  // encrypted at application layer
+    ifscCode: text("ifsc_code"),
+    upiId: text("upi_id"),
+    panNumber: text("pan_number"),  // encrypted
+    status: text("status").notNull().default("pending"),
+    // pending | verified | active | suspended
+    verifiedByUserId: text("verified_by_user_id").references(() => users.id),
+    verifiedAt: integer("verified_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("payout_profile_entity_idx").on(table.entityId),
+  ],
+);
+
+// PHASE 2: payout_batches — grouped payouts for processing
+export const payoutBatches = sqliteTable(
+  "payout_batches",
+  {
+    id: id(),
+    batchRef: text("batch_ref").unique().$defaultFn(() =>
+      `BATCH-${Date.now().toString(36).toUpperCase()}`
+    ),
+    status: text("status").notNull().default("draft"),
+    // draft | approved | processing | paid | failed
+    totalAmountPaise: integer("total_amount_paise").notNull().default(0),
+    entryCount: integer("entry_count").notNull().default(0),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id),
+    approvedAt: integer("approved_at", { mode: "timestamp_ms" }),
+    paidAt: integer("paid_at", { mode: "timestamp_ms" }),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("payout_batch_status_idx").on(table.status),
+  ],
+);
+
+// Role permissions matrix — admin-configurable per-role capability levels
+// level: 'full' | 'limited' | 'none'
+export const rolePermissions = sqliteTable(
+  "role_permissions",
+  {
+    role: text("role").primaryKey(),           // matches RoleCode in auth.ts
+    hospitals:    text("hospitals").notNull().default("none"),
+    doctors:      text("doctors").notNull().default("none"),
+    aiResearch:   text("ai_research").notNull().default("none"),
+    providerMgmt: text("provider_mgmt").notNull().default("none"),
+    userMgmt:     text("user_mgmt").notNull().default("none"),
+    portal:       text("portal").notNull().default("none"),
+    updatedAt:    integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedBy:    text("updated_by").references(() => users.id),
+  },
+);
+
+// PHASE 2: channel_partners — field agent / broker registrations
+export const channelPartners = sqliteTable(
+  "channel_partners",
+  {
+    id: id(),
+    fullName: text("full_name").notNull(),
+    phone: text("phone"),
+    email: text("email"),
+    partnerType: text("partner_type").notNull().default("agent"),
+    // agent | broker | community_referrer
+    city: text("city"),
+    state: text("state"),
+    status: text("status").notNull().default("active"),
+    // active | suspended | terminated
+    fraudFlag: integer("fraud_flag", { mode: "boolean" }).default(false),
+    notes: text("notes"),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("channel_partner_status_idx").on(table.status),
+    index("channel_partner_type_idx").on(table.partnerType),
+  ],
+);
+
+// PHASE 2: channel_attributions — who sourced which provider or referral case
+export const channelAttributions = sqliteTable(
+  "channel_attributions",
+  {
+    id: id(),
+    partnerId: text("partner_id").notNull().references(() => channelPartners.id),
+    targetType: text("target_type").notNull(),  // hospital | doctor | referral_case
+    targetId: text("target_id").notNull(),
+    attributionType: text("attribution_type").notNull().default("onboarding"),
+    // onboarding | referral_sourcing | conversion
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("channel_attr_partner_idx").on(table.partnerId),
+    index("channel_attr_target_idx").on(table.targetType, table.targetId),
+  ],
+);
+
+// PHASE 3: travel_cases — accommodation + travel requests linked to referral cases
+export const travelCases = sqliteTable(
+  "travel_cases",
+  {
+    id: id(),
+    referralCaseId: text("referral_case_id").references(() => referralCases.id),
+    patientName: text("patient_name"),
+    patientPhone: text("patient_phone"),
+    destinationCity: text("destination_city"),
+    checkInDate: integer("check_in_date", { mode: "timestamp_ms" }),
+    checkOutDate: integer("check_out_date", { mode: "timestamp_ms" }),
+    guestCount: integer("guest_count").default(1),
+    budgetPaise: integer("budget_paise"),
+    requirements: text("requirements"),
+    status: text("status").notNull().default("requested"),
+    // requested | quoted | booked | checked_in | completed | cancelled
+    assignedCoordinatorId: text("assigned_coordinator_id").references(() => users.id),
+    commissionPaise: integer("commission_paise"),
+    notes: text("notes"),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("travel_case_referral_idx").on(table.referralCaseId),
+    index("travel_case_status_idx").on(table.status),
+  ],
+);
+
+// PHASE 3: travel_quotes — quote options for travel cases
+export const travelQuotes = sqliteTable(
+  "travel_quotes",
+  {
+    id: id(),
+    travelCaseId: text("travel_case_id").notNull().references(() => travelCases.id, { onDelete: "cascade" }),
+    partnerName: text("partner_name").notNull(),
+    propertyName: text("property_name"),
+    ratePerNightPaise: integer("rate_per_night_paise"),
+    totalAmountPaise: integer("total_amount_paise"),
+    inclusions: text("inclusions"),
+    distanceFromHospitalKm: real("distance_from_hospital_km"),
+    partnerContactPhone: text("partner_contact_phone"),
+    status: text("status").notNull().default("proposed"),
+    // proposed | shortlisted | selected | declined
+    selectedAt: integer("selected_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("travel_quote_case_idx").on(table.travelCaseId),
+  ],
+);
+
+// PHASE 3: subscription_usage — MSG91 + AI quota tracking per hospital per billing period
+export const subscriptionUsage = sqliteTable(
+  "subscription_usage",
+  {
+    id: id(),
+    hospitalId: text("hospital_id").notNull().references(() => hospitals.id),
+    billingPeriod: text("billing_period").notNull(),  // YYYY-MM
+    smsUsed: integer("sms_used").notNull().default(0),
+    whatsappUsed: integer("whatsapp_used").notNull().default(0),
+    aiReportsUsed: integer("ai_reports_used").notNull().default(0),
+    smsQuota: integer("sms_quota").notNull().default(0),
+    whatsappQuota: integer("whatsapp_quota").notNull().default(0),
+    aiReportsQuota: integer("ai_reports_quota").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    uniqueIndex("sub_usage_hospital_period_idx").on(table.hospitalId, table.billingPeriod),
+  ],
+);
+
+// PHASE 3: usage_topups — ad-hoc quota top-ups purchased by a hospital
+export const usageTopups = sqliteTable(
+  "usage_topups",
+  {
+    id: id(),
+    hospitalId: text("hospital_id").notNull().references(() => hospitals.id),
+    topupType: text("topup_type").notNull(),  // sms | whatsapp | ai_reports
+    quantityAdded: integer("quantity_added").notNull(),
+    amountPaise: integer("amount_paise").notNull().default(0),
+    status: text("status").notNull().default("active"),
+    // active | expired | consumed
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("topup_hospital_idx").on(table.hospitalId),
+    index("topup_type_idx").on(table.topupType),
   ],
 );
 

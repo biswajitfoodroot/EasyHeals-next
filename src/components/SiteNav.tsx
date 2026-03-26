@@ -81,7 +81,7 @@ export function SiteNav() {
       .filter((g) => g.cities.length > 0);
   }, [citySearch]);
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || pathname === "/") return null;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || pathname.startsWith("/provider-management") || pathname.startsWith("/unauthorized") || pathname === "/") return null;
 
   const currentLocale = LOCALES.find((l) => l.code === locale);
 
@@ -181,6 +181,7 @@ export function SiteNav() {
         <nav className="sitenav-links" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
           {[
             { href: "/treatments", label: t("nav.treatments") },
+            { href: "/diagnostics", label: "Diagnostics" },
             { href: "/hospitals", label: t("nav.hospitals") },
             { href: "/doctors", label: t("nav.doctors") },
           ].map(({ href, label }) => {
@@ -206,8 +207,8 @@ export function SiteNav() {
           })}
         </nav>
 
-        {/* ── City picker ── */}
-        <div style={{ position: "relative" }} data-city-picker>
+        {/* ── City picker — hidden on mobile ── */}
+        <div className="sitenav-lang" style={{ position: "relative" }} data-city-picker>
           <button
             type="button"
             onClick={() => setCityOpen((v) => !v)}
@@ -303,8 +304,8 @@ export function SiteNav() {
           )}
         </div>
 
-        {/* ── Language picker ── */}
-        <div style={{ position: "relative" }} data-lang-picker>
+        {/* ── Language picker — hidden on mobile ── */}
+        <div className="sitenav-lang" style={{ position: "relative" }} data-lang-picker>
           <button
             type="button"
             onClick={() => setLangOpen((v) => !v)}
@@ -347,15 +348,15 @@ export function SiteNav() {
           )}
         </div>
 
-        {/* ── Auth link ── */}
+        {/* ── Auth link — hidden on mobile ── */}
         {isLoggedIn === null ? null : isLoggedIn ? (
           <Link
             href="/dashboard"
+            className="sitenav-lang"
             style={{
               height: "36px",
               borderRadius: "999px",
               padding: "0 16px",
-              display: "inline-flex",
               alignItems: "center",
               gap: "6px",
               color: "#1B8A4A",
@@ -374,11 +375,11 @@ export function SiteNav() {
         ) : (
           <Link
             href="/login"
+            className="sitenav-lang"
             style={{
               height: "36px",
               borderRadius: "999px",
               padding: "0 16px",
-              display: "inline-flex",
               alignItems: "center",
               color: "#1B8A4A",
               border: "1.5px solid #1B8A4A",
@@ -395,27 +396,29 @@ export function SiteNav() {
           </Link>
         )}
 
-        {/* ── CTA ── */}
-        <Link
-          href="/register"
-          style={{
-            height: "36px",
-            borderRadius: "999px",
-            padding: "0 18px",
-            display: "inline-flex",
-            alignItems: "center",
-            color: "#fff",
-            background: "#1B8A4A",
-            fontSize: "13px",
-            fontWeight: 700,
-            textDecoration: "none",
-            flexShrink: 0,
-            whiteSpace: "nowrap",
-            fontFamily: "var(--font-bricolage), sans-serif",
-          }}
-        >
-          List Hospital Free
-        </Link>
+        {/* ── CTA — hidden on mobile and on patient dashboard pages ── */}
+        {!pathname.startsWith("/dashboard") && (
+          <Link
+            href="/register"
+            className="sitenav-lang"
+            style={{
+              height: "36px",
+              borderRadius: "999px",
+              padding: "0 18px",
+              alignItems: "center",
+              color: "#fff",
+              background: "#1B8A4A",
+              fontSize: "13px",
+              fontWeight: 700,
+              textDecoration: "none",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              fontFamily: "var(--font-bricolage), sans-serif",
+            }}
+          >
+            List Hospital Free
+          </Link>
+        )}
 
         {/* ── Hamburger (mobile only, hidden >= 640px) ── */}
         <div data-mobile-menu style={{ position: "relative" }}>
@@ -454,11 +457,80 @@ export function SiteNav() {
               border: "1px solid #D0E4D8",
               borderRadius: "16px",
               boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-              minWidth: "200px",
+              minWidth: "220px",
               zIndex: 400,
               overflow: "hidden",
               padding: "8px",
             }}>
+              {/* Auth row */}
+              {isLoggedIn === false && (
+                <Link
+                  href="/login"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    textDecoration: "none",
+                    color: "#1B8A4A",
+                    border: "1.5px solid #1B8A4A",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    marginBottom: "6px",
+                    fontFamily: "var(--font-bricolage), sans-serif",
+                  }}
+                >
+                  Login / Sign up
+                </Link>
+              )}
+              {isLoggedIn && (
+                <Link
+                  href="/dashboard"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    textDecoration: "none",
+                    color: "#1B8A4A",
+                    background: "rgba(27,138,74,0.06)",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    marginBottom: "6px",
+                    fontFamily: "var(--font-bricolage), sans-serif",
+                  }}
+                >
+                  👤 My Dashboard
+                </Link>
+              )}
+
+              {/* City picker row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 6px 8px" }}>
+                <span style={{ fontSize: "11px", color: "#8FA39A", fontWeight: 600 }}>City:</span>
+                <select
+                  value={city ?? ""}
+                  onChange={(e) => { selectCity(e.target.value); setMenuOpen(false); }}
+                  style={{
+                    flex: 1,
+                    border: "1.5px solid #D0E4D8",
+                    borderRadius: "8px",
+                    padding: "5px 8px",
+                    fontSize: "13px",
+                    fontFamily: "inherit",
+                    color: "#1A2B23",
+                    background: "#fff",
+                  }}
+                >
+                  <option value="">{t("common.allCities")}</option>
+                  {CITY_GROUPS.flatMap(g => g.cities).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ height: "1px", background: "#E8F0EB", margin: "2px 0 6px" }} />
+
               {[
                 { href: "/treatments", label: t("nav.treatments") },
                 { href: "/hospitals", label: t("nav.hospitals") },
@@ -518,24 +590,26 @@ export function SiteNav() {
 
               <div style={{ height: "1px", background: "#E8F0EB", margin: "2px 0 6px" }} />
 
-              <Link
-                href="/register"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "11px 14px",
-                  borderRadius: "10px",
-                  textDecoration: "none",
-                  color: "#fff",
-                  background: "#1B8A4A",
-                  fontWeight: 700,
-                  fontSize: "14px",
-                  fontFamily: "var(--font-bricolage), sans-serif",
-                }}
-              >
-                List Hospital Free →
-              </Link>
+              {!pathname.startsWith("/dashboard") && (
+                <Link
+                  href="/register"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "11px 14px",
+                    borderRadius: "10px",
+                    textDecoration: "none",
+                    color: "#fff",
+                    background: "#1B8A4A",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    fontFamily: "var(--font-bricolage), sans-serif",
+                  }}
+                >
+                  List Hospital Free →
+                </Link>
+              )}
             </div>
           )}
         </div>

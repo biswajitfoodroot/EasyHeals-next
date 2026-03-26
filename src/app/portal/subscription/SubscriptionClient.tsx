@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 interface CurrentSub {
   id: string;
   packageId: string;
@@ -20,18 +18,63 @@ interface Plan {
   features: string[];
 }
 
+interface UsageMeters {
+  smsUsed: number;
+  smsQuota: number;
+  whatsappUsed: number;
+  whatsappQuota: number;
+  aiReportsUsed: number;
+  aiReportsQuota: number;
+  billingPeriod: string;
+}
+
 interface Props {
   currentSub: CurrentSub | null;
   plans: Plan[];
   userRole: string;
   hospitalId?: string;
+  usage?: UsageMeters | null;
+}
+
+function UsageMeter({ label, icon, used, quota, color }: {
+  label: string; icon: string; used: number; quota: number; color: string;
+}) {
+  const pct = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+  const danger = pct >= 90;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold text-slate-600">{icon} {label}</span>
+        <span className={`text-xs font-bold ${danger ? "text-red-600" : "text-slate-600"}`}>
+          {used.toLocaleString()} {quota > 0 ? `/ ${quota.toLocaleString()}` : "used"}
+        </span>
+      </div>
+      {quota > 0 ? (
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${danger ? "bg-red-500" : color}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : (
+        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full w-0 rounded-full" />
+        </div>
+      )}
+      {quota > 0 && (
+        <p className={`text-[10px] mt-0.5 ${danger ? "text-red-500 font-semibold" : "text-slate-400"}`}>
+          {pct}% used{danger ? " — quota nearly exhausted" : ""}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function formatDate(dt: string) {
   return new Date(dt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 }
 
-export default function SubscriptionClient({ currentSub, plans, userRole, hospitalId }: Props) {
+export default function SubscriptionClient({ currentSub, plans, userRole, hospitalId, usage }: Props) {
   const STATUS_COLORS: Record<string, string> = {
     active:    "bg-green-50 text-green-700 border-green-200",
     expired:   "bg-red-50 text-red-700 border-red-200",
@@ -40,35 +83,7 @@ export default function SubscriptionClient({ currentSub, plans, userRole, hospit
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className="w-14 lg:w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: "#1B8A4A" }}>E</span>
-          <span className="hidden lg:block font-bold text-slate-800 text-sm">EasyHeals</span>
-        </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {[
-            { href: "/portal/hospital/dashboard", icon: "🏠", label: "Dashboard" },
-            { href: "/portal/hospital", icon: "🏥", label: "Edit Profile" },
-            { href: "/portal/schedule", icon: "📅", label: "Schedule" },
-            { href: "/portal/queue", icon: "🎫", label: "OPD Queue" },
-            { href: "/portal/staff", icon: "👥", label: "Staff" },
-            { href: "/portal/subscription", icon: "💳", label: "Subscription", active: true },
-          ].map((n) => (
-            <Link key={n.label} href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${"active" in n && n.active ? "text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
-              style={"active" in n && n.active ? { background: "#1B8A4A" } : {}}
-            >
-              <span className="text-base">{n.icon}</span>
-              <span className="hidden lg:block">{n.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
           <div>
             <h1 className="text-xl font-bold text-slate-800">Subscription & Billing</h1>
             <p className="text-sm text-slate-400">Manage your EasyHeals plan</p>
@@ -108,6 +123,24 @@ export default function SubscriptionClient({ currentSub, plans, userRole, hospit
               </div>
             )}
           </div>
+
+          {/* Usage meters */}
+          {usage && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold text-slate-700">Usage — {usage.billingPeriod}</h2>
+                <span className="text-xs text-slate-400">Current billing period</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <UsageMeter label="SMS" icon="💬" used={usage.smsUsed} quota={usage.smsQuota} color="bg-blue-500" />
+                <UsageMeter label="WhatsApp" icon="📱" used={usage.whatsappUsed} quota={usage.whatsappQuota} color="bg-green-500" />
+                <UsageMeter label="AI Reports" icon="🤖" used={usage.aiReportsUsed} quota={usage.aiReportsQuota} color="bg-indigo-500" />
+              </div>
+              {(usage.smsQuota === 0 && usage.whatsappQuota === 0 && usage.aiReportsQuota === 0) && (
+                <p className="text-xs text-slate-400 mt-3">Quotas are configured by your plan. Contact billing to see quota details.</p>
+              )}
+            </div>
+          )}
 
           {/* Available plans */}
           <div>
@@ -174,8 +207,6 @@ export default function SubscriptionClient({ currentSub, plans, userRole, hospit
               </a>
             </p>
           </div>
-        </div>
-      </main>
     </div>
   );
 }

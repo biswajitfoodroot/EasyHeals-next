@@ -10,7 +10,7 @@ export interface SearchIntent {
   location: string | null;
   city: string | null;
   entity: string | null;
-  searchType: "symptom" | "doctor_name" | "hospital_name" | "treatment" | "lab_test" | "general";
+  searchType: "symptom" | "doctor_name" | "hospital_name" | "treatment" | "lab_test" | "general" | "specialty";
   confidence: number;
 }
 
@@ -52,6 +52,56 @@ const SPECIALTY_RULES: SpecialtyRule[] = [
     pattern: /(mri|ct scan|x-?ray|blood test|lab test|diagnostic|scan)/i,
   },
   {
+    specialty: "Gastroenterology",
+    specialtyKey: "gastro",
+    pattern: /(gastro|gastroenterol|gi specialist|gut specialist|bowel|colon|liver specialist|hepatol)/i,
+  },
+  {
+    specialty: "Dermatology",
+    specialtyKey: "dermatology",
+    pattern: /(dermatol|skin specialist|skin doctor|derm\b)/i,
+  },
+  {
+    specialty: "Psychiatry",
+    specialtyKey: "psychiatry",
+    pattern: /(psychiatr|mental health doctor|psycholog|depression doctor|anxiety doctor)/i,
+  },
+  {
+    specialty: "Urology",
+    specialtyKey: "urology",
+    pattern: /(urolog|kidney specialist|bladder specialist|prostate specialist)/i,
+  },
+  {
+    specialty: "ENT",
+    specialtyKey: "ent",
+    pattern: /(\bent\b|ear nose throat|ent specialist|ent doctor|sinus specialist|hearing specialist)/i,
+  },
+  {
+    specialty: "Ophthalmology",
+    specialtyKey: "ophthalmology",
+    pattern: /(ophthalmol|eye specialist|eye doctor|eye surgeon)/i,
+  },
+  {
+    specialty: "Nephrology",
+    specialtyKey: "nephrology",
+    pattern: /(nephrol|kidney doctor|renal specialist)/i,
+  },
+  {
+    specialty: "Endocrinology",
+    specialtyKey: "endocrinology",
+    pattern: /(endocrinol|thyroid specialist|thyroid doctor|diabetes specialist|hormone specialist)/i,
+  },
+  {
+    specialty: "Pulmonology",
+    specialtyKey: "pulmonology",
+    pattern: /(pulmonol|lung specialist|chest specialist|respiratory specialist)/i,
+  },
+  {
+    specialty: "Rheumatology",
+    specialtyKey: "rheumatology",
+    pattern: /(rheumatol|autoimmune specialist|joint specialist)/i,
+  },
+  {
     specialty: "General Medicine",
     specialtyKey: "general",
     pattern: /.*/i,
@@ -81,11 +131,16 @@ function detectLanguage(text: string): string {
   return "english";
 }
 
+// Specialty abbreviations users type directly — not describing symptoms, requesting a specialist
+const DIRECT_SPECIALTY_RE = /\b(gastro|gastroenterolog|cardiolog|neurolog|orthopaed|dermatolog|dermatol|psychiatr|urolog|gynaecolog|gynecolog|paediatric|pediatric|ophthalmol|\bent\b|oncolog|nephrol|endocrinol|pulmonol|rheumatol|hepatolog|haematolog|hematolog)\b/i;
+
 function detectSearchType(query: string): SearchIntent["searchType"] {
   if (/(dr\.?\s|doctor|consultant|specialist)/i.test(query)) return "doctor_name";
   if (/(hospital|clinic|care center|medical college)/i.test(query)) return "hospital_name";
   if (/(scan|blood test|lab|diagnostic)/i.test(query)) return "lab_test";
   if (/(surgery|therapy|treatment|operation|procedure)/i.test(query)) return "treatment";
+  // Direct specialty search: user names a specialty (not describing symptoms)
+  if (DIRECT_SPECIALTY_RE.test(query)) return "specialty";
   if (/(pain|fever|rash|cough|vomit|weak|breath|symptom|dard|bukhar|khansi)/i.test(query)) {
     return "symptom";
   }
@@ -160,7 +215,7 @@ export async function extractSearchIntent(query: string, city?: string): Promise
     const prompt = [
       "Extract healthcare search intent for India.",
       "Return ONLY valid JSON with keys: language, translatedQuery, specialty, specialtyKey, symptoms, location, searchType, confidence.",
-      'searchType must be one of: "symptom", "doctor_name", "hospital_name", "treatment", "lab_test", "general".',
+      'searchType must be one of: "symptom", "doctor_name", "hospital_name", "treatment", "lab_test", "general", "specialty". Use "specialty" when the user names a medical specialty (gastro, cardio, ortho, etc.) without describing symptoms.',
       "specialtyKey should be lowercase short key like cardiology, ortho, neurology, maternity, oncology, diagnostic, general.",
       "If query is already English, translatedQuery must equal original intent query cleaned.",
       `User query: ${query}`,

@@ -24,6 +24,7 @@ import {
   featureFlags, doctorHospitalAffiliations,
   userRoleMap, roles,
 } from "@/db/schema";
+import { createSession, setSessionCookie } from "@/lib/session";
 
 // ── Guard ─────────────────────────────────────────────────────────────────────
 
@@ -237,6 +238,18 @@ export async function POST(req: NextRequest) {
         .onConflictDoUpdate({ target: featureFlags.key, set: { enabled: true, updatedAt: new Date() } });
     }
     return NextResponse.json({ ok: true, flags: CORE_FLAGS });
+  }
+
+  // ── Dev quick login as any portal user ────────────────────────────────────
+
+  if (action === "dev_login_as") {
+    const { userId } = body as { userId: string };
+    if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const { sessionToken, expiresAt } = await createSession(userId);
+    await setSessionCookie(sessionToken, expiresAt);
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

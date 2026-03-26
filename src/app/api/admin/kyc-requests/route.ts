@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       kycDocuments: entityAccessRequests.kycDocuments,
       contactPhone: entityAccessRequests.contactPhone,
       contactEmail: entityAccessRequests.contactEmail,
+      requestType: entityAccessRequests.requestType,
       notes: entityAccessRequests.notes,
       status: entityAccessRequests.status,
       reviewNotes: entityAccessRequests.reviewNotes,

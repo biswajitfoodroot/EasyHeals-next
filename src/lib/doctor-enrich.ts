@@ -156,6 +156,6 @@ Return ONLY valid JSON (no markdown) with this exact shape:
       isPrimary: false,
       source: "ai_enrichment",
       isActive: true,
-    });
+    }).onConflictDoNothing();
   }
 }

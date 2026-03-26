@@ -12,7 +12,7 @@ import { lookupBestMatch, buildGuidanceBlock, lookupFewShots } from "@/lib/chatb
 
 const historySchema = z.object({
   role: z.enum(["user", "assistant"]),
-  text: z.string().min(1).max(500),
+  text: z.string().min(1).max(1000),
 });
 
 const patientContextSchema = z.object({
@@ -184,6 +184,11 @@ function rankResult(
     score += 1.5;
   }
 
+  // When user explicitly asks for a doctor/specialist, boost all doctors
+  if (["doctor_name", "specialty"].includes(intent.searchType) && item.type === "doctor") {
+    score += 2.5;
+  }
+
   return Number(score.toFixed(2));
 }
 
@@ -191,24 +196,38 @@ function buildFallbackAssistant(
   query: string,
   cityFilter: string | undefined,
   intent: Awaited<ReturnType<typeof extractSearchIntent>>,
-  resultCount: number,
+  topResults: SearchResultItem[],
 ): AssistantResponse {
   const cityText = cityFilter ? ` in ${cityFilter}` : "";
+  const hospitalCount = topResults.filter(r => r.type === "hospital").length;
+  const doctorCount = topResults.filter(r => r.type === "doctor").length;
+  const isDocSearch = ["doctor_name", "specialty"].includes(intent.searchType);
+
+  let answer: string;
+  if (topResults.length === 0) {
+    answer = cityFilter
+      ? `No results found for ${intent.specialty} in ${cityFilter} yet. Try a nearby city or request a callback from our team.`
+      : `I could not find matches for "${intent.specialty}". Try adding a city name.`;
+  } else if (isDocSearch && doctorCount === 0 && hospitalCount > 0) {
+    answer = `Found ${hospitalCount} hospital${hospitalCount > 1 ? "s" : ""} offering ${intent.specialty}${cityText}. No individual specialists listed yet — contact the hospital directly or request a callback.`;
+  } else if (doctorCount > 0 && hospitalCount === 0) {
+    answer = `Found ${doctorCount} ${intent.specialty} specialist${doctorCount > 1 ? "s" : ""}${cityText}. Book a consultation or request a callback.`;
+  } else {
+    answer = `Found ${hospitalCount > 0 ? `${hospitalCount} hospital${hospitalCount > 1 ? "s" : ""}` : ""}${hospitalCount > 0 && doctorCount > 0 ? " and " : ""}${doctorCount > 0 ? `${doctorCount} specialist${doctorCount > 1 ? "s" : ""}` : ""}${cityText}.`;
+  }
+
   const clarifyQuestion =
-    !cityFilter && intent.searchType !== "doctor_name"
+    !cityFilter && !["doctor_name", "hospital_name", "specialty"].includes(intent.searchType)
       ? "Which city should I prioritize for better matches?"
       : null;
 
   return {
-    answer:
-      resultCount > 0
-        ? `I found ${resultCount} doctor and hospital options${cityText}. You can refine by city, budget, or verification status.`
-        : `I could not find strong matches for "${query}". Try adding city, specialty, or treatment keyword.`,
+    answer,
     followUps: [
-      cityFilter ? `${intent.specialty} near me` : `${query} in Pune`,
-      `${query} only verified`,
-      `${query} affordable`,
-      `${query} with high rating`,
+      cityFilter ? `More ${intent.specialty} options` : `${intent.specialty} in Pune`,
+      "Request callback from care team",
+      `${intent.specialty} verified only`,
+      `${intent.specialty} top rated`,
     ],
     clarifyQuestion,
     confidenceHint: intent.confidence >= 0.7 ? "high" : intent.confidence >= 0.45 ? "medium" : "low",
@@ -326,13 +345,20 @@ function detectChatbotState(
   ctx: PatientContextData,
   mode: string,
   intentSearchType?: string,
+  intentCity?: string | null,
 ): ChatbotState {
   const allUserText = [query, ...history.filter(h => h.role === "user").map(h => h.text)];
   if (detectEmergency(allUserText)) return "EMERGENCY";
   if (detectBusiness(query)) return "BUSINESS";
   if (mode === "name") return "LOCATION_CAPTURED";
 
-  const hasCity = !!ctx.city;
+  // P4.4: Direct specialist search — skip symptom flow entirely.
+  // "gastro in Pune", "cardiologist", "find ortho doctor" all go straight to SPECIALTY_SEARCH.
+  const isDirectSearch = ["specialty", "doctor_name", "hospital_name"].includes(intentSearchType ?? "");
+  if (isDirectSearch) return "SPECIALTY_SEARCH";
+
+  // Use city from patientContext OR from the query intent (e.g. "gastro in Pune")
+  const hasCity = !!(ctx.city || intentCity);
   const hasPhone = !!ctx.phone;
   const userTurnCount = history.filter(h => h.role === "user").length;
 
@@ -342,7 +368,6 @@ function detectChatbotState(
 
   // Intent-based routing on first 1-2 turns before city is known
   if (userTurnCount <= 1) {
-    if (intentSearchType === "doctor_name" || intentSearchType === "hospital_name") return "SPECIALTY_SEARCH";
     if (intentSearchType === "treatment" || intentSearchType === "lab_test") return "PROCEDURE_INFO";
     if (intentSearchType === "general" && detectDiseaseQuery(query)) return "DISEASE_INFO";
   }
@@ -369,9 +394,10 @@ async function generateAssistant(params: {
     ctx,
     params.mode ?? "chat",
     params.intent.searchType,
+    params.intent.city,
   );
 
-  const fallback = buildFallbackAssistant(params.query, params.cityFilter, params.intent, params.topResults.length);
+  const fallback = buildFallbackAssistant(params.query, params.cityFilter, params.intent, params.topResults);
 
   if (!env.GOOGLE_AI_API_KEY) {
     return { assistant: fallback, model: "fallback", degraded: true, chatbotState: state };
@@ -394,7 +420,10 @@ async function generateAssistant(params: {
   try {
     // Use faster chat model (gemini-2.0-flash) to reduce response latency
     const chatModel = env.GEMINI_CHAT_MODEL || "gemini-2.0-flash";
-    const model = getGeminiClient().getGenerativeModel({ model: chatModel });
+    const model = getGeminiClient().getGenerativeModel({
+      model: chatModel,
+      generationConfig: { temperature: 0, maxOutputTokens: 350 },
+    });
 
     // Limit history to last 4 turns (8 messages) to keep prompt small
     const historyText = params.history.length
@@ -475,18 +504,39 @@ async function generateAssistant(params: {
       ].join("\n");
 
     } else if (state === "SPECIALTY_SEARCH") {
-      const cityName = ctx.city ?? params.cityFilter;
+      const cityName = ctx.city ?? params.cityFilter ?? params.intent.city ?? null;
+      const specialtyName = params.intent.specialty;
+      const hospitalCount = params.topResults.filter(r => r.type === "hospital").length;
+      const doctorCount = params.topResults.filter(r => r.type === "doctor").length;
+      const userWantsDoctor = ["doctor_name", "specialty"].includes(params.intent.searchType) &&
+        /\b(doctor|specialist|dr\.?)\b/i.test(params.query);
       stateInstruction = [
-        "=== SPECIALTY / DOCTOR SEARCH MODE ===",
-        "User is looking for a specific doctor, specialist, or hospital. Skip symptom collection — go straight to connection.",
-        "1. answer: (a) Acknowledge what they are looking for. (b) Name 1-2 matching results from the listings below if available. (c) If city not yet known, ask for it. Keep under 70 words.",
-        cityName ? `City is known: ${cityName}.` : "2. clarifyQuestion: 'Which city are you looking in? I will find the best options there.'",
-        cityName ? "2. clarifyQuestion: 'Would you like to book a consultation or request a callback from EasyHeals?'" : "",
-        "3. followUps: ['Show more options', 'Request a callback', 'Hospitals with this specialty', 'Book appointment'].",
-        "Matched results to name in your answer:",
+        "=== SPECIALTY SEARCH MODE ===",
+        "TASK: Connect user to a specialist. DO NOT assess symptoms. DO NOT give medical advice. This is a search request.",
+        `Specialty: ${specialtyName} | City: ${cityName ?? "unknown"} | Hospitals: ${hospitalCount} | Doctors: ${doctorCount}`,
+        userWantsDoctor && doctorCount === 0 && hospitalCount > 0
+          ? `IMPORTANT: User asked for a doctor but only hospitals were found. Be honest — say "${specialtyName} hospitals found${cityName ? ` in ${cityName}` : ""}; no individual specialists listed yet." Suggest contacting the hospital or requesting a callback.`
+          : "",
+        "",
+        "answer — use EXACTLY one of these templates (fill in brackets, keep under 25 words):",
+        cityName && (hospitalCount > 0 || doctorCount > 0)
+          ? `  Template: "Found ${doctorCount > 0 ? `${doctorCount} ${specialtyName} specialist${doctorCount > 1 ? "s" : ""}` : `${hospitalCount} hospital${hospitalCount > 1 ? "s" : ""} with ${specialtyName}`} in ${cityName}. [Name 1 top result]. Book a consultation or request a callback?"`
+          : cityName
+          ? `  Template: "I can help find ${specialtyName} specialists in ${cityName}. Book a consultation or I can arrange a callback from our team."`
+          : `  Template: "I can find ${specialtyName} specialists near you. Which city are you in?"`,
+        "  Replace [Name 1 top result] with first result name from listings. No other text.",
+        "",
+        `clarifyQuestion: ${cityName ? '"Would you like doctor options, hospital options, or a callback from our care team?"' : '"Which city are you in? I\'ll find the best options there."'}`,
+        "",
+        `followUps: ${cityName
+          ? `["Book appointment", "Request callback", "Show more options", "Top rated only"]`
+          : '["Pune", "Mumbai", "Delhi", "Bangalore", "I\'ll search myself"]'
+        }`,
+        "",
+        "Results to use in answer:",
         topText,
         knownSummary,
-      ].filter(Boolean).join("\n");
+      ].join("\n");
 
     } else if (state === "SYMPTOM_GUIDANCE") {
       // Turn-aware: 3 diagnostic rounds before routing to city/specialist
@@ -495,18 +545,15 @@ async function generateAssistant(params: {
       if (diagTurn === 0) {
         // ROUND 1 — Initial overview + first clinical questions
         stateInstruction = [
-          "=== DIAGNOSTIC ROUND 1 (First contact) ===",
-          "Give a quick structured overview then ask your FIRST set of clinical questions.",
-          "answer (under 70 words, 5 short lines):",
-          "  Line 1: 1 warm acknowledgement sentence.",
-          "  Line 2: Causes — 3-4 possible causes, comma-separated.",
-          "  Line 3: Home care — 2-3 immediate steps, comma-separated.",
-          "  Line 4: Red flags — start with 'Seek urgent care if:' then 2 warning signs.",
-          "  Line 5: Likely specialist — 1 sentence.",
-          "DO NOT put questions in answer field.",
-          "clarifyQuestion: Ask 2 targeted clinical questions in ONE sentence. Focus on: (a) do you have associated pain? where? (b) any other symptoms — fever, nausea, vomiting, constipation, diarrhoea?",
-          "followUps: 4 quick replies (e.g. 'Yes, mild pain', 'No pain', 'Also have fever', 'No other symptoms').",
-          "Do NOT ask name, age, gender, or city.",
+          "=== SYMPTOM GUIDANCE ROUND 1 ===",
+          "answer — MAX 35 words, exactly 3 lines, no other text:",
+          "  Line 1: 'Could be: [2-3 causes, comma-separated]'",
+          "  Line 2: 'Seek help if: [1-2 red flags only]'",
+          "  Line 3: 'Specialist: [name]'",
+          "  No greetings. No home care. No paragraphs. No markdown.",
+          "clarifyQuestion: ONE short clinical question, max 12 words. E.g. 'Do you have pain? Any fever or nausea?'",
+          "followUps: ['Yes, mild pain', 'No pain', 'Also have fever', 'No other symptoms']",
+          "Do NOT ask name, age, city, or phone.",
           knownSummary,
         ].join("\n");
 
@@ -679,16 +726,25 @@ export async function POST(req: NextRequest) {
 
     const { query, city, page, limit, history = [], language, patientContext, mode } = parsed.data;
 
+    // Sliding window: keep last 3 exchanges (6 messages), truncate long texts to avoid future 400s
+    const slidingHistory = history
+      .slice(-6)
+      .map(h => ({ ...h, text: h.text.length > 900 ? `${h.text.slice(0, 900)}…` : h.text }));
+
     // ── Intent extraction: use heuristic for chat mode to avoid 2nd Gemini call ──
     // Chat mode only needs approximate intent (state machine handles routing).
     // Only use Gemini intent for direct search queries (mode=name) or first-turn search.
     const isSearchMode = mode === "name" || (mode !== "chat" && history.length === 0);
 
-    const broadQ = `%${query.trim()}%`;
+    // Extract the most meaningful search term from the query.
+    // For natural-language queries like "tell me best neuro doctor in chennai",
+    // use the first meaningful word (≥4 chars, not a stop word) rather than the full string
+    // so it actually matches DB records.
+    const STOP_WORDS = new Set(["tell", "find", "show", "best", "good", "near", "need", "want", "give", "list", "book", "search", "look", "doctor", "hospital", "clinic", "specialist"]);
+    const queryWords = query.trim().toLowerCase().split(/\s+/).filter(w => w.length >= 4 && !STOP_WORDS.has(w));
+    const keyTerm = queryWords[0] ?? query.trim().split(/\s+/)[0] ?? query.trim();
+    const broadQ = `%${keyTerm}%`;
     const broadCityFilter = city ? `%${city}%` : undefined;
-
-    // For multi-turn chat: skip DB listing queries mid-conversation (turns 1-3 are diagnostic)
-    const isMidConversation = mode === "chat" && history.length >= 2;
 
     const [intent, hospitalRowsBroad, doctorRowsBroad] = await Promise.all([
       isSearchMode ? extractSearchIntent(query) : Promise.resolve(heuristicIntent(query)),
@@ -723,30 +779,28 @@ export async function POST(req: NextRequest) {
           ),
         )
         .orderBy(asc(hospitals.name))
-        .limit(isMidConversation ? 0 : 160),
-      isMidConversation
-        ? Promise.resolve([])
-        : db
-          .select({
-            id: doctors.id,
-            name: doctors.fullName,
-            slug: doctors.slug,
-            city: doctors.city,
-            state: doctors.state,
-            rating: doctors.rating,
-            verified: doctors.verified,
-            specialties: doctors.specialties,
-            description: doctors.bio,
-            phone: doctors.phone,
-          })
-          .from(doctors)
-          .where(
-            and(
-              eq(doctors.isActive, true),
-              broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
-              or(
-                like(doctors.fullName, broadQ),
-                like(doctors.specialization, broadQ),
+        .limit(160),
+      db
+        .select({
+          id: doctors.id,
+          name: doctors.fullName,
+          slug: doctors.slug,
+          city: doctors.city,
+          state: doctors.state,
+          rating: doctors.rating,
+          verified: doctors.verified,
+          specialties: doctors.specialties,
+          description: doctors.bio,
+          phone: doctors.phone,
+        })
+        .from(doctors)
+        .where(
+          and(
+            eq(doctors.isActive, true),
+            broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
+            or(
+              like(doctors.fullName, broadQ),
+              like(doctors.specialization, broadQ),
                 like(doctors.specialties, broadQ),
                 like(doctors.bio, broadQ),
                 like(doctors.city, broadQ),
@@ -766,70 +820,83 @@ export async function POST(req: NextRequest) {
     let effectiveHospitalRows = [...hospitalRowsBroad];
     let effectiveDoctorRows = [...doctorRowsBroad];
 
-    if (hospitalRowsBroad.length === 0 && intent.specialtyKey !== "general") {
+    // Independent specialty fallbacks — each runs only if its own broad query was empty
+    if (intent.specialtyKey !== "general") {
       const specialtyQ = `%${intent.specialty}%`;
       const specialtyKeyQ = `%${intent.specialtyKey}%`;
-      const [specHospitals, specDoctors] = await Promise.all([
-        db
-          .select({
-            id: hospitals.id,
-            type: hospitals.type,
-            name: hospitals.name,
-            slug: hospitals.slug,
-            city: hospitals.city,
-            state: hospitals.state,
-            rating: hospitals.rating,
-            verified: hospitals.verified,
-            communityVerified: hospitals.communityVerified,
-            specialties: hospitals.specialties,
-            source: hospitals.source,
-            description: hospitals.description,
-            phone: hospitals.phone,
-          })
-          .from(hospitals)
-          .where(
-            and(
-              eq(hospitals.isActive, true),
-              eq(hospitals.isPrivate, true),
-              broadCityFilter ? like(hospitals.city, broadCityFilter) : undefined,
-              or(
-                like(hospitals.specialties, specialtyQ),
-                like(hospitals.specialties, specialtyKeyQ),
-                like(hospitals.description, specialtyQ),
+
+      const fallbackPromises: [Promise<typeof effectiveHospitalRows>, Promise<typeof effectiveDoctorRows>] = [
+        hospitalRowsBroad.length === 0
+          ? db
+            .select({
+              id: hospitals.id,
+              type: hospitals.type,
+              name: hospitals.name,
+              slug: hospitals.slug,
+              city: hospitals.city,
+              state: hospitals.state,
+              rating: hospitals.rating,
+              verified: hospitals.verified,
+              communityVerified: hospitals.communityVerified,
+              specialties: hospitals.specialties,
+              source: hospitals.source,
+              description: hospitals.description,
+              phone: hospitals.phone,
+            })
+            .from(hospitals)
+            .where(
+              and(
+                eq(hospitals.isActive, true),
+                eq(hospitals.isPrivate, true),
+                broadCityFilter ? like(hospitals.city, broadCityFilter) : undefined,
+                or(
+                  like(hospitals.specialties, specialtyQ),
+                  like(hospitals.specialties, specialtyKeyQ),
+                  like(hospitals.description, specialtyQ),
+                ),
               ),
-            ),
-          )
-          .orderBy(asc(hospitals.rating))
-          .limit(80),
-        db
-          .select({
-            id: doctors.id,
-            name: doctors.fullName,
-            slug: doctors.slug,
-            city: doctors.city,
-            state: doctors.state,
-            rating: doctors.rating,
-            verified: doctors.verified,
-            specialties: doctors.specialties,
-            description: doctors.bio,
-            phone: doctors.phone,
-          })
-          .from(doctors)
-          .where(
-            and(
-              eq(doctors.isActive, true),
-              broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
-              or(
-                like(doctors.specialization, specialtyQ),
-                like(doctors.specialties, specialtyQ),
+            )
+            .orderBy(asc(hospitals.rating))
+            .limit(80)
+          : Promise.resolve(effectiveHospitalRows),
+
+        doctorRowsBroad.length === 0
+          ? db
+            .select({
+              id: doctors.id,
+              name: doctors.fullName,
+              slug: doctors.slug,
+              city: doctors.city,
+              state: doctors.state,
+              rating: doctors.rating,
+              verified: doctors.verified,
+              specialties: doctors.specialties,
+              description: doctors.bio,
+              phone: doctors.phone,
+            })
+            .from(doctors)
+            .where(
+              and(
+                eq(doctors.isActive, true),
+                broadCityFilter ? like(doctors.city, broadCityFilter) : undefined,
+                or(
+                  like(doctors.specialization, specialtyQ),
+                  like(doctors.specialization, specialtyKeyQ),
+                  like(doctors.specialization, `%${intent.specialtyKey.slice(0, 5)}%`),
+                  like(doctors.specialties, specialtyQ),
+                  like(doctors.specialties, specialtyKeyQ),
+                  like(doctors.bio, specialtyQ),
+                ),
               ),
-            ),
-          )
-          .orderBy(asc(doctors.fullName))
-          .limit(80),
-      ]);
-      effectiveHospitalRows = specHospitals;
-      effectiveDoctorRows = specDoctors;
+            )
+            .orderBy(asc(doctors.fullName))
+            .limit(80)
+          : Promise.resolve(effectiveDoctorRows),
+      ];
+
+      const [fbHospitals, fbDoctors] = await Promise.all(fallbackPromises);
+      effectiveHospitalRows = fbHospitals;
+      effectiveDoctorRows = fbDoctors;
     }
 
     // Also try translated query if still empty
@@ -967,7 +1034,7 @@ export async function POST(req: NextRequest) {
     const { assistant, model, degraded, chatbotState } = await generateAssistant({
       query,
       cityFilter,
-      history,
+      history: slidingHistory,
       intent,
       topResults: paged,
       userLanguage: language,

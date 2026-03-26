@@ -12,7 +12,9 @@
  * Typing in the input at any point switches to free-form AI chat mode.
  */
 
+import type React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import {
   SYMPTOM_FLOWS,
   CITIES,
@@ -59,6 +61,26 @@ type Lead = {
   specialist?: string;
 };
 
+type SearchCard = {
+  id: string;
+  type: "hospital" | "doctor";
+  name: string;
+  city: string;
+  rating: number;
+  verified: boolean;
+  profileUrl: string;
+  specialties: string[];
+};
+
+type PatientCtx = {
+  name?: string;
+  age?: string;
+  sex?: string;
+  city?: string;
+  priorConditions?: string;
+  phone?: string;
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 let _id = 0;
@@ -76,6 +98,9 @@ export default function HealthAssistant({ className }: { className?: string }) {
   const [lead, setLead] = useState<Lead>({});
   const [busy, setBusy] = useState(false);
   const [aiHistory, setAiHistory] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [latestResults, setLatestResults] = useState<SearchCard[]>([]);
+  const [patientCtx, setPatientCtx] = useState<PatientCtx>({});
+  const [lastChatbotState, setLastChatbotState] = useState<string>("");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -273,24 +298,60 @@ export default function HealthAssistant({ className }: { className?: string }) {
 
   const callSearchAPI = useCallback(async (query: string) => {
     setBusy(true);
-    const history = aiHistory.slice(-6);
-    try {
-      const res = await fetch("/api/search", {
+
+    // Sliding window: last 3 exchanges (6 messages), truncate each to 800 chars
+    async function doFetch(withHistory: boolean) {
+      const hist = withHistory
+        ? aiHistory.slice(-6).map(h => ({ ...h, text: h.text.slice(0, 800) }))
+        : [];
+      return fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, mode: "chat", history }),
+        body: JSON.stringify({ query, mode: "chat", history: hist, patientContext: withHistory ? patientCtx : {} }),
       });
+    }
+
+    try {
+      let res = await doFetch(true);
+      // On 400 (schema validation), retry without history — unblocks conversation
+      if (res.status === 400) res = await doFetch(false);
+
+      if (!res.ok) {
+        pushBot({ text: "Something went wrong. Please try again in a moment." });
+        return;
+      }
+
       const data = await res.json();
-      const answer: string = data?.assistant?.answer ?? "I couldn't find results. Please try rephrasing.";
+      const answer: string = data?.assistant?.answer ?? "I couldn't connect right now. Please try again.";
       const followUps: string[] = (data?.assistant?.followUps ?? []).slice(0, 4);
-      setAiHistory(p => [...p, { role: "user", text: query }, { role: "assistant", text: answer }]);
-      pushBot({ text: answer, options: followUps.length ? followUps : undefined });
+      const results: SearchCard[] = Array.isArray(data?.results) ? data.results.slice(0, 8) : [];
+      const chatbotState: string = data?.chatbotState ?? "";
+      const intentData = data?.intent ?? null;
+
+      // Update accumulated patient context from AI-extracted info
+      if (data?.patientContextUpdate && Object.keys(data.patientContextUpdate).length > 0) {
+        setPatientCtx(prev => ({ ...prev, ...data.patientContextUpdate }));
+      }
+
+      // Store history with truncated answer (prevents future 400s)
+      setAiHistory(p => [
+        ...p,
+        { role: "user", text: query },
+        { role: "assistant", text: answer.slice(0, 800) },
+      ]);
+
+      setLatestResults(results);
+      setLastChatbotState(chatbotState);
+
+      // Smart context-aware chips, fall back to AI follow-ups
+      const chips = buildSmartChips(chatbotState, results, intentData);
+      pushBot({ text: answer, options: chips.length ? chips : followUps.length ? followUps : undefined });
     } catch {
       pushBot({ text: "Sorry, I had trouble connecting. Please try again." });
     } finally {
       setBusy(false);
     }
-  }, [aiHistory]);
+  }, [aiHistory, patientCtx]);
 
   // ── Text submit ───────────────────────────────────────────────────────────
 
@@ -406,6 +467,11 @@ export default function HealthAssistant({ className }: { className?: string }) {
                   onSelect={handleOption}
                   confirmed={msg.confirmed}
                 />
+              )}
+
+              {/* Live result cards — shown after last bot message */}
+              {isLast && msg.role === "bot" && latestResults.length > 0 && (
+                <ResultCards results={latestResults} />
               )}
             </div>
           );
@@ -617,6 +683,89 @@ function SummaryCard({
             💬 WhatsApp our team
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Smart follow-up chips based on chatbot state ─────────────────────────────
+
+function buildSmartChips(
+  chatbotState: string,
+  results: SearchCard[],
+  intent: { specialty?: string; city?: string } | null,
+): string[] {
+  const city = intent?.city;
+  const specialty = intent?.specialty ?? "specialist";
+  const hasResults = results.length > 0;
+
+  if (chatbotState === "SPECIALTY_SEARCH" || chatbotState === "LOCATION_CAPTURED") {
+    return [
+      hasResults ? "Book top result" : `Find ${specialty}`,
+      "Request callback",
+      city ? `More options in ${city}` : "Show near me",
+      "Compare options",
+    ];
+  }
+  if (chatbotState === "SYMPTOM_GUIDANCE") {
+    return ["Yes, mild pain", "No pain", "Also have fever", "No other symptoms"];
+  }
+  if (chatbotState === "SPECIALTY_SUGGESTED" || chatbotState === "DISEASE_INFO") {
+    return ["Pune", "Mumbai", "Delhi", "Bangalore"];
+  }
+  return [];
+}
+
+// ── Result cards (horizontal scroll) ─────────────────────────────────────────
+
+function ResultCards({ results }: { results: SearchCard[] }) {
+  if (!results.length) return null;
+  const visible = results.slice(0, 4);
+  const extra = results.length - 4;
+  const hospitals = results.filter(r => r.type === "hospital").length;
+  const doctors = results.filter(r => r.type === "doctor").length;
+
+  return (
+    <div className="ml-9 mt-2">
+      <p className="text-[10px] text-gray-400 mb-1.5 font-semibold uppercase tracking-wide">
+        {hospitals > 0 ? `🏥 ${hospitals} Hospital${hospitals > 1 ? "s" : ""}` : ""}
+        {hospitals > 0 && doctors > 0 ? "  ·  " : ""}
+        {doctors > 0 ? `👨‍⚕️ ${doctors} Doctor${doctors > 1 ? "s" : ""}` : ""}
+      </p>
+      <div
+        className="flex gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+      >
+        {visible.map(r => (
+          <Link
+            key={r.id}
+            href={r.profileUrl}
+            className="shrink-0 bg-white rounded-xl border border-gray-200 p-3 active:bg-green-50 transition-colors"
+            style={{ minWidth: "140px", maxWidth: "160px", textDecoration: "none" }}
+          >
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-base">{r.type === "hospital" ? "🏥" : "👨‍⚕️"}</span>
+              {r.verified && (
+                <span className="text-[10px] text-green-600 font-semibold bg-green-50 px-1.5 py-0.5 rounded-full">✓</span>
+              )}
+            </div>
+            <p className="font-semibold text-[12px] text-gray-800 leading-tight mb-1" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+              {r.name}
+            </p>
+            <p className="text-[11px] text-gray-400 truncate">{r.city}</p>
+            {r.rating > 0 && (
+              <p className="text-[11px] text-amber-500 mt-0.5 font-medium">★ {r.rating.toFixed(1)}</p>
+            )}
+          </Link>
+        ))}
+        {extra > 0 && (
+          <div
+            className="shrink-0 rounded-xl border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center"
+            style={{ minWidth: "90px" }}
+          >
+            <span className="text-[12px] text-gray-400 text-center px-2">+{extra} more</span>
+          </div>
+        )}
       </div>
     </div>
   );

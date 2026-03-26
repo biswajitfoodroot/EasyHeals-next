@@ -242,7 +242,7 @@
 .heroSection {
   position: relative;
   overflow: hidden;
-  padding: calc(64px + 48px) 0 56px;
+  padding: calc(64px + 48px) 0 0;
   background: linear-gradient(180deg, #FFFFFF 0%, #F8FAF9 100%);
 }
 
@@ -281,7 +281,7 @@
   z-index: 2;
   width: min(800px, 100%);
   margin: 0 auto;
-  padding: 0 24px;
+  padding: 0 24px 56px;
   text-align: center;
 }
 
@@ -390,12 +390,104 @@
   font-weight: 500;
 }
 
-/* Search results panel — below hero chat */
+/* Search results panel — used as a class wrapper for :global overrides */
 
 .heroResults {
   margin-top: 24px;
   max-width: 700px;
   margin-inline: auto;
+}
+
+/* ── Desktop two-column hero layout ─────────────────────────────────────────── */
+
+/* Outer wrapper — wider than heroInner to accommodate two columns */
+.heroColumnsWrap {
+  position: relative;
+  z-index: 2;
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 0 24px 56px;
+}
+
+/* Grid container: single-col (no results) → two-col (results present) */
+.heroColumns {
+  display: grid;
+  grid-template-columns: minmax(0, 700px);
+  justify-content: center;
+  gap: 24px;
+  align-items: start;
+  transition: grid-template-columns 0.25s ease;
+}
+
+.heroColumns[data-has-results="true"] {
+  grid-template-columns: 5fr 7fr;
+  justify-content: stretch;
+}
+
+/* Hide results column until there's something to show */
+.heroColumns[data-has-results="false"] .heroResultsCol {
+  display: none;
+}
+
+/* Left column */
+.heroChatCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  text-align: center;
+}
+
+.heroColumns[data-has-results="true"] .heroChatCol {
+  text-align: left;
+}
+
+/* Override standalone heroChat margins/widths inside the column */
+.heroChatCol .heroChat {
+  margin-top: 0;
+  max-width: none;
+  margin-inline: 0;
+}
+
+/* Disclaimers inside column: center when alone, left-align when results visible */
+.heroColumns[data-has-results="false"] .heroChatCol .heroDisclaimers {
+  justify-content: center;
+}
+
+.heroColumns[data-has-results="true"] .heroChatCol .heroDisclaimers {
+  justify-content: flex-start;
+}
+
+/* Stats inside column: auto-center when alone, stretch when results visible */
+.heroColumns[data-has-results="false"] .heroChatCol .heroStats {
+  max-width: 520px;
+  margin-inline: auto;
+  margin-top: 0;
+}
+
+.heroColumns[data-has-results="true"] .heroChatCol .heroStats {
+  max-width: none;
+  margin-inline: 0;
+  margin-top: 0;
+}
+
+/* Right column — sticky so results stay in view as chat grows */
+.heroResultsCol {
+  min-width: 0;
+  position: sticky;
+  top: calc(64px + 12px);
+  max-height: calc(100vh - 64px - 32px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #D0E4D8 transparent;
+  border-radius: 20px;
+}
+
+/* Reset standalone heroResults margins when inside the sticky column */
+.heroResultsCol .heroResults {
+  margin-top: 0;
+  max-width: none;
+  margin-inline: 0;
 }
 
 /* ── ③ Personalization Bar ─────────────────────────────────────────────────── */
@@ -1263,7 +1355,7 @@
 
 @media (max-width: 720px) {
   .heroSection {
-    padding: calc(64px + 24px) 0 40px;
+    padding: calc(64px + 24px) 0 0;
   }
 
   .heroInner {
@@ -1462,6 +1554,29 @@
   border: 1px solid #D0E4D8;
   background: #fff;
   color: #5A7367;
+}
+
+/* Tab bar — white theme override */
+.heroResults :global(.resultTabs) {
+  border-bottom: 1px solid #D0E4D8;
+  background: #fafcfb;
+}
+
+.heroResults :global(.resultTab) {
+  color: #8FA39A;
+  border-color: #D0E4D8;
+  background: #fff;
+}
+
+.heroResults :global(.resultTab):hover {
+  background: #f0f7f4;
+  color: #5A7367;
+}
+
+.heroResults :global(.resultTabActive) {
+  background: #E6F5EC;
+  color: #1B8A4A;
+  border-color: rgba(27, 138, 74, 0.3);
 }
 
 /* Empty state */

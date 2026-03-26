@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, FormEvent, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Script from "next/script";
 
 type LoginMode = "password" | "google";
@@ -9,7 +8,6 @@ type LoginMode = "password" | "google";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 export default function PortalLoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<LoginMode>("password");
 
   // Password login
@@ -20,11 +18,16 @@ export default function PortalLoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   // ── Redirect helper ─────────────────────────────────────────────────────────
+  // Use window.location.href (full navigation) instead of router.push() so that
+  // the portal layout (server component) is fully re-rendered with the new auth
+  // cookie. router.push() does a soft navigation that reuses the cached layout
+  // from the login page, which has no sidebar.
   function redirect(data: { role?: string; portalUrl?: string }) {
     const { role, portalUrl } = data;
-    if (portalUrl) { router.push(portalUrl); return; }
-    if (role === "hospital_admin") { router.push("/portal/hospital/dashboard"); return; }
-    if (role === "doctor") { router.push("/portal/doctor/dashboard"); return; }
+    if (portalUrl) { window.location.href = portalUrl; return; }
+    if (role === "hospital_admin") { window.location.href = "/portal/hospital/dashboard"; return; }
+    if (role === "doctor") { window.location.href = "/portal/doctor/dashboard"; return; }
+    if (role === "receptionist") { window.location.href = "/portal/queue"; return; }
     // If we somehow have no destination, stay on login with a clear message
     setError("Login succeeded but your account type is not supported on this portal. Please contact support.");
   }

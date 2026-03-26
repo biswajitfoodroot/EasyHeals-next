@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface ScheduleConfig {
@@ -105,34 +104,7 @@ export default function ScheduleClient({ userRole, entityId, userFullName }: Pro
   const upcomingSlots = slots.filter((s) => new Date(s.startsAt) >= new Date()).slice(0, 20);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className="w-14 lg:w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: "#1B8A4A" }}>E</span>
-          <span className="hidden lg:block font-bold text-slate-800 text-sm">EasyHeals</span>
-        </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {[
-            { href: userRole === "doctor" ? "/portal/doctor/dashboard" : "/portal/hospital/dashboard", icon: "🏠", label: "Dashboard" },
-            { href: "/portal/schedule", icon: "📅", label: "Schedule", active: true },
-            { href: "/portal/queue", icon: "🎫", label: "OPD Queue" },
-            { href: "/portal/staff", icon: "👥", label: "Staff" },
-            { href: "/portal/subscription", icon: "💳", label: "Subscription" },
-          ].map((n) => (
-            <Link key={n.label} href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${"active" in n && n.active ? "text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
-              style={"active" in n && n.active ? { background: "#1B8A4A" } : {}}
-            >
-              <span className="text-base">{n.icon}</span>
-              <span className="hidden lg:block">{n.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
           <div>
             <h1 className="text-xl font-bold text-slate-800">Schedule & Availability</h1>
             <p className="text-sm text-slate-400">{userFullName}</p>
@@ -276,8 +248,6 @@ export default function ScheduleClient({ userRole, entityId, userFullName }: Pro
               </div>
             )}
           </div>
-        </div>
-      </main>
     </div>
   );
 }

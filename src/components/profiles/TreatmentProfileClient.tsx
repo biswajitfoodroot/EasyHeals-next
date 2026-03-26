@@ -476,32 +476,55 @@ export function TreatmentProfileClient({ data }: Props) {
               )}
               <h3 style={{ fontSize: "15px", marginBottom: "12px" }}>{t("treatment.quickStats")}</h3>
               <p style={{ color: "#5A7367", fontSize: "13px", marginBottom: "8px" }}>
-                <strong style={{ color: "#1A2B23" }}>{relatedHospitals.length}</strong>{" "}
-                {t("treatment.hospitalsFound")}
+                <strong style={{ color: "#1A2B23" }}>{filteredHospitals.length}</strong>{" "}
+                {t("treatment.hospitalsFound")}{city !== "all" ? ` in ${city}` : ""}
               </p>
               <p style={{ color: "#5A7367", fontSize: "13px", marginBottom: "16px" }}>
-                <strong style={{ color: "#1A2B23" }}>{relatedDoctors.length}</strong>{" "}
-                {t("treatment.specialistDoctorsAvailable")}
+                <strong style={{ color: "#1A2B23" }}>{filteredDoctors.length}</strong>{" "}
+                {t("treatment.specialistDoctorsAvailable")}{city !== "all" ? ` in ${city}` : ""}
               </p>
-              {relatedHospitals.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setTab("hospitals")}
-                  data-testid="btn-view-hospitals"
-                  style={{
-                    color: "#1B8A4A",
-                    fontWeight: 700,
-                    fontSize: "13px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {t("treatment.viewHospitals")} →
-                </button>
-              )}
+
+              {/* ── Where to get this ── */}
+              <div className={styles.whereSection}>
+                <p className={styles.whereTitle}>Where to get this</p>
+                <CitySelector label="City" />
+
+                {filteredHospitals.slice(0, 3).map((h) => (
+                  <Link key={h.id} href={h.profileUrl} className={styles.whereCard}>
+                    <div className={styles.whereCardAvatar}>
+                      {h.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={styles.whereCardBody}>
+                      <div className={styles.whereCardName}>{h.name}</div>
+                      <div className={styles.whereCardMeta}>🏥 {h.city}{h.state ? `, ${h.state}` : ""} · ★ {h.rating.toFixed(1)}</div>
+                    </div>
+                  </Link>
+                ))}
+
+                {filteredDoctors.slice(0, 2).map((d) => (
+                  <Link key={d.id} href={d.profileUrl} className={styles.whereCard}>
+                    <div className={styles.whereCardAvatar} style={{ background: "#4B5563" }}>
+                      {d.fullName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className={styles.whereCardBody}>
+                      <div className={styles.whereCardName}>{d.fullName}</div>
+                      <div className={styles.whereCardMeta}>👨‍⚕️ {d.specialization ?? displayTitle}{d.city ? ` · ${d.city}` : ""}</div>
+                    </div>
+                  </Link>
+                ))}
+
+                {filteredHospitals.length === 0 && filteredDoctors.length === 0 && (
+                  <p style={{ fontSize: "12px", color: "#8FA39A" }}>
+                    {city !== "all" ? `No results in ${city}. ` : ""}Try a different city.
+                  </p>
+                )}
+
+                {(filteredHospitals.length > 3 || filteredDoctors.length > 2) && (
+                  <button type="button" className={styles.whereMore} onClick={() => setTab("hospitals")} data-testid="btn-view-hospitals">
+                    See all {filteredHospitals.length} hospitals →
+                  </button>
+                )}
+              </div>
             </aside>
           </section>
         )}

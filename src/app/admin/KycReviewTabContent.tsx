@@ -13,6 +13,7 @@ type KycRequest = {
   businessName: string | null;
   licenseNumber: string | null;
   licenseType: string | null;
+  requestType: string | null;
   kycDocuments: string[];
   contactPhone: string | null;
   contactEmail: string | null;
@@ -136,13 +137,20 @@ export default function KycReviewTabContent({ myRole }: { myRole: string }) {
                         {r.createdAt ? new Date(r.createdAt).toLocaleDateString("en-IN") : "—"}
                       </span>
                     </div>
-                    <p className="font-semibold text-slate-800">{r.businessName}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-slate-800">{r.businessName}</p>
+                      {r.requestType === "deletion_request" ? (
+                        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full font-medium">🚫 Duplicate Report</span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 border border-blue-200 rounded-full font-medium">✋ Claim Request</span>
+                      )}
+                    </div>
                     <p className="text-sm text-slate-500">
                       {r.requesterName} · {r.requesterEmail}
                     </p>
                     {r.entityName && (
                       <p className="text-xs text-slate-500">
-                        Claiming: <span className="font-medium">{r.entityName}</span>
+                        {r.requestType === "deletion_request" ? "Duplicate:" : "Claiming:"} <span className="font-medium">{r.entityName}</span>
                       </p>
                     )}
                   </div>

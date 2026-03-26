@@ -1,0 +1,330 @@
+
+> easyheals-next@0.1.0 lint
+> eslint
+
+
+C:\Biswajit\Codex\easyheals-next\drizzle\emr\apply-migration.ts
+  44:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\drizzle\fix-missing-columns.ts
+  24:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\drizzle\seed-p1.ts
+  19:10  warning  'sql' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\fix-schema.ts
+  23:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\investigate-db-v2.ts
+  3:36  warning  'doctors' is defined but never used                     @typescript-eslint/no-unused-vars
+  3:97  warning  'ingestionPackageCandidates' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\investigate-db.ts
+   3:36  warning  'doctors' is defined but never used                    @typescript-eslint/no-unused-vars
+  25:11  warning  'manipalHospitals' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\merge-hospitals.ts
+  3:46  warning  'doctors' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\admin\AdminAppointmentsTab.tsx
+  42:38  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\admin\AdminDashboardClient.tsx
+   173:6    warning  React Hook useEffect has a missing dependency: 'validTabs'. Either include it or remove the dependency array                                                                                                                                                                             react-hooks/exhaustive-deps
+   213:10   warning  'recentJobs' is assigned a value but never used                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   261:34   warning  'setAmbiguousSearchLoading' is assigned a value but never used                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+   294:10   warning  'brochureHospitalSearchBusy' is assigned a value but never used                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+   311:61   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   577:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   612:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   633:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   675:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   709:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   760:11   warning  'linkedHospitalId' is assigned a value but never used                                                                                                                                                                                                                                    @typescript-eslint/no-unused-vars
+   776:21   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   819:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   845:19   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   958:23   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   991:43   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1012:17   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1057:28   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1085:47   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1105:17   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1352:76   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2229:105  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2229:125  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2308:71   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2308:83   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2348:110  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2348:124  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2595:25   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  2636:44   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2637:132  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2637:229  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2643:37   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2647:58   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2660:51   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2660:87   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2662:132  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2664:44   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2681:51   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2681:88   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2683:133  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2685:44   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2702:51   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2702:88   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2706:44   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2714:37   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2717:86   error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  2919:38   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  2919:76   error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`                                                                                                                                                                                                                          react/no-unescaped-entities
+  3322:50   warning  React Hook useEffect has a missing dependency: 'loadContributions'. Either include it or remove the dependency array                                                                                                                                                                     react-hooks/exhaustive-deps
+  3481:29   warning  Expected an assignment or function call and instead saw an expression                                                                                                                                                                                                                    @typescript-eslint/no-unused-expressions
+  3555:41   warning  React Hook React.useEffect has a missing dependency: 'onMount'. Either include it or remove the dependency array. If 'onMount' changes too often, find the parent component that defines it and wrap that definition in useCallback                                                      react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\admin\AdminPatientsTab.tsx
+  31:6  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\admin\AdminProvidersTab.tsx
+  33:37  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\admin\hospital\[id]\HospitalAdminClient.tsx
+  92:37  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\audit-log\route.ts
+  7:44  warning  'or' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\broadcast\route.ts
+   37:25  warning  'gte' is defined but never used           @typescript-eslint/no-unused-vars
+   80:46  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  204:36  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  212:36  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\ingestion\discovery\route.ts
+  1:16  warning  'eq' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\ingestion\jobs\[jobId]\apply\route.ts
+  92:7  error    'skippedCount' is never reassigned. Use 'const' instead  prefer-const
+  92:7  warning  'skippedCount' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\ingestion\jobs\route.ts
+   37:8   warning  'WebsiteSourceResult' is defined but never used  @typescript-eslint/no-unused-vars
+  116:17  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  186:28  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+  340:15  error    Unexpected any. Specify a different type         @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\ingestion\pricing-discovery\route.ts
+   9:5   warning  'ingestionHospitalCandidates' is defined but never used  @typescript-eslint/no-unused-vars
+  11:10  warning  'eq' is defined but never used                           @typescript-eslint/no-unused-vars
+  56:21  error    Unexpected any. Specify a different type                 @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\providers\route.ts
+  8:10  warning  'eq' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\research\agent\route.ts
+  86:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  92:59  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  94:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\research\brochure\route.ts
+  116:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\research\doctor-save\route.ts
+  12:10  warning  'cleanStr' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\admin\research\entity-batch-save\route.ts
+   18:10  warning  'mergeArr' is defined but never used      @typescript-eslint/no-unused-vars
+  105:19  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  209:19  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  339:80  warning  '_city' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\cron\appointment-reminders\route.ts
+  165:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\internal\generate-brief\route.ts
+  16:10  warning  'and' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\public\top-rated\route.ts
+  1:25  warning  'inArray' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\search\route.ts
+  2:39  warning  'SQL' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\appointments\route.ts
+  187:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\consultations\[id]\invite\route.ts
+  11:10  warning  'and' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\emr\visits\route.ts
+  121:5  warning  'consentRecordId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\health-news\route.ts
+  12:10  warning  'AppError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\hospitals\[hospitalId]\queue\route.ts
+   36:10  warning  'AppError' is defined but never used  @typescript-eslint/no-unused-vars
+  147:16  warning  'err' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\patients\consent\route.ts
+  9:10  warning  'and' is defined but never used     @typescript-eslint/no-unused-vars
+  9:25  warning  'isNull' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\portal\appointments\[id]\route.ts
+  13:10  warning  'and' is defined but never used        @typescript-eslint/no-unused-vars
+  18:24  warning  'hospitals' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\previsit-briefs\[id]\route.ts
+  16:26  warning  'appointments' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\provider\schedule\generate\route.ts
+  14:10  warning  'and' is defined but never used  @typescript-eslint/no-unused-vars
+  14:19  warning  'gte' is defined but never used  @typescript-eslint/no-unused-vars
+  14:24  warning  'lte' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\provider\staff\route.ts
+  10:10  warning  'and' is defined but never used           @typescript-eslint/no-unused-vars
+  84:90  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\api\v1\search\suggest\route.ts
+  12:16  warning  'or' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\book\[providerId]\BookingClient.tsx
+   83:6   warning  React Hook useEffect has a missing dependency: 'loadProvider'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   87:6   warning  React Hook useEffect has a missing dependency: 'loadSlots'. Either include it or remove the dependency array     react-hooks/exhaustive-deps
+  396:61  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`                                                  react/no-unescaped-entities
+
+C:\Biswajit\Codex\easyheals-next\src\app\consultation\[sessionId]\ConsultationRoom.tsx
+   98:9   error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+  180:11  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Biswajit\Codex\easyheals-next\src\app\dashboard\DashboardClient.tsx
+  38:10  warning  'getGreeting' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\dashboard\documents\DocumentsClient.tsx
+  80:55  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  88:6   warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\dashboard\health-coach\HealthCoachClient.tsx
+  61:50  warning  React Hook useEffect has a missing dependency: 'loadConversations'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\dashboard\privacy\PrivacyClient.tsx
+  90:45  warning  React Hook useEffect has a missing dependency: 'loadConsents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\dashboard\rewards\RewardsClient.tsx
+  173:82  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+C:\Biswajit\Codex\easyheals-next\src\app\login\LoginClient.tsx
+  41:6   warning  React Hook useEffect has a missing dependency: 'initGoogleButton'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  44:25  error    Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\app\portal\dashboard\ProviderDashboardClient.tsx
+  111:75  warning  'entityId' is defined but never used               @typescript-eslint/no-unused-vars
+  209:9   warning  'todayPending' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\portal\queue\QueueClient.tsx
+  33:39  warning  'userRole' is defined but never used                                                                          @typescript-eslint/no-unused-vars
+  50:6   warning  React Hook useEffect has a missing dependency: 'loadQueue'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\portal\schedule\ScheduleClient.tsx
+  57:37  warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\portal\staff\StaffClient.tsx
+  26:39  warning  'userRole' is defined but never used                                                                     @typescript-eslint/no-unused-vars
+  44:6   warning  React Hook useEffect has a missing dependency: 'load'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Biswajit\Codex\easyheals-next\src\app\portal\subscription\SubscriptionClient.tsx
+  34:65  warning  'userRole' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\app\privacy\page.tsx
+  106:11  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+  136:11  error  Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+
+C:\Biswajit\Codex\easyheals-next\src\components\AppointmentModal.tsx
+   87:19  error  Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  128:19  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  128:80  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+C:\Biswajit\Codex\easyheals-next\src\components\BroadcastPanel.tsx
+  120:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  161:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\components\LanguageSwitcher.tsx
+  40:5  error  Error: This value cannot be modified
+
+Modifying a variable defined outside a component or hook is not allowed. Consider using an effect.
+
+C:\Biswajit\Codex\easyheals-next\src\components\LanguageSwitcher.tsx:40:5
+  38 |   function switchLocale(newLocale: Locale) {
+  39 |     // Set cookie (1 year)
+> 40 |     document.cookie = `${LOCALE_COOKIE}=${newLocale}; path=/; max-age=${365 * 24 * 3600}; SameSite=Lax`;
+     |     ^^^^^^^^ value cannot be modified
+  41 |     setLocale(newLocale);
+  42 |     window.location.reload();
+  43 |   }  react-hooks/immutability
+
+C:\Biswajit\Codex\easyheals-next\src\components\LeaderboardWidget.tsx
+  63:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Biswajit\Codex\easyheals-next\src\components\LeaderboardWidget.tsx:63:5
+  61 |   useEffect(() => {
+  62 |     if (!city) return;
+> 63 |     setLoading(true);
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  64 |     setError(null);
+  65 |
+  66 |     fetch(`/api/v1/leaderboard/${encodeURIComponent(city)}?limit=${limit}`)  react-hooks/set-state-in-effect
+
+C:\Biswajit\Codex\easyheals-next\src\components\RequestCallbackModal.tsx
+   48:10  warning  'patientId' is assigned a value but never used                   @typescript-eslint/no-unused-vars
+   93:37  warning  '_includeAnalytics' is defined but never used                    @typescript-eslint/no-unused-vars
+  334:43  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  439:19  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  440:21  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+C:\Biswajit\Codex\easyheals-next\src\db\emr-schema.ts
+  18:74  warning  'uniqueIndex' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\lib\auth.ts
+  1:23  warning  'isNotNull' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\lib\errors\app-error.ts
+  173:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  185:38  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\lib\gamification\award.ts
+  354:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\lib\ingestion.ts
+  175:10  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  517:59  warning  'allText' is defined but never used                                                                    @typescript-eslint/no-unused-vars
+  719:5   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-var-requires')
+  720:74  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  745:72  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+  746:59  error    Unexpected any. Specify a different type                                                               @typescript-eslint/no-explicit-any
+
+C:\Biswajit\Codex\easyheals-next\src\lib\notifications\index.ts
+  28:31  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  32:32  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+  35:33  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+C:\Biswajit\Codex\easyheals-next\src\lib\notifications\msg91.provider.ts
+  51:45  warning  '_lang' is defined but never used  @typescript-eslint/no-unused-vars
+  82:67  warning  '_lang' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\src\tests\integration\p1.test.ts
+  15:48  warning  'afterEach' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Biswajit\Codex\easyheals-next\test-select.ts
+  3:10  warning  'eq' is defined but never used            @typescript-eslint/no-unused-vars
+  9:17  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 164 problems (90 errors, 74 warnings)
+  1 error and 1 warning potentially fixable with the `--fix` option.
+

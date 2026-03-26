@@ -7,6 +7,7 @@ import { useTranslations } from "@/i18n/LocaleContext";
 import AuthBookingModal from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
+import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
 import styles from "@/components/profiles/profiles.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -76,6 +77,7 @@ type DoctorProfileClientProps = {
     doctor: DoctorPayload;
     affiliations: HospitalAffiliation[];
     nearbyDoctors: NearbyDoctor[];
+    networkTierCode?: string | null;
   };
 };
 
@@ -162,6 +164,11 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                   <span>🏥 {primaryHospital.hospital.name}</span>
                 ) : null}
               </div>
+              {data.networkTierCode && (
+                <div className="mt-3">
+                  <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
+                </div>
+              )}
             </div>
 
             <div className={styles.actions}>
@@ -197,6 +204,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         </div>
 
         {tab === "overview" ? (
+          <>
           <section className={styles.contentGrid}>
             <article className={styles.panel}>
               <h2>{t("doctor.profileOverview")}</h2>
@@ -251,6 +259,39 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
               </div>
             </aside>
           </section>
+
+          {/* ── Related: Practice Hospitals ── */}
+          {data.affiliations.length > 0 && (
+            <div className={styles.relatedSection}>
+              <h3 className={styles.relatedTitle}>🏥 Also Practices At</h3>
+              <div className={styles.relatedScroll}>
+                {data.affiliations.map((item) => (
+                  <Link key={item.affiliationId} href={item.hospital.profileUrl} className={styles.relatedCard}>
+                    <span className={styles.relatedCardName}>{item.hospital.name}</span>
+                    <span className={styles.relatedCardSub}>{item.role} · {item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}</span>
+                    {item.hospital.verified && <span className={styles.relatedCardBadge}>✅ Verified</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Related: Similar Doctors ── */}
+          {data.nearbyDoctors.length > 0 && (
+            <div className={styles.relatedSection}>
+              <h3 className={styles.relatedTitle}>👨‍⚕️ Similar Doctors You May Consider</h3>
+              <div className={styles.relatedScroll}>
+                {data.nearbyDoctors.slice(0, 8).map((item) => (
+                  <Link key={item.id} href={item.profileUrl} className={styles.relatedCard}>
+                    <span className={styles.relatedCardName}>{item.fullName}</span>
+                    <span className={styles.relatedCardSub}>{item.specialization ?? "Specialist"}{item.city ? ` · ${item.city}` : ""}</span>
+                    <span className={styles.relatedCardBadge}>★ {item.rating.toFixed(1)}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          </>
         ) : null}
 
         {tab === "affiliations" ? (

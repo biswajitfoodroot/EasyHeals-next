@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { IntentBadge } from "@/components/search/IntentBadge";
 import { ResultCard } from "@/components/search/ResultCard";
 import styles from "@/components/phase1/phase1.module.css";
 import type { SearchIntent, SearchResult } from "@/components/phase1/types";
+
+type Tab = "all" | "hospital" | "doctor";
 
 type SearchResultsProps = {
   intent: SearchIntent | null;
@@ -79,8 +81,32 @@ const LOGGED_IN_PROMPTS = [
   "I need a follow-up for my chronic condition",
 ];
 
+/** Derive the default tab from intent searchType */
+function defaultTabFromIntent(intent: SearchIntent | null): Tab {
+  if (!intent) return "all";
+  if (intent.searchType === "doctor_name") return "doctor";
+  if (intent.searchType === "hospital_name") return "hospital";
+  return "all";
+}
+
 export function SearchResults({ intent, results, loading, onPrompt, onContribute, city, isLoggedIn }: SearchResultsProps) {
   const [intentConfirmed, setIntentConfirmed] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>(() => defaultTabFromIntent(intent));
+
+  // Auto-switch tab when a new search result arrives with a strong doctor/hospital intent
+  useEffect(() => {
+    setActiveTab(defaultTabFromIntent(intent));
+    setIntentConfirmed(false);
+  }, [intent?.searchType, intent?.specialty]);
+
+  const hospitals = useMemo(() => results.filter((r) => r.type === "hospital"), [results]);
+  const doctors = useMemo(() => results.filter((r) => r.type === "doctor"), [results]);
+
+  const visibleResults = useMemo(() => {
+    if (activeTab === "hospital") return hospitals;
+    if (activeTab === "doctor") return doctors;
+    return results;
+  }, [activeTab, results, hospitals, doctors]);
 
   const showDidYouMean =
     !intentConfirmed &&
@@ -91,14 +117,10 @@ export function SearchResults({ intent, results, loading, onPrompt, onContribute
   // Build intelligent contextual prompts
   const smartPrompts = useMemo(() => {
     if (isLoggedIn) {
-      // Logged-in patient: personalised prompts + city
       const citySpecific = city && CITY_PROMPTS[city] ? CITY_PROMPTS[city].slice(0, 2) : [];
       return [...LOGGED_IN_PROMPTS.slice(0, 2), ...citySpecific].slice(0, 4);
     }
-    // Guest: city-specific if detected, else defaults
-    if (city && CITY_PROMPTS[city]) {
-      return CITY_PROMPTS[city];
-    }
+    if (city && CITY_PROMPTS[city]) return CITY_PROMPTS[city];
     return DEFAULT_GUEST_PROMPTS;
   }, [city, isLoggedIn]);
 
@@ -114,15 +136,49 @@ export function SearchResults({ intent, results, loading, onPrompt, onContribute
       ? `Tap a suggestion or describe your symptoms to find the best care in ${city}.`
       : "Results appear here as you describe what you need.";
 
+  const hasTabs = results.length > 0 && (hospitals.length > 0 || doctors.length > 0);
+
   return (
     <section className={styles.resultsPanel} aria-label="Live search results">
+      {/* ── Header ── */}
       <div className={styles.resultsHead}>
         <h3>Live Results</h3>
-        <span>{results.length}</span>
+        <span>{visibleResults.length}</span>
         <button type="button">Sort ↕</button>
       </div>
 
-      {intent ? <IntentBadge label={intent.specialty} count={results.length} language={intent.language} confidence={intent.confidence} /> : null}
+      {/* ── Hospitals / Doctors tabs ── */}
+      {hasTabs && (
+        <div className={styles.resultTabs}>
+          <button
+            type="button"
+            className={activeTab === "all" ? styles.resultTabActive : styles.resultTab}
+            onClick={() => setActiveTab("all")}
+          >
+            All <em>{results.length}</em>
+          </button>
+          {hospitals.length > 0 && (
+            <button
+              type="button"
+              className={activeTab === "hospital" ? styles.resultTabActive : styles.resultTab}
+              onClick={() => setActiveTab("hospital")}
+            >
+              🏥 Hospitals <em>{hospitals.length}</em>
+            </button>
+          )}
+          {doctors.length > 0 && (
+            <button
+              type="button"
+              className={activeTab === "doctor" ? styles.resultTabActive : styles.resultTab}
+              onClick={() => setActiveTab("doctor")}
+            >
+              👨‍⚕️ Doctors <em>{doctors.length}</em>
+            </button>
+          )}
+        </div>
+      )}
+
+      {intent ? <IntentBadge label={intent.specialty} count={visibleResults.length} language={intent.language} confidence={intent.confidence} /> : null}
 
       {showDidYouMean ? (
         <div className={styles.didYouMean}>
@@ -152,6 +208,14 @@ export function SearchResults({ intent, results, loading, onPrompt, onContribute
         </div>
       ) : null}
 
+      {/* Empty tab state */}
+      {!loading && results.length > 0 && visibleResults.length === 0 ? (
+        <div className={styles.emptyState}>
+          <h4>No {activeTab === "doctor" ? "doctors" : "hospitals"} found</h4>
+          <p>Try the &quot;All&quot; tab or refine your search.</p>
+        </div>
+      ) : null}
+
       {loading ? (
         <div className={styles.skeletonList}>
           <div />
@@ -160,9 +224,9 @@ export function SearchResults({ intent, results, loading, onPrompt, onContribute
         </div>
       ) : null}
 
-      {!loading && results.length && !showDidYouMean ? (
+      {!loading && visibleResults.length > 0 && !showDidYouMean ? (
         <div className={styles.resultList}>
-          {results.map((item) => (
+          {visibleResults.map((item) => (
             <ResultCard key={item.id} result={item} onContribute={onContribute} />
           ))}
         </div>

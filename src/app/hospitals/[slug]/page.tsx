@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { eq, and } from "drizzle-orm";
 
 import { HospitalProfileClient } from "@/components/profiles/HospitalProfileClient";
 import { getHospitalProfileBySlug } from "@/lib/profile-data";
 import { absoluteUrl, buildBreadcrumbJsonLd, buildHospitalJsonLd, buildMetadata } from "@/lib/seo";
+import { db } from "@/db/client";
+import { providerAgreements } from "@/db/schema";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -43,6 +46,20 @@ export default async function HospitalDetailPage({ params }: Params) {
 
   const { hospital } = profile;
 
+  // Check EasyHeals Network partnership
+  let networkTierCode: string | null = null;
+  if (hospital.id) {
+    const [agreement] = await db
+      .select({ tierCode: providerAgreements.tierCode })
+      .from(providerAgreements)
+      .where(and(
+        eq(providerAgreements.hospitalId, hospital.id),
+        eq(providerAgreements.status, "accepted"),
+      ))
+      .limit(1);
+    networkTierCode = agreement?.tierCode ?? null;
+  }
+
   const jsonLd = [
     buildHospitalJsonLd(hospital),
     buildBreadcrumbJsonLd([
@@ -58,7 +75,7 @@ export default async function HospitalDetailPage({ params }: Params) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <HospitalProfileClient data={profile} />
+      <HospitalProfileClient data={{ ...profile, networkTierCode }} />
     </>
   );
 }

@@ -453,6 +453,7 @@ export default function HomePage() {
           <div className={`${styles.heroBlob} ${styles.heroBlob2}`} />
         </div>
 
+        {/* ── Text block — narrow, always centered ── */}
         <div className={styles.heroInner}>
           <span className={styles.heroBadge}>{t("home.heroLabel")}</span>
 
@@ -464,59 +465,73 @@ export default function HomePage() {
             {t("home.heroSubtitle")}
           </p>
 
-          {/* ── Mobile: adaptive HealthAssistant (symptom flow + AI chat) ── */}
+          {/* ── Mobile: HealthAssistant (self-contained chat + results) ── */}
           <div className="md:hidden w-full" style={{ height: 520 }}>
             <HealthAssistant className="h-full shadow-lg" />
           </div>
 
-          {/* ── Desktop: existing AI chat search ── */}
-          <div className={`${styles.heroChat} hidden md:block`} id="eh-chat" data-theme="light">
-            <ChatSearch
-              onSearchResult={handleSearch}
-              onLoadingChange={setLoading}
-              queuedPrompt={queuedPrompt}
-              onQueuedPromptHandled={() => setQueuedPrompt(null)}
-              isLoggedIn={isLoggedIn === true}
-            />
+          {/* ── Mobile: disclaimers + stats below HealthAssistant ── */}
+          <div className="md:hidden">
+            <div className={styles.heroDisclaimers}>
+              <span>🛡️ DPDP Compliant</span>
+              <span>✅ Verified Listings</span>
+              <span>🆓 Free to Use</span>
+              <span>💊 No Medication Advice</span>
+            </div>
+            <div className={styles.heroStats}>
+              <article><strong>12k+</strong><span>{t("home.statHospitals")}</span></article>
+              <article><strong>50+</strong><span>{t("home.statCities")}</span></article>
+              <article><strong>5</strong><span>{t("home.statLanguages")}</span></article>
+              <article><strong>4.8★</strong><span>{t("home.statRating")}</span></article>
+            </div>
           </div>
+        </div>
 
-          <div className={styles.heroDisclaimers}>
-            <span>🛡️ DPDP Compliant</span>
-            <span>✅ Verified Listings</span>
-            <span>🆓 Free to Use</span>
-            <span>💊 No Medication Advice</span>
-          </div>
+        {/* ── Desktop: two-column — [chat | live results] ── */}
+        <div className={`${styles.heroColumnsWrap} hidden md:block`}>
+          <div
+            className={styles.heroColumns}
+            data-has-results={results.length > 0 || loading ? "true" : "false"}
+          >
+            {/* Left col: Chat input + Disclaimers + Stats */}
+            <div className={styles.heroChatCol}>
+              <div className={styles.heroChat} id="eh-chat" data-theme="light">
+                <ChatSearch
+                  onSearchResult={handleSearch}
+                  onLoadingChange={setLoading}
+                  queuedPrompt={queuedPrompt}
+                  onQueuedPromptHandled={() => setQueuedPrompt(null)}
+                  isLoggedIn={isLoggedIn === true}
+                />
+              </div>
+              <div className={styles.heroDisclaimers}>
+                <span>🛡️ DPDP Compliant</span>
+                <span>✅ Verified Listings</span>
+                <span>🆓 Free to Use</span>
+                <span>💊 No Medication Advice</span>
+              </div>
+              <div className={styles.heroStats}>
+                <article><strong>12k+</strong><span>{t("home.statHospitals")}</span></article>
+                <article><strong>50+</strong><span>{t("home.statCities")}</span></article>
+                <article><strong>5</strong><span>{t("home.statLanguages")}</span></article>
+                <article><strong>4.8★</strong><span>{t("home.statRating")}</span></article>
+              </div>
+            </div>
 
-          <div className={styles.heroStats}>
-            <article>
-              <strong>12k+</strong>
-              <span>{t("home.statHospitals")}</span>
-            </article>
-            <article>
-              <strong>50+</strong>
-              <span>{t("home.statCities")}</span>
-            </article>
-            <article>
-              <strong>5</strong>
-              <span>{t("home.statLanguages")}</span>
-            </article>
-            <article>
-              <strong>4.8★</strong>
-              <span>{t("home.statRating")}</span>
-            </article>
-          </div>
-
-          {/* Search results — desktop only (mobile uses HealthAssistant inline) */}
-          <div className={`${styles.heroResults} hidden md:block`} data-theme="light">
-            <SearchResults
-              intent={intent}
-              results={results}
-              loading={loading}
-              onPrompt={triggerPrompt}
-              onContribute={setContributeTarget}
-              city={city ?? undefined}
-              isLoggedIn={isLoggedIn === true}
-            />
+            {/* Right col: Live Results — sticky alongside chat */}
+            <div className={styles.heroResultsCol}>
+              <div className={styles.heroResults} data-theme="light">
+                <SearchResults
+                  intent={intent}
+                  results={results}
+                  loading={loading}
+                  onPrompt={triggerPrompt}
+                  onContribute={setContributeTarget}
+                  city={city ?? undefined}
+                  isLoggedIn={isLoggedIn === true}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>

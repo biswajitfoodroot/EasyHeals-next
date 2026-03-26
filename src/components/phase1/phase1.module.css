@@ -480,6 +480,58 @@
   padding: 4px 10px;
 }
 
+/* ── Hospital / Doctor tab bar ── */
+.resultTabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.resultTabs::-webkit-scrollbar { display: none; }
+
+.resultTab,
+.resultTabActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  border: 1px solid transparent;
+}
+
+.resultTab {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.resultTab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.resultTabActive {
+  background: rgba(27, 138, 74, 0.18);
+  color: #4ade80;
+  border-color: rgba(27, 138, 74, 0.4);
+}
+
+.resultTab em,
+.resultTabActive em {
+  font-style: normal;
+  opacity: 0.7;
+  font-size: 11px;
+}
+
 .intentBadge {
   margin: 10px;
   border-radius: 14px;

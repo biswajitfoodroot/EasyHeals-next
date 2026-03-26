@@ -943,6 +943,213 @@
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* ── Profile Search Bar ─────────────────────────────────────────────────────── */
+
+.profileSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+  padding: 10px 14px;
+  background: #F8FAF9;
+  border: 1.5px solid #D0E4D8;
+  border-radius: 14px;
+}
+
+.profileSearchIcon {
+  flex-shrink: 0;
+  color: #8FA39A;
+}
+
+.profileSearchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1A2B23;
+  outline: none;
+}
+
+.profileSearchInput::placeholder {
+  color: #8FA39A;
+}
+
+.profileSearchClear {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #8FA39A;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+/* ── Related / "You may also consider" row ──────────────────────────────────── */
+
+.relatedSection {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #E5F0E8;
+}
+
+.relatedTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1A2B23;
+  margin: 0 0 14px;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.relatedScroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.relatedScroll::-webkit-scrollbar { display: none; }
+
+.relatedCard {
+  flex: 0 0 200px;
+  background: #fff;
+  border: 1.5px solid #D0E4D8;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.relatedCard:hover {
+  border-color: #1B8A4A;
+  box-shadow: 0 4px 14px rgba(27,138,74,0.10);
+}
+
+.relatedCardName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A2B23;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.relatedCardSub {
+  font-size: 11.5px;
+  color: #5A7367;
+  line-height: 1.4;
+}
+
+.relatedCardBadge {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #E6F5EC;
+  color: #1B8A4A;
+  margin-top: auto;
+}
+
+/* ── Service availability "Where to get this" ────────────────────────────────── */
+
+.whereSection {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #E5F0E8;
+}
+
+.whereTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A2B23;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.whereCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #D0E4D8;
+  border-radius: 10px;
+  background: #fff;
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.whereCard:hover {
+  border-color: #1B8A4A;
+}
+
+.whereCardAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #1B8A4A;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.whereCardBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.whereCardName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A2B23;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.whereCardMeta {
+  font-size: 11.5px;
+  color: #5A7367;
+  margin-top: 1px;
+}
+
+.whereMore {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1B8A4A;
+  background: none;
+  border: 1.5px solid #1B8A4A;
+  border-radius: 8px;
+  padding: 7px;
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+  margin-top: 4px;
+  transition: background 0.15s;
+}
+
+.whereMore:hover {
+  background: #E6F5EC;
+}
+
 /* ── Mobile Bottom Bar ──────────────────────────────────────────────────────── */
 
 .mobileBar {

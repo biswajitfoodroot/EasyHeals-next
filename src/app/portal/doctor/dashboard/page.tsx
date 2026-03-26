@@ -13,12 +13,10 @@ export default async function DoctorDashboardPage() {
 
   if (!auth) redirect("/portal/login");
 
-  const allowed = ["doctor", "owner", "admin", "advisor"];
-  if (!allowed.includes(auth.role)) redirect("/portal/login");
+  if (auth.role !== "doctor") redirect("/portal/login");
 
-  // For non-doctor admins previewing, doctorId comes from entityId
   let doctorName = auth.fullName;
-  if (auth.role === "doctor" && auth.entityId) {
+  if (auth.entityId) {
     const [doctor] = await db
       .select({ fullName: doctors.fullName })
       .from(doctors)

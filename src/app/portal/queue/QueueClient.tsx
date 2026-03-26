@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface Token {
@@ -104,34 +103,7 @@ export default function QueueClient({ userRole, providerId, doctorId }: Props) {
   const done     = tokens.filter((t) => ["done", "skipped"].includes(t.status));
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className="w-14 lg:w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen">
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0" style={{ background: "#1B8A4A" }}>E</span>
-          <span className="hidden lg:block font-bold text-slate-800 text-sm">EasyHeals</span>
-        </div>
-        <nav className="flex-1 p-2 space-y-1">
-          {[
-            { href: "/portal/hospital/dashboard", icon: "🏠", label: "Dashboard" },
-            { href: "/portal/schedule", icon: "📅", label: "Schedule" },
-            { href: "/portal/queue", icon: "🎫", label: "OPD Queue", active: true },
-            { href: "/portal/staff", icon: "👥", label: "Staff" },
-            { href: "/portal/subscription", icon: "💳", label: "Subscription" },
-          ].map((n) => (
-            <Link key={n.label} href={n.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${"active" in n && n.active ? "text-white" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
-              style={"active" in n && n.active ? { background: "#1B8A4A" } : {}}
-            >
-              <span className="text-base">{n.icon}</span>
-              <span className="hidden lg:block">{n.label}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-xl font-bold text-slate-800">OPD Walk-in Queue</h1>
@@ -253,8 +225,6 @@ export default function QueueClient({ userRole, providerId, doctorId }: Props) {
               )}
             </>
           )}
-        </div>
-      </main>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { createSession, setSessionCookie } from "@/lib/session";
 const bodySchema = z.object({
   idToken: z.string().min(10),
   portalLogin: z.boolean().optional().default(false),
+  adminLogin: z.boolean().optional().default(false),
 });
 
 type GoogleTokenInfo = {
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { idToken, portalLogin } = parsed.data;
+  const { idToken, portalLogin, adminLogin } = parsed.data;
   const info = await verifyGoogleToken(idToken);
   if (!info || info.email_verified !== "true") {
     return NextResponse.json({ error: "Invalid or unverified Google token" }, { status: 401 });
@@ -123,6 +124,47 @@ export async function POST(req: NextRequest) {
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
+
+  // If this is an admin login, verify the user has a staff-level role.
+  // We do NOT create new accounts for admin login — the user must already exist.
+  if (adminLogin) {
+    if (!byGoogleId[0] && !(await db.select({ id: users.id }).from(users).where(eq(users.email, info.email)).limit(1))[0]) {
+      return NextResponse.json(
+        { error: "No admin account found for this Google account. Contact the system owner." },
+        { status: 403 },
+      );
+    }
+
+    const roleRows = await db
+      .select({ code: roles.code })
+      .from(userRoleMap)
+      .innerJoin(roles, eq(roles.id, userRoleMap.roleId))
+      .where(eq(userRoleMap.userId, userId))
+      .limit(1);
+
+    const role = roleRows[0]?.code ?? "contributor";
+    const adminRoles = ["owner", "admin", "advisor", "viewer"];
+
+    if (!adminRoles.includes(role)) {
+      return NextResponse.json(
+        { error: "This Google account does not have admin panel access. Please use email/password or contact the system owner." },
+        { status: 403 },
+      );
+    }
+
+    const { sessionToken, expiresAt } = await createSession(userId);
+    await setSessionCookie(sessionToken, expiresAt);
+
+    return NextResponse.json({
+      data: {
+        userId,
+        role,
+        name: savedUser?.fullName ?? info.name,
+        email: savedUser?.email ?? info.email,
+        avatar: savedUser?.googleAvatar ?? info.picture,
+      },
+    });
+  }
 
   // If this is a portal login, check role before creating a session.
   // Only hospital_admin and doctor may access the provider portal.

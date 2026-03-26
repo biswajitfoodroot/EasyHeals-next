@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { eq, and } from "drizzle-orm";
 
 import { DoctorProfileClient } from "@/components/profiles/DoctorProfileClient";
 import { getDoctorProfileBySlug } from "@/lib/profile-data";
 import { absoluteUrl, buildBreadcrumbJsonLd, buildDoctorJsonLd, buildMetadata } from "@/lib/seo";
+import { db } from "@/db/client";
+import { providerAgreements } from "@/db/schema";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -43,6 +46,20 @@ export default async function DoctorDetailPage({ params }: Params) {
 
   const { doctor } = profile;
 
+  // Check EasyHeals Network partnership (solo doctor agreement)
+  let networkTierCode: string | null = null;
+  if (doctor.id) {
+    const [agreement] = await db
+      .select({ tierCode: providerAgreements.tierCode })
+      .from(providerAgreements)
+      .where(and(
+        eq(providerAgreements.doctorId, doctor.id),
+        eq(providerAgreements.status, "accepted"),
+      ))
+      .limit(1);
+    networkTierCode = agreement?.tierCode ?? null;
+  }
+
   const jsonLd = [
     buildDoctorJsonLd(doctor),
     buildBreadcrumbJsonLd([
@@ -58,7 +75,7 @@ export default async function DoctorDetailPage({ params }: Params) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <DoctorProfileClient data={profile} />
+      <DoctorProfileClient data={{ ...profile, networkTierCode }} />
     </>
   );
 }

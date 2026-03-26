@@ -395,11 +395,6 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
     finally { setInvitActioning(null); }
   }
 
-  async function handleSignOut() {
-    await fetch("/api/portal/logout", { method: "POST", credentials: "include" }).catch(() => {});
-    router.push("/portal/login");
-  }
-
   // ── Computed ──────────────────────────────────────────────────────────────
 
   const todayAppts = appts.filter((a) => isToday(a.scheduledAt));
@@ -427,77 +422,57 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
-      <aside className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen shadow-sm">
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm" style={{ background: "#1B8A4A" }}>
-            {userFullName.charAt(0)}
-          </span>
-          <div className="hidden lg:block min-w-0">
-            <p className="font-bold text-slate-800 text-sm leading-tight truncate">{doctorName ?? userFullName}</p>
-            <p className="text-[10px] text-slate-400">Doctor Portal</p>
+    <>
+      {/* Page identity header */}
+      <div className="max-w-5xl mx-auto px-4 pt-5 pb-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-base shrink-0 shadow-sm"
+            style={{ background: "#1B8A4A" }}
+          >
+            {(doctorName ?? userFullName).charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-base font-bold text-slate-800 leading-tight truncate">
+              {doctorName ?? userFullName}
+            </h2>
+            <p className="text-xs text-slate-400">Doctor Portal</p>
           </div>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-black"
+            style={{ background: "#1B8A4A" }}
+          >
+            E
+          </span>
+          <span className="text-sm font-black text-slate-700 tracking-tight">EasyHeals</span>
+        </div>
+      </div>
 
-        <nav className="flex-1 p-2 space-y-0.5">
+      <div className="max-w-5xl mx-auto px-4 pb-2">
+        {/* Horizontal tab bar */}
+        <div className="flex gap-1 p-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
           {navItems.map((n) => (
             <button key={n.tab}
+              type="button"
               onClick={() => setActiveTab(n.tab)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
               style={activeTab === n.tab ? { background: "#1B8A4A" } : {}}
             >
-              <span className="text-base shrink-0 relative">
-                {n.icon}
-                {(n.badge ?? 0) > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                    {n.badge}
-                  </span>
-                )}
-              </span>
-              <span className="hidden lg:flex items-center gap-2 flex-1">
-                {n.label}
-                {(n.badge ?? 0) > 0 && (
-                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === n.tab ? "bg-white/20 text-white" : "bg-red-100 text-red-600"}`}>
-                    {n.badge}
-                  </span>
-                )}
-              </span>
+              <span>{n.icon}</span>
+              <span>{n.label}</span>
+              {(n.badge ?? 0) > 0 && (
+                <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${activeTab === n.tab ? "bg-white/20 text-white" : "bg-red-500 text-white"}`}>
+                  {n.badge}
+                </span>
+              )}
             </button>
           ))}
-
-          <div className="pt-2 border-t border-slate-100 mt-2 space-y-0.5">
-            {[
-              { href: "/portal/doctor",    icon: "✏️", label: "Edit Profile" },
-              { href: "/portal/schedule",  icon: "📆", label: "Schedule" },
-              { href: "/portal/account",   icon: "👤", label: "My Account" },
-            ].map((n) => (
-              <Link key={n.label} href={n.href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
-                <span className="text-base shrink-0">{n.icon}</span>
-                <span className="hidden lg:block">{n.label}</span>
-              </Link>
-            ))}
-          </div>
-        </nav>
-
-        <div className="p-3 border-t border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#1B8A4A" }}>
-              {userFullName.charAt(0).toUpperCase()}
-            </div>
-            <div className="hidden lg:block min-w-0">
-              <p className="text-xs font-semibold text-slate-700 truncate">{userFullName}</p>
-              <p className="text-[10px] text-slate-400 capitalize">{userRole.replace("_", " ")}</p>
-            </div>
-          </div>
-          <button onClick={() => void handleSignOut()} className="hidden lg:block mt-2 text-xs text-slate-400 hover:text-red-500 transition w-full text-left">Sign out →</button>
         </div>
-      </aside>
+      </div>
 
-      {/* Main content */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 py-4 space-y-6">
 
           {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -808,8 +783,7 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
             </div>
           )}
 
-        </div>
-      </main>
+      </div>
 
       {/* Access modal */}
       {selectedPatient && (
@@ -821,7 +795,7 @@ export default function DoctorDashboardClient({ userFullName, userRole, doctorId
           onRevoke={revokeAccess}
         />
       )}
-    </div>
+    </>
   );
 }
 

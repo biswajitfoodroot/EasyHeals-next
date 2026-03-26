@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db/client";
 import { getAuthFromCookies } from "@/lib/auth";
-import { hospitalSubscriptions, packages, packageFeatures } from "@/db/schema";
+import { hospitalSubscriptions, packages, packageFeatures, subscriptionUsage } from "@/db/schema";
 import SubscriptionClient from "./SubscriptionClient";
 
 export const metadata = { title: "Subscription | EasyHeals Portal" };
@@ -72,12 +72,62 @@ export default async function SubscriptionPage() {
     features: featRows.filter((f) => f.packageId === p.id && f.isEnabled).map((f) => f.featureKey),
   }));
 
+  // Load current month usage meters
+  const now = new Date();
+  const billingPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  let usage: {
+    smsUsed: number; smsQuota: number;
+    whatsappUsed: number; whatsappQuota: number;
+    aiReportsUsed: number; aiReportsQuota: number;
+    billingPeriod: string;
+  } | null = null;
+
+  if (auth.entityId) {
+    try {
+    const usageRows = await db
+      .select()
+      .from(subscriptionUsage)
+      .where(
+        and(
+          eq(subscriptionUsage.hospitalId, auth.entityId),
+          eq(subscriptionUsage.billingPeriod, billingPeriod),
+        )
+      )
+      .limit(1);
+
+    if (usageRows.length) {
+      const u = usageRows[0];
+      usage = {
+        smsUsed: u.smsUsed,
+        smsQuota: u.smsQuota,
+        whatsappUsed: u.whatsappUsed,
+        whatsappQuota: u.whatsappQuota,
+        aiReportsUsed: u.aiReportsUsed,
+        aiReportsQuota: u.aiReportsQuota,
+        billingPeriod,
+      };
+    } else if (currentSub?.status === "active") {
+      // Return zero-usage record shape so meters show up with 0/0
+      usage = {
+        smsUsed: 0, smsQuota: 0,
+        whatsappUsed: 0, whatsappQuota: 0,
+        aiReportsUsed: 0, aiReportsQuota: 0,
+        billingPeriod,
+      };
+    }
+    } catch {
+      // Table may not exist yet — usage meters will be hidden
+    }
+  }
+
   return (
     <SubscriptionClient
       currentSub={currentSub}
       plans={plans}
       userRole={auth.role}
       hospitalId={auth.entityId ?? undefined}
+      usage={usage}
     />
   );
 }

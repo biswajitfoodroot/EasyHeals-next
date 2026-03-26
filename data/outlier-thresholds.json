@@ -1,0 +1,9 @@
+{
+  "autoApproveMaxScore": 20,
+  "autoApproveMinTrust": 80,
+  "autoRejectMinScore": 70,
+  "massEditBurstLimit": 20,
+  "feeOutlierMax": 50000,
+  "feeOutlierMin": 100,
+  "semanticSuspiciousWeight": 25
+}

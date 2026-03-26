@@ -9,12 +9,16 @@ export default async function PortalPage() {
     redirect("/portal/login");
   }
 
-  if (auth.entityType === "hospital") {
-    redirect("/portal/hospital");
+  if (auth.role === "hospital_admin") {
+    redirect("/portal/hospital/dashboard");
   }
 
-  if (auth.entityType === "doctor") {
-    redirect("/portal/doctor");
+  if (auth.role === "doctor") {
+    redirect("/portal/doctor/dashboard");
+  }
+
+  if (auth.role === "receptionist") {
+    redirect("/portal/queue");
   }
 
   redirect("/portal/login");

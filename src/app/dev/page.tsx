@@ -89,7 +89,7 @@ function tierColor(tier: string | null): "green" | "amber" | "purple" | "slate" 
 }
 
 const TIERS = ["free", "trial", "health_plus", "health_pro"] as const;
-const ROLES = ["owner", "admin", "advisor", "viewer", "hospital_admin", "doctor", "receptionist", "contributor"] as const;
+const ROLES = ["owner", "admin", "operator", "coordinator", "advisor", "viewer", "hospital_admin", "doctor", "receptionist", "contributor"] as const;
 
 const TIER_LABELS: Record<string, string> = {
   free: "Free",
@@ -133,6 +133,7 @@ export default function DevPage() {
   const [editEntityId, setEditEntityId] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [savingUser, setSavingUser] = useState(false);
+  const [loggingInAs, setLoggingInAs] = useState<string | null>(null);
 
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok });
@@ -250,6 +251,24 @@ export default function DevPage() {
     finally { setSavingUser(false); }
   }
 
+  async function quickLoginAs(userId: string, role: string) {
+    setLoggingInAs(userId);
+    try {
+      await post({ action: "dev_login_as", userId });
+      showToast(`Logged in as ${role}`, true);
+      // Navigate to the right portal depending on role
+      const dest =
+        role === "hospital_admin" ? "/portal/hospital/dashboard" :
+        role === "doctor"         ? "/portal/doctor/dashboard" :
+        role === "receptionist"   ? "/portal/queue" :
+        ["owner", "admin", "operator", "coordinator", "advisor"].includes(role)
+          ? "/provider-management" :
+        "/portal/login";
+      setTimeout(() => { window.location.href = dest; }, 600);
+    } catch (e) { showToast(String(e), false); }
+    finally { setLoggingInAs(null); }
+  }
+
   const NAV: { tab: Tab; icon: string; label: string }[] = [
     { tab: "patients",  icon: "👤", label: "Patients" },
     { tab: "users",     icon: "🧑‍💼", label: "Portal Users" },
@@ -294,6 +313,7 @@ export default function DevPage() {
               { href: "/admin",                  label: "Admin Panel" },
               { href: "/portal/hospital/dashboard", label: "Hospital Portal" },
               { href: "/portal/doctor/dashboard",   label: "Doctor Portal" },
+              { href: "/provider-management",       label: "Provider Mgmt" },
               { href: "/dashboard",              label: "Patient Dashboard" },
             ].map((l) => (
               <a key={l.href} href={l.href}
@@ -527,10 +547,19 @@ export default function DevPage() {
                               : <span>No entity linked</span>}
                           </p>
                         </div>
-                        <button onClick={() => { startEditUser(u); if (hospitals.length === 0) void load("hospitals"); if (doctors.length === 0) void load("doctors"); }}
-                          className="px-3 py-1.5 text-xs font-bold text-amber-400 border border-amber-500/40 rounded-lg hover:bg-amber-500/10 transition shrink-0">
-                          Edit →
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => void quickLoginAs(u.id, u.role)}
+                            disabled={loggingInAs === u.id}
+                            className="px-3 py-1.5 text-xs font-bold text-emerald-400 border border-emerald-500/40 rounded-lg hover:bg-emerald-500/10 transition disabled:opacity-50"
+                          >
+                            {loggingInAs === u.id ? "…" : "Login →"}
+                          </button>
+                          <button onClick={() => { startEditUser(u); if (hospitals.length === 0) void load("hospitals"); if (doctors.length === 0) void load("doctors"); }}
+                            className="px-3 py-1.5 text-xs font-bold text-amber-400 border border-amber-500/40 rounded-lg hover:bg-amber-500/10 transition">
+                            Edit
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
