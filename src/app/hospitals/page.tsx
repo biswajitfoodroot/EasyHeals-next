@@ -31,6 +31,7 @@ export default async function HospitalsPage() {
         verified: row.verified,
         subtitle: row.description,
         url: `/hospitals/${row.slug}`,
+        networkTierCode: row.networkTierCode,
       }))}
     />
   );

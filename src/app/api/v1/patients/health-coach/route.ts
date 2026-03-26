@@ -28,6 +28,20 @@ import { buildHealthContext } from "@/lib/health/context";
 import { encryptPHI, decryptPHI } from "@/lib/health/encryption";
 import { getGeminiClient } from "@/lib/ai/client";
 import { env } from "@/lib/env";
+import { redisGet, redisIncr } from "@/lib/core/redis";
+
+const HEALTH_PLUS_MONTHLY_LIMIT = 50;
+
+function coachMsgKey(patientId: string): string {
+  const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+  return `coach:msgs:${patientId}:${month}`;
+}
+
+function secondsUntilMonthEnd(): number {
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return Math.ceil((nextMonth.getTime() - now.getTime()) / 1000);
+}
 
 export const maxDuration = 30; // SSE can run up to 30s
 
@@ -73,10 +87,27 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
   const { patientId } = session;
 
   // Trial / subscription gate
+  let tierStatus: Awaited<ReturnType<typeof requirePremiumAccess>>;
   try {
-    await requirePremiumAccess(patientId);
+    tierStatus = await requirePremiumAccess(patientId);
   } catch {
     return NextResponse.json({ error: "Your 21-day free trial has ended. Upgrade to Health+ to continue." }, { status: 402 });
+  }
+
+  // Monthly message limit — health_plus: 50/month, health_pro: unlimited
+  if (tierStatus.tier === "health_plus") {
+    const used = (await redisGet<number>(coachMsgKey(patientId))) ?? 0;
+    if (used >= HEALTH_PLUS_MONTHLY_LIMIT) {
+      return NextResponse.json(
+        {
+          error: `You've used all ${HEALTH_PLUS_MONTHLY_LIMIT} Health+ messages for this month. Your limit resets on the 1st. Upgrade to Health Pro for unlimited messages.`,
+          code: "MONTHLY_LIMIT_REACHED",
+          used,
+          limit: HEALTH_PLUS_MONTHLY_LIMIT,
+        },
+        { status: 429 },
+      );
+    }
   }
 
   const payload = await req.json().catch(() => null);
@@ -148,6 +179,11 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
         controller.close();
       } finally {
+        // Increment monthly message counter for health_plus (fail-open if Redis unavailable)
+        if (fullResponse.length > 0 && tierStatus.tier === "health_plus") {
+          await redisIncr(coachMsgKey(patientId), secondsUntilMonthEnd()).catch(() => null);
+        }
+
         // Persist conversation (encrypted)
         try {
           const now = new Date().toISOString();
@@ -184,11 +220,17 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
-  });
+  // Include usage headers so the client can show "X messages left this month"
+  const usageHeaders: Record<string, string> = {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  };
+  if (tierStatus.tier === "health_plus") {
+    const used = (await redisGet<number>(coachMsgKey(patientId))) ?? 0;
+    usageHeaders["X-Coach-Messages-Used"] = String(used);
+    usageHeaders["X-Coach-Messages-Limit"] = String(HEALTH_PLUS_MONTHLY_LIMIT);
+  }
+
+  return new Response(stream, { headers: usageHeaders });
 };

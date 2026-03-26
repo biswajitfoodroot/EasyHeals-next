@@ -1296,7 +1296,7 @@ export async function extractStructuredFromSources(params: {
   websiteUrl: string;
   websiteText: string;
   searchSnippets: SearchSnippet[];
-  hints: { hospitalName?: string; city?: string; targetHospitalId?: string };
+  hints: { hospitalName?: string; city?: string; targetHospitalId?: string; specialtyHints?: string };
   googleProfile?: GoogleProfileResult | null;
   crawledPages: CrawledPage[];
   onProgress?: ProgressCallback;
@@ -1333,7 +1333,10 @@ export async function extractStructuredFromSources(params: {
       `Hospital name hint: ${params.hints.hospitalName ?? "unknown"}`,
       `City hint: ${params.hints.city ?? "unknown"}`,
       `Website URL: ${params.websiteUrl}`,
-    ].join("\n");
+      params.hints.specialtyHints
+        ? `Focus specialties/departments (extract these specifically): ${params.hints.specialtyHints}`
+        : null,
+    ].filter(Boolean).join("\n");
 
     // ── PASS A — Hospital core ─────────────────────────────────────────────
     await onProgress?.({ stage: 'extracting', message: "AI Pass A: Hospital Profile...", percent: 75 });

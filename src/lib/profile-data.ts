@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, like, ne, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, taxonomyNodes } from "@/db/schema";
+import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, providerAgreements, taxonomyNodes } from "@/db/schema";
 import { enrichDoctorProfile } from "@/lib/doctor-enrich";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 
@@ -26,12 +26,21 @@ export async function listHospitalsDirectory(limit = 300) {
     .orderBy(desc(hospitals.verified), desc(hospitals.rating), asc(hospitals.name))
     .limit(limit);
 
+  // Fetch all accepted network agreements and build a lookup map
+  const networkAgreements = await db
+    .select({ hospitalId: providerAgreements.hospitalId, tierCode: providerAgreements.tierCode })
+    .from(providerAgreements)
+    .where(and(eq(providerAgreements.status, "accepted"), isNotNull(providerAgreements.hospitalId)));
+
+  const networkMap = new Map(networkAgreements.map((a) => [a.hospitalId!, a.tierCode ?? null]));
+
   return rows.map((row) => ({
     ...row,
     specialties: parseStringArray(row.specialties),
     rating: row.rating ?? 0,
     verified: Boolean(row.verified),
     reviewCount: row.reviewCount ?? 0,
+    networkTierCode: networkMap.get(row.id) ?? null,
   }));
 }
 

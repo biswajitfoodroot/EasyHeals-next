@@ -57,6 +57,8 @@ export default function HealthCoachClient() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [msgsUsed, setMsgsUsed] = useState<number | null>(null);
+  const [msgsLimit, setMsgsLimit] = useState<number | null>(null);
 
   useEffect(() => { void loadConversations(); }, []);
   useEffect(() => {
@@ -104,6 +106,18 @@ export default function HealthCoachClient() {
         return;
       }
 
+      if (res.status === 429) {
+        const j = await res.json() as { error?: string; used?: number; limit?: number };
+        if (j.used !== undefined) setMsgsUsed(j.used);
+        if (j.limit !== undefined) setMsgsLimit(j.limit);
+        setMessages((prev) => prev.map((m) =>
+          m.ts === placeholderId
+            ? { ...m, content: j.error ?? "Monthly message limit reached. Upgrade to Health Pro for unlimited messages." }
+            : m
+        ));
+        return;
+      }
+
       if (!res.ok || !res.body) {
         setMessages((prev) => prev.map((m) =>
           m.ts === placeholderId
@@ -112,6 +126,12 @@ export default function HealthCoachClient() {
         ));
         return;
       }
+
+      // Read usage headers if present
+      const usedHeader = res.headers.get("X-Coach-Messages-Used");
+      const limitHeader = res.headers.get("X-Coach-Messages-Limit");
+      if (usedHeader) setMsgsUsed(parseInt(usedHeader, 10));
+      if (limitHeader) setMsgsLimit(parseInt(limitHeader, 10));
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -184,6 +204,17 @@ export default function HealthCoachClient() {
           <span className="text-sm font-semibold text-slate-800">AI Health Coach</span>
         </div>
         <div className="flex items-center gap-2">
+          {msgsLimit !== null && msgsUsed !== null && (
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-lg ${
+              msgsUsed >= msgsLimit
+                ? "bg-red-50 text-red-600 border border-red-200"
+                : msgsUsed >= msgsLimit * 0.8
+                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                : "bg-slate-50 text-slate-500 border border-slate-200"
+            }`}>
+              {msgsUsed}/{msgsLimit} msgs
+            </span>
+          )}
           <button
             onClick={() => setShowSidebar((s) => !s)}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"

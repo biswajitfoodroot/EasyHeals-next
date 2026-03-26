@@ -18,6 +18,10 @@ type Props = {
   doctorHospitals?: BookingHospital[];
   /** All doctors at this hospital. Enables department → doctor selection (hospital booking path). */
   hospitalDoctors?: BookingDoctor[];
+  /** Whether the hospital is an EasyHeals Network partner. Non-partners show a "call to book" screen. Defaults to true. */
+  isNetworkPartner?: boolean;
+  /** Hospital phone number shown on the "call to book" screen. */
+  hospitalPhone?: string | null;
 };
 
 type AuthState = "loading" | "logged_in" | "guest";
@@ -34,6 +38,8 @@ export default function AuthBookingModal({
   hospitalId: hospitalIdProp, hospitalName: hospitalNameProp,
   doctorId: doctorIdProp, doctorName: doctorNameProp,
   doctorHospitals, hospitalDoctors,
+  isNetworkPartner = true,
+  hospitalPhone,
 }: Props) {
   const router = useRouter();
 
@@ -153,6 +159,53 @@ export default function AuthBookingModal({
       setStatus("error");
       setErrorMsg("Network error. Please check your connection.");
     }
+  }
+
+  /* ── Non-network hospital: call-to-book screen ── */
+  if (!isNetworkPartner) {
+    return (
+      <div
+        className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        onClick={handleClose}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-6 py-4 flex justify-between items-start" style={{ background: "#1B8A4A" }}>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-green-200">EasyHeals</p>
+              <h2 className="text-white text-lg font-bold mt-0.5">Book Appointment</h2>
+              {hospitalNameProp && <p className="text-sm mt-0.5 text-green-100">{hospitalNameProp}</p>}
+            </div>
+            <button onClick={handleClose} className="text-white/70 hover:text-white text-2xl leading-none mt-1">×</button>
+          </div>
+          <div className="p-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-4xl">📞</div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900">Call to Book</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Online booking is available for EasyHeals Network partners.<br />
+                Please contact this hospital directly to schedule your appointment.
+              </p>
+            </div>
+            {hospitalPhone ? (
+              <a
+                href={`tel:${hospitalPhone}`}
+                className="flex items-center justify-center gap-2 w-full py-3 text-white font-bold rounded-xl text-sm"
+                style={{ background: "#1B8A4A" }}
+              >
+                <span>📞</span>
+                {hospitalPhone}
+              </a>
+            ) : (
+              <p className="text-sm text-gray-400 italic">Phone number not listed. Please visit the hospital website.</p>
+            )}
+            <button onClick={handleClose} className="w-full py-2 text-sm text-gray-500 hover:text-gray-700">Close</button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

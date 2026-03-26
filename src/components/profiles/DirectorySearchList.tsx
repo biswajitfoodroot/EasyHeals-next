@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
+import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
 import styles from "@/components/profiles/profiles.module.css";
 
 const PAGE_SIZE = 20;
@@ -34,6 +35,7 @@ type DirectoryItem = {
   yearsOfExperience?: number | null;
   feeMin?: number | null;
   feeMax?: number | null;
+  networkTierCode?: string | null;
 };
 
 type DirectorySearchListProps = {
@@ -238,6 +240,13 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               </span>
             </div>
 
+            {/* EasyHeals Network badge */}
+            {item.networkTierCode && (
+              <div style={{ marginTop: "6px" }}>
+                <EasyHealsNetworkBadge tierCode={item.networkTierCode} compact />
+              </div>
+            )}
+
             {/* Doctor extras */}
             {kind === "doctor" && (item.yearsOfExperience ?? item.feeMin) ? (
               <p className={styles.cardExtraRow}>
@@ -247,14 +256,21 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               </p>
             ) : null}
 
-            {/* Action buttons — same style as profileCardFooter */}
+            {/* Action buttons */}
             <div className={styles.directoryCardFooter}>
               <Link href={item.url} className={styles.directoryCardView} data-testid="btn-view">
                 {t("common.viewProfile")}
               </Link>
-              <Link href={`${item.url}?book=1`} className={styles.directoryCardBook} data-testid="btn-book">
-                {t("common.bookAppointment")}
-              </Link>
+              {kind === "hospital" && !item.networkTierCode ? (
+                <Link href={`${item.url}?contact=1`} className={styles.directoryCardBook} data-testid="btn-contact"
+                  style={{ background: "transparent", color: "#1B8A4A", border: "1.5px solid #1B8A4A" }}>
+                  Contact to Book
+                </Link>
+              ) : (
+                <Link href={`${item.url}?book=1`} className={styles.directoryCardBook} data-testid="btn-book">
+                  {t("common.bookAppointment")}
+                </Link>
+              )}
             </div>
           </article>
         ))}

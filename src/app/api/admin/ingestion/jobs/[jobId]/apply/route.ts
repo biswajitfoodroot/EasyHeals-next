@@ -56,7 +56,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   // ── Load job ───────────────────────────────────────────────────────────────
   const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  if (job.status === "applied") return NextResponse.json({ error: "Job already applied." }, { status: 409 });
+  // Note: allow re-applying a previously applied job — shouldSkip() filters already-applied
+  // candidates, so only newly approved ones (applyStatus !== "applied") will be processed.
+  if (!["done", "applied", "error"].includes(job.status ?? "")) {
+    return NextResponse.json({ error: "Job is still running. Wait for it to complete." }, { status: 409 });
+  }
 
   // ── Load ALL candidates for this job, filter in-memory via shouldSkip ──────
   // FIX: Previously filtered by applyStatus="approved" which missed "draft" candidates.

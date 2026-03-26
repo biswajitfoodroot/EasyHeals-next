@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
 import AuthBookingModal, { type BookingDoctor } from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
+import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
 import styles from "@/components/profiles/profiles.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -89,6 +90,7 @@ type HospitalProfileClientProps = {
     packages: HospitalPackage[];
     doctors: AffiliatedDoctor[];
     nearbyHospitals: NearbyHospital[];
+    networkTierCode?: string | null;
   };
 };
 
@@ -111,7 +113,15 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   const [tab, setTab] = useState<TabKey>("overview");
   const [modalOpen, setModalOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState(false);
+
+  // Auto-open booking modal when ?book=1 or ?contact=1 is in URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("book") || params.has("contact")) setModalOpen(true);
+  }, []);
   const [doctorDept, setDoctorDept] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const doctorDepts = useMemo(() => {
     const seen = new Set<string>();
@@ -123,10 +133,26 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
     return depts.sort();
   }, [data.doctors]);
 
-  const visibleDoctors = useMemo(
-    () => doctorDept === "all" ? data.doctors : data.doctors.filter((d) => d.specialization === doctorDept),
-    [data.doctors, doctorDept],
-  );
+  const visibleDoctors = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const byDept = doctorDept === "all" ? data.doctors : data.doctors.filter((d) => d.specialization === doctorDept);
+    if (!q) return byDept;
+    return byDept.filter((d) =>
+      d.name.toLowerCase().includes(q) ||
+      (d.specialization ?? "").toLowerCase().includes(q) ||
+      d.specialties.some((s) => s.toLowerCase().includes(q))
+    );
+  }, [data.doctors, doctorDept, searchQuery]);
+
+  const visiblePackages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return data.packages;
+    return data.packages.filter((p) =>
+      p.packageName.toLowerCase().includes(q) ||
+      (p.procedureName ?? "").toLowerCase().includes(q) ||
+      (p.department ?? "").toLowerCase().includes(q)
+    );
+  }, [data.packages, searchQuery]);
 
   const titleMeta = useMemo(
     () =>
@@ -193,6 +219,11 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                   <span>{data.doctors.length} {t("hospital.tabDoctors")}</span>
                 )}
               </div>
+              {data.networkTierCode && (
+                <div className="mt-3">
+                  <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
+                </div>
+              )}
             </div>
 
             <div className={styles.actions}>
@@ -226,6 +257,26 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
             </button>
           ))}
         </div>
+
+        {/* ── Search bar — shown on doctors/packages tabs ── */}
+        {(tab === "doctors" || tab === "packages") && (
+          <div className={styles.profileSearch}>
+            <svg className={styles.profileSearchIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              className={styles.profileSearchInput}
+              placeholder={tab === "doctors" ? `Search doctors, specialties…` : `Search packages, procedures…`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search within hospital"
+            />
+            {searchQuery && (
+              <button type="button" className={styles.profileSearchClear} onClick={() => setSearchQuery("")} aria-label="Clear search">×</button>
+            )}
+          </div>
+        )}
 
         {tab === "overview" ? (
           <section className={styles.contentGrid}>
@@ -344,11 +395,11 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         {tab === "packages" ? (
           <section className={styles.panel}>
             <h2>{t("hospital.tabPackages")}</h2>
-            {data.packages.length === 0 ? (
-              <p className="text-slate-500">{t("hospital.noPackages")}</p>
+            {visiblePackages.length === 0 ? (
+              <p className="text-slate-500">{searchQuery ? `No packages match "${searchQuery}"` : t("hospital.noPackages")}</p>
             ) : (
               <div className={styles.cardGrid}>
-                {data.packages.map((pkg) => (
+                {visiblePackages.map((pkg) => (
                   <article key={pkg.id} className={styles.profileCard}>
                     <h4>{pkg.packageName}</h4>
                     {pkg.procedureName && <p className="text-slate-500 text-sm">{pkg.procedureName}</p>}
@@ -472,6 +523,8 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         onClose={() => setModalOpen(false)}
         hospitalId={data.hospital.id}
         hospitalName={data.hospital.name}
+        isNetworkPartner={!!data.networkTierCode}
+        hospitalPhone={data.hospital.phone ?? undefined}
         hospitalDoctors={data.doctors.map((d): BookingDoctor => ({
           id: d.id,
           name: d.name,

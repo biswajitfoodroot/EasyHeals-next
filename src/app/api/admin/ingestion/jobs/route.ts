@@ -44,7 +44,7 @@ const directScrapeSchema = z.object({
   sourceUrl: z.string().url("sourceUrl must be a valid URL"),
   hospitalName: z.string().max(220).optional(),
   city: z.string().max(100).optional(),
-  searchQuery: z.string().max(220).optional(),
+  searchQuery: z.string().max(2000).optional(),   // can hold 40+ comma-separated specialties
   // When provided: doctors/services appended to this hospital branch
   targetHospitalId: z.string().optional(),
 });
@@ -150,9 +150,10 @@ export async function POST(req: NextRequest) {
 async function handleDirectScrape(auth: { userId: string }, data: z.infer<typeof directScrapeSchema>) {
   const { sourceUrl, hospitalName, city, searchQuery, targetHospitalId } = data;
   const hints = {
-    hospitalName: hospitalName || searchQuery || undefined,
+    hospitalName: hospitalName || undefined,
     city: city || undefined,
     targetHospitalId: targetHospitalId || undefined,
+    specialtyHints: searchQuery || undefined,   // comma-separated specialties from the picker
   };
 
   const isTargeted = Boolean(targetHospitalId);
@@ -162,7 +163,7 @@ async function handleDirectScrape(auth: { userId: string }, data: z.infer<typeof
     requestedByUserId: auth.userId,
     status: "collecting_sources",
     sourceUrl,
-    searchQuery: hints.hospitalName ?? null,
+    searchQuery: hints.specialtyHints ?? hints.hospitalName ?? null,
     targetCity: hints.city ?? null,
     runMode: isTargeted ? "targeted_update" : "website_only",
     summary: {
@@ -293,7 +294,7 @@ async function handleQueueCreate(auth: { userId: string }, data: z.infer<typeof 
 async function saveJobAndCandidates(
   userId: string,
   sourceUrl: string,
-  hints: { hospitalName?: string; city?: string; targetHospitalId?: string },
+  hints: { hospitalName?: string; city?: string; targetHospitalId?: string; specialtyHints?: string },
   extracted: Awaited<ReturnType<typeof extractStructuredFromSources>>,
   crawlMeta: { mode: string; pagesVisited: number; warnings: string[]; blockedStatus: number | null },
   existingJobId?: string,
