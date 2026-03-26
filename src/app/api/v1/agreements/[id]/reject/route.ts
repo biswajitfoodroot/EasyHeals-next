@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+
+import { db } from "@/db/client";
+import { providerAgreements, agreementEvents } from "@/db/schema";
+import { requireAuth } from "@/lib/auth";
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireAuth(req);
+  if (!auth || !["hospital_admin", "doctor"].includes(auth.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await params;
+
+  const [agreement] = await db
+    .select()
+    .from(providerAgreements)
+    .where(eq(providerAgreements.id, id))
+    .limit(1);
+
+  if (!agreement) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const isOwner =
+    (auth.role === "hospital_admin" && agreement.hospitalId === auth.entityId) ||
+    (auth.role === "doctor" && agreement.doctorId === auth.entityId);
+
+  if (!isOwner) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (agreement.status !== "published") {
+    return NextResponse.json({ error: "Agreement is not in published state" }, { status: 400 });
+  }
+
+  const body = await req.json().catch(() => ({})) as { reason?: string };
+  const now = new Date();
+
+  await db.update(providerAgreements)
+    .set({
+      status: "rejected",
+      rejectedAt: now,
+      rejectionReason: body.reason ?? null,
+      updatedAt: now,
+    })
+    .where(eq(providerAgreements.id, id));
+
+  await db.insert(agreementEvents).values({
+    agreementId: id,
+    eventType: "rejected",
+    actorId: auth.userId,
+    actorType: "provider",
+    note: body.reason ? `Rejected: ${body.reason}` : "Provider rejected the agreement.",
+  });
+
+  return NextResponse.json({ data: { success: true, status: "rejected" } });
+}
