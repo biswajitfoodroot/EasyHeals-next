@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  --mobile-nav-height: 64px; /* fixed bottom nav on mobile */
   --bg: #f3f7f4;
   --ink: #0d1f15;
   --muted: #4a6357;

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
+import Link from "next/link";
 
 type DoctorData = {
   id: string;
@@ -17,6 +18,24 @@ type DoctorData = {
   yearsOfExperience?: number | null;
   avatarUrl?: string | null;
   [key: string]: unknown;
+};
+
+type Affiliation = {
+  affiliationId: string;
+  role: string;
+  isPrimary: boolean;
+  isActive: boolean;
+  affiliationStatus: string;
+  feeMin: number | null;
+  feeMax: number | null;
+  source: string;
+  hospitalId: string;
+  hospitalName: string;
+  hospitalCity: string | null;
+  hospitalState: string | null;
+  hospitalSlug: string;
+  hospitalPhone: string | null;
+  hospitalWebsite: string | null;
 };
 
 type Props = {
@@ -52,6 +71,18 @@ export default function DoctorPortalClient({ doctor: initialDoctor }: Props) {
 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Affiliations — loaded from doctorHospitalAffiliations table (ID-based only)
+  const [affiliations, setAffiliations] = useState<Affiliation[]>([]);
+  const [affiliationsLoading, setAffiliationsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/portal/doctor/affiliations")
+      .then((r) => r.json())
+      .then((j: { data?: Affiliation[] }) => setAffiliations(j.data ?? []))
+      .catch(() => {/* silently ignore */})
+      .finally(() => setAffiliationsLoading(false));
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -105,6 +136,115 @@ export default function DoctorPortalClient({ doctor: initialDoctor }: Props) {
           <p className="text-slate-500 text-sm mt-1">Manage your professional profile</p>
         </div>
 
+        {/* ── My Hospital Affiliations ───────────────────────────────────── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-4">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-bold text-slate-800">🏥 My Hospital Affiliations</h2>
+              <p className="text-xs text-slate-400 mt-0.5">Hospitals where you are registered as a doctor</p>
+            </div>
+            {affiliationsLoading && (
+              <span className="text-xs text-slate-400">Loading…</span>
+            )}
+          </div>
+
+          <div className="p-4">
+            {(() => {
+              const current = affiliations.filter((a) => a.isActive && a.affiliationStatus === "active");
+              const past = affiliations.filter((a) => !a.isActive || a.affiliationStatus === "removed" || a.affiliationStatus === "declined");
+              const pending = affiliations.filter((a) => a.affiliationStatus === "pending_doctor_accept");
+
+              if (!affiliationsLoading && affiliations.length === 0) {
+                return (
+                  <p className="text-sm text-slate-400 text-center py-4">
+                    No hospital affiliations found. Contact your hospital administrator to link your profile.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {/* Pending invitations */}
+                  {pending.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-yellow-700 mb-2">⏳ Pending Invitations</p>
+                      <div className="space-y-2">
+                        {pending.map((aff) => (
+                          <div key={aff.affiliationId} className="flex items-start gap-3 p-3 rounded-xl border border-yellow-200 bg-yellow-50">
+                            <div className="min-w-0 flex-1">
+                              <Link href={`/hospitals/${aff.hospitalSlug}`} className="font-semibold text-sm text-teal-700 hover:underline">{aff.hospitalName}</Link>
+                              <div className="mt-0.5 text-xs text-slate-500 flex flex-wrap gap-2">
+                                <span>📍 {aff.hospitalCity ?? "—"}{aff.hospitalState ? `, ${aff.hospitalState}` : ""}</span>
+                                <span>🏷 {aff.role}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Current affiliations */}
+                  {current.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 mb-2">✅ Current Hospitals</p>
+                      <div className="space-y-2">
+                        {current.map((aff) => (
+                          <div key={aff.affiliationId} className="flex items-start justify-between gap-3 p-3 rounded-xl border border-slate-200 bg-white">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Link href={`/hospitals/${aff.hospitalSlug}`} className="font-semibold text-sm text-teal-700 hover:underline">{aff.hospitalName}</Link>
+                                {aff.isPrimary && (
+                                  <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full uppercase">★ Primary</span>
+                                )}
+                              </div>
+                              <div className="mt-0.5 text-xs text-slate-500 flex flex-wrap gap-2">
+                                <span>📍 {aff.hospitalCity ?? "—"}{aff.hospitalState ? `, ${aff.hospitalState}` : ""}</span>
+                                <span>🏷 {aff.role}</span>
+                                {(aff.feeMin || aff.feeMax) && <span>₹{aff.feeMin ?? "—"}–{aff.feeMax ?? "—"}</span>}
+                              </div>
+                            </div>
+                            {aff.hospitalPhone && (
+                              <a href={`tel:${aff.hospitalPhone}`} className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-teal-700 border border-teal-200 hover:bg-teal-50 rounded-lg transition-colors">
+                                Call
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Past affiliations — info only, no actions */}
+                  {past.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-400 mb-2">🕐 Previously Worked At</p>
+                      <div className="space-y-2">
+                        {past.map((aff) => (
+                          <div key={aff.affiliationId} className="flex items-start gap-3 p-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 opacity-70">
+                            <div className="min-w-0">
+                              <span className="font-semibold text-sm text-slate-500">{aff.hospitalName}</span>
+                              <div className="mt-0.5 text-xs text-slate-400 flex flex-wrap gap-2">
+                                <span>📍 {aff.hospitalCity ?? "—"}{aff.hospitalState ? `, ${aff.hospitalState}` : ""}</span>
+                                <span>🏷 {aff.role}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <p className="mt-3 text-xs text-slate-400">
+              To add or remove hospital affiliations, contact your hospital administrator or the EasyHeals support team.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Profile Form ────────────────────────────────────────────────── */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-100 bg-slate-50/60">
             <h2 className="text-lg font-bold text-slate-800">{doctor.fullName}</h2>

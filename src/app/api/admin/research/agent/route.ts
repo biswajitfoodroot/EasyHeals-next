@@ -10,7 +10,7 @@ import { isGoogleProfileUrl } from "@/lib/ingestion";
 import { ensureRole } from "@/lib/rbac";
 
 const agentSchema = z.object({
-  query: z.string().min(3).max(300),
+  query: z.string().min(3).max(500),
   city: z.string().max(80).optional(),
   autoQueue: z.boolean().default(false),
 });
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const errors = parsed.error.flatten().fieldErrors;
     
     if (errors.query) {
-      errorMsg += " Research query must be between 3-300 characters.";
+      errorMsg += " Research query must be between 3-500 characters.";
     }
     if (errors.city) {
       errorMsg += " City name must be under 80 characters.";

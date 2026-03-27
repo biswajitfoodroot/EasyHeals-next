@@ -41,33 +41,43 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: rows[0] });
 }
 
-// Indian phone: 10 digits optionally prefixed with +91 or 0
-const PHONE_RE = /^(\+91|0)?[6-9]\d{9}$/;
-
 const patchSchema = z.object({
-  phone: z
-    .string()
-    .nullable()
-    .optional()
-    .refine((v) => !v || PHONE_RE.test(v.replace(/\s/g, "")), {
-      message: "Invalid phone number. Use 10-digit Indian mobile format.",
-    }),
-  email: z
-    .string()
-    .email("Invalid email address")
-    .nullable()
-    .optional(),
+  // Basic Info
+  name: z.string().min(2).max(200).optional(),
+  type: z.string().max(50).nullable().optional(),
+  description: z.string().max(4000).nullable().optional(),
+  // Contact
+  phone: z.string().max(20).nullable().optional(),
+  phones: z.array(z.string()).optional(),
+  email: z.string().email("Invalid email address").nullable().optional(),
+  emailIds: z.array(z.string()).optional(),
   website: z
     .string()
     .url("Invalid website URL")
     .nullable()
     .optional()
     .or(z.literal("").transform(() => null)),
+  whatsappBusinessNumber: z.string().max(20).nullable().optional(),
+  contactPerson: z.string().max(200).nullable().optional(),
+  contactPhone: z.string().max(20).nullable().optional(),
+  contactEmail: z.string().email().nullable().optional(),
+  // Location
+  city: z.string().max(100).nullable().optional(),
+  state: z.string().max(100).nullable().optional(),
+  country: z.string().max(100).nullable().optional(),
   addressLine1: z.string().max(300).nullable().optional(),
-  description: z.string().max(2000).nullable().optional(),
-  workingHours: z.record(z.string(), z.unknown()).nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  // Services
   specialties: z.array(z.string()).optional(),
   facilities: z.array(z.string()).optional(),
+  accreditations: z.array(z.string()).optional(),
+  workingHours: z.record(z.string(), z.unknown()).nullable().optional(),
+  feesRange: z.record(z.string(), z.unknown()).nullable().optional(),
+  // Settings
+  slotDurationMinutes: z.number().int().min(5).max(120).nullable().optional(),
+  maxDailyAppointments: z.number().int().min(1).nullable().optional(),
+  queueEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -99,19 +109,40 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { phone, email, website, addressLine1, description, workingHours, specialties, facilities } = parsed.data;
+  const d = parsed.data;
+  const updates: Partial<typeof hospitals.$inferInsert> = { updatedAt: new Date(Date.now()) };
 
-  const updates: Partial<typeof hospitals.$inferInsert> = {
-    updatedAt: new Date(Date.now()),
-  };
-  if (phone !== undefined) updates.phone = phone;
-  if (email !== undefined) updates.email = email;
-  if (website !== undefined) updates.website = website;
-  if (addressLine1 !== undefined) updates.addressLine1 = addressLine1;
-  if (description !== undefined) updates.description = description;
-  if (workingHours !== undefined) updates.workingHours = workingHours;
-  if (specialties !== undefined) updates.specialties = parseStringArray(specialties);
-  if (facilities !== undefined) updates.facilities = parseStringArray(facilities);
+  // Basic Info
+  if (d.name !== undefined) updates.name = d.name;
+  if (d.type !== undefined) updates.type = d.type ?? "hospital";
+  if (d.description !== undefined) updates.description = d.description;
+  // Contact
+  if (d.phone !== undefined) updates.phone = d.phone;
+  if (d.phones !== undefined) updates.phones = d.phones;
+  if (d.email !== undefined) updates.email = d.email;
+  if (d.emailIds !== undefined) updates.emailIds = d.emailIds;
+  if (d.website !== undefined) updates.website = d.website;
+  if (d.whatsappBusinessNumber !== undefined) updates.whatsappBusinessNumber = d.whatsappBusinessNumber;
+  if (d.contactPerson !== undefined) updates.contactPerson = d.contactPerson;
+  if (d.contactPhone !== undefined) updates.contactPhone = d.contactPhone;
+  if (d.contactEmail !== undefined) updates.contactEmail = d.contactEmail;
+  // Location
+  if (d.city !== undefined) updates.city = d.city ?? "";
+  if (d.state !== undefined) updates.state = d.state;
+  if (d.country !== undefined) updates.country = d.country ?? "India";
+  if (d.addressLine1 !== undefined) updates.addressLine1 = d.addressLine1;
+  if (d.latitude !== undefined) updates.latitude = d.latitude;
+  if (d.longitude !== undefined) updates.longitude = d.longitude;
+  // Services
+  if (d.specialties !== undefined) updates.specialties = parseStringArray(d.specialties);
+  if (d.facilities !== undefined) updates.facilities = parseStringArray(d.facilities);
+  if (d.accreditations !== undefined) updates.accreditations = parseStringArray(d.accreditations);
+  if (d.workingHours !== undefined) updates.workingHours = d.workingHours;
+  if (d.feesRange !== undefined) updates.feesRange = d.feesRange;
+  // Settings
+  if (d.slotDurationMinutes !== undefined) updates.slotDurationMinutes = d.slotDurationMinutes;
+  if (d.maxDailyAppointments !== undefined) updates.maxDailyAppointments = d.maxDailyAppointments;
+  if (d.queueEnabled !== undefined) updates.queueEnabled = d.queueEnabled;
 
   await db.update(hospitals).set(updates).where(eq(hospitals.id, hospitalId));
 

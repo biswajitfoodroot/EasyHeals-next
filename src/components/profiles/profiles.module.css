@@ -7,7 +7,10 @@
   min-height: 100dvh;
   background: #FFFFFF;
   color: #1A2B23;
-  padding: 76px 16px 28px;
+  padding: 76px 16px 64px;
+  /* Prevent relatedScroll from expanding page width. clip (not hidden) avoids
+     creating an extra scroll container so fixed/absolute children are unaffected. */
+  overflow-x: clip;
 }
 
 .container {
@@ -181,6 +184,7 @@
 .contentGrid {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .panel {
@@ -188,6 +192,7 @@
   border: 1.5px solid #D0E4D8;
   background: #fff;
   padding: 16px;
+  min-width: 0; /* prevent grid item from expanding beyond column width */
 }
 
 .panel h2,
@@ -529,6 +534,7 @@
   background: #FFFFFF;
   color: #1A2B23;
   padding: 76px 16px 28px;
+  overflow-x: hidden;
 }
 
 .directoryHero {
@@ -991,7 +997,9 @@
 .relatedSection {
   margin-top: 32px;
   padding-top: 24px;
+  padding-bottom: 16px; /* space below the scrollbar so it doesn't clip the section */
   border-top: 1px solid #E5F0E8;
+  min-width: 0; /* prevent this grid item from expanding the grid beyond its column width */
 }
 
 .relatedTitle {
@@ -1006,11 +1014,14 @@
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  padding-bottom: 8px;
-  scrollbar-width: none;
+  padding-bottom: 12px; /* space for the scrollbar track */
+  scrollbar-width: thin;
+  scrollbar-color: #D0E4D8 transparent;
 }
 
-.relatedScroll::-webkit-scrollbar { display: none; }
+.relatedScroll::-webkit-scrollbar { height: 5px; }
+.relatedScroll::-webkit-scrollbar-thumb { background: #D0E4D8; border-radius: 99px; }
+.relatedScroll::-webkit-scrollbar-track { background: transparent; }
 
 .relatedCard {
   flex: 0 0 200px;
@@ -1029,6 +1040,18 @@
 .relatedCard:hover {
   border-color: #1B8A4A;
   box-shadow: 0 4px 14px rgba(27,138,74,0.10);
+}
+
+/* Past/inactive affiliation cards — muted appearance */
+.relatedCardPast {
+  opacity: 0.55;
+  border-style: dashed;
+  background: #F8FAF9;
+}
+.relatedCardPast:hover {
+  opacity: 0.8;
+  border-color: #8FA39A;
+  box-shadow: none;
 }
 
 .relatedCardName {

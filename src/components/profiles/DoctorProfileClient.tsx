@@ -72,10 +72,25 @@ type NearbyDoctor = {
   profileUrl: string;
 };
 
+type PastAffiliation = {
+  affiliationId: string;
+  role: string;
+  affiliationStatus: string;
+  hospital: {
+    id: string;
+    slug: string;
+    name: string;
+    city: string;
+    state: string | null;
+    profileUrl: string;
+  };
+};
+
 type DoctorProfileClientProps = {
   data: {
     doctor: DoctorPayload;
     affiliations: HospitalAffiliation[];
+    pastAffiliations: PastAffiliation[];
     nearbyDoctors: NearbyDoctor[];
     networkTierCode?: string | null;
   };
@@ -260,7 +275,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
             </aside>
           </section>
 
-          {/* ── Related: Practice Hospitals ── */}
+          {/* ── Related: Current Practice Hospitals ── */}
           {data.affiliations.length > 0 && (
             <div className={styles.relatedSection}>
               <h3 className={styles.relatedTitle}>🏥 Also Practices At</h3>
@@ -271,6 +286,22 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                     <span className={styles.relatedCardSub}>{item.role} · {item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}</span>
                     {item.hospital.verified && <span className={styles.relatedCardBadge}>✅ Verified</span>}
                   </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Past Affiliations — info only, no appointments or actions ── */}
+          {data.pastAffiliations.length > 0 && (
+            <div className={styles.relatedSection}>
+              <h3 className={styles.relatedTitle}>🕐 Previously Worked At</h3>
+              <div className={styles.relatedScroll}>
+                {data.pastAffiliations.map((item) => (
+                  <div key={item.affiliationId} className={`${styles.relatedCard} ${styles.relatedCardPast}`}>
+                    <span className={styles.relatedCardName}>{item.hospital.name}</span>
+                    <span className={styles.relatedCardSub}>{item.role} · {item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}</span>
+                    <span className={styles.relatedCardBadge}>Past</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -298,29 +329,62 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
           <section className={styles.panel}>
             <h2>{t("doctor.tabAffiliations")}</h2>
             <p>{t("doctor.affiliationsHint")}</p>
-            <div className={styles.cardGrid}>
-              {data.affiliations.map((item) => (
-                <article key={item.affiliationId} className={styles.profileCard}>
-                  <h4>{item.hospital.name}</h4>
-                  <p>
-                    {item.role} · {item.hospital.city}
-                    {item.hospital.state ? `, ${item.hospital.state}` : ""}
-                  </p>
-                  <div className={styles.tagRow}>
-                    {item.hospital.specialties.slice(0, 4).map((tag) => (
-                      <span key={`${item.affiliationId}-${tag}`}>{tag}</span>
-                    ))}
-                  </div>
-                  <div className={styles.profileCardFooter}>
-                    <Link href={item.hospital.profileUrl}>{t("common.open")}</Link>
-                    <a href={item.hospital.directionsUrl} target="_blank" rel="noreferrer">
-                      {t("common.directions")}
-                    </a>
-                  </div>
-                </article>
-              ))}
-              {data.affiliations.length === 0 ? <p>{t("doctor.noAffiliations")}</p> : null}
-            </div>
+
+            {/* Current hospitals */}
+            {data.affiliations.length > 0 && (
+              <>
+              {data.pastAffiliations.length > 0 && (
+                <h3 style={{ marginTop: "16px", marginBottom: "8px", fontSize: "14px", color: "#1B8A4A" }}>✅ Current Hospitals</h3>
+              )}
+              <div className={styles.cardGrid}>
+                {data.affiliations.map((item) => (
+                  <article key={item.affiliationId} className={styles.profileCard}>
+                    <h4>{item.hospital.name}</h4>
+                    <p>
+                      {item.role} · {item.hospital.city}
+                      {item.hospital.state ? `, ${item.hospital.state}` : ""}
+                    </p>
+                    <div className={styles.tagRow}>
+                      {item.hospital.specialties.slice(0, 4).map((tag) => (
+                        <span key={`${item.affiliationId}-${tag}`}>{tag}</span>
+                      ))}
+                    </div>
+                    <div className={styles.profileCardFooter}>
+                      <Link href={item.hospital.profileUrl}>{t("common.open")}</Link>
+                      <a href={item.hospital.directionsUrl} target="_blank" rel="noreferrer">
+                        {t("common.directions")}
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              </>
+            )}
+
+            {/* Past hospitals */}
+            {data.pastAffiliations.length > 0 && (
+              <>
+                <h3 style={{ marginTop: "20px", fontSize: "14px", color: "#8FA39A" }}>🕐 Previously Worked At</h3>
+                <div className={styles.cardGrid}>
+                  {data.pastAffiliations.map((item) => (
+                    <article key={item.affiliationId} className={styles.profileCard} style={{ opacity: 0.65 }}>
+                      <h4>{item.hospital.name}</h4>
+                      <p>
+                        {item.hospital.city}
+                        {item.hospital.state ? `, ${item.hospital.state}` : ""}
+                      </p>
+                      <div className={styles.tagRow}>
+                        <span style={{ background: "#f1f5f9", color: "#94a3b8" }}>Previously worked at</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {data.affiliations.length === 0 && data.pastAffiliations.length === 0 && (
+              <p>{t("doctor.noAffiliations")}</p>
+            )}
           </section>
         ) : null}
 

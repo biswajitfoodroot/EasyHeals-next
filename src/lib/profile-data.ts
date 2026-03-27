@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, like, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, like, ne, not, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, providerAgreements, taxonomyNodes } from "@/db/schema";
@@ -275,11 +275,41 @@ export async function getDoctorProfileBySlug(slug: string) {
       and(
         eq(doctorHospitalAffiliations.doctorId, doctor.id),
         eq(doctorHospitalAffiliations.isActive, true),
+        eq(doctorHospitalAffiliations.affiliationStatus, "active"),
         eq(hospitals.isActive, true),
+        // Exclude rows whose role text indicates a past relationship (ingestion artefact)
+        not(like(doctorHospitalAffiliations.role, "Previously%")),
       ),
     )
     .orderBy(desc(doctorHospitalAffiliations.isPrimary), desc(hospitals.rating), asc(hospitals.name))
     .limit(100);
+
+  // Past affiliations — inactive, removed/declined, OR role flagged as "Previously worked at"
+  const pastAffiliationRows = await db
+    .select({
+      affiliationId: doctorHospitalAffiliations.id,
+      role: doctorHospitalAffiliations.role,
+      affiliationStatus: doctorHospitalAffiliations.affiliationStatus,
+      hospitalId: hospitals.id,
+      hospitalSlug: hospitals.slug,
+      hospitalName: hospitals.name,
+      hospitalCity: hospitals.city,
+      hospitalState: hospitals.state,
+    })
+    .from(doctorHospitalAffiliations)
+    .innerJoin(hospitals, eq(doctorHospitalAffiliations.hospitalId, hospitals.id))
+    .where(
+      and(
+        eq(doctorHospitalAffiliations.doctorId, doctor.id),
+        or(
+          eq(doctorHospitalAffiliations.isActive, false),
+          inArray(doctorHospitalAffiliations.affiliationStatus, ["removed", "declined"]),
+          like(doctorHospitalAffiliations.role, "Previously%"),
+        ),
+      ),
+    )
+    .orderBy(asc(hospitals.name))
+    .limit(50);
 
   const cityHint = doctor.city ?? affiliationRows[0]?.hospitalCity ?? null;
 
@@ -346,6 +376,19 @@ export async function getDoctorProfileBySlug(slug: string) {
             state: row.hospitalState,
           }),
         }),
+      },
+    })),
+    pastAffiliations: pastAffiliationRows.map((row) => ({
+      affiliationId: row.affiliationId,
+      role: row.role,
+      affiliationStatus: row.affiliationStatus,
+      hospital: {
+        id: row.hospitalId,
+        slug: row.hospitalSlug,
+        name: row.hospitalName,
+        city: row.hospitalCity,
+        state: row.hospitalState,
+        profileUrl: `/hospitals/${row.hospitalSlug}`,
       },
     })),
     nearbyDoctors: nearbyDoctors.map((row) => ({

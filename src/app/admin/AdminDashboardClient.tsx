@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AdminPatientsTab } from "./AdminPatientsTab";
 import { AdminAppointmentsTab } from "./AdminAppointmentsTab";
 import { AdminProvidersTab } from "./AdminProvidersTab";
+import { AdminAffiliationsTab } from "./AdminAffiliationsTab";
 import KycReviewTabContent from "./KycReviewTabContent";
 
 // ── 40-Specialty Master List ─────────────────────────────────────────────────
@@ -225,7 +226,9 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc" | "content";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc" | "content" | "affiliations";
+
+type DoctorCandidate = { id: string; fullName: string; city: string | null; specialization: string | null };
 
 type BrochureDiff = {
   dryRun: true;
@@ -242,7 +245,7 @@ type BrochureDiff = {
     fieldFills: Array<{ field: string; value: string }>;
   };
   doctors: {
-    new: Array<{ fullName: string; specialization: string | null }>;
+    new: Array<{ fullName: string; specialization: string | null; candidates: DoctorCandidate[] }>;
     existing: Array<{ id: string; fullName: string }>;
   };
   packages: {
@@ -255,7 +258,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers", "affiliations"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -376,6 +379,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     packagesUpserted: number;
   } | null>(null);
   const [brochureApplyError, setBrochureApplyError] = useState<string | null>(null);
+  // doctorIdOverrides: fullName → existingDoctorId | "new" — set in the diff preview modal
+  const [doctorIdOverrides, setDoctorIdOverrides] = useState<Record<string, string>>({});
+  const [doctorSearchQuery, setDoctorSearchQuery] = useState<Record<string, string>>({});
+  const [doctorSearchResults, setDoctorSearchResults] = useState<Record<string, DoctorCandidate[]>>({});
+  const [doctorSearchBusy, setDoctorSearchBusy] = useState<Record<string, boolean>>({});
   const [brochureCandidates, setBrochureCandidates] = useState<Array<{
     id: string;
     name: string;
@@ -820,6 +828,9 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     setBrochureApplyError(null);
     setBrochureCandidates(null);
     setBrochureDiff(null);
+    setDoctorIdOverrides({});
+    setDoctorSearchQuery({});
+    setDoctorSearchResults({});
     try {
       const res = await fetch("/api/admin/research/brochure/apply", {
         method: "POST",
@@ -857,10 +868,24 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   function onApplyWithTarget(targetHospitalId: string) { previewApply({ targetHospitalId }, brochurePendingPayload); }
   function onApplyForceCreate() { previewApply({ forceCreate: true }, brochurePendingPayload); }
 
+  async function searchDoctorsForOverride(fullName: string, query: string) {
+    setDoctorSearchQuery((prev) => ({ ...prev, [fullName]: query }));
+    if (query.length < 2) { setDoctorSearchResults((prev) => ({ ...prev, [fullName]: [] })); return; }
+    setDoctorSearchBusy((prev) => ({ ...prev, [fullName]: true }));
+    try {
+      const city = brochureTargetHospital?.city ?? brochureCandidateMeta?.extractedCity ?? "";
+      const res = await fetch(`/api/portal/hospital/doctors/search?q=${encodeURIComponent(query)}&city=${encodeURIComponent(city)}`);
+      const body = await res.json().catch(() => ({ data: [] })) as { data: DoctorCandidate[] };
+      setDoctorSearchResults((prev) => ({ ...prev, [fullName]: body.data ?? [] }));
+    } finally {
+      setDoctorSearchBusy((prev) => ({ ...prev, [fullName]: false }));
+    }
+  }
+
   async function confirmApply() {
     setBrochureConfirmOpen(false);
     const savedIdx = agentSavingIdx;
-    await submitApply(brochurePendingArgs, brochurePendingPayload);
+    await submitApply({ ...brochurePendingArgs, doctorIdOverrides }, brochurePendingPayload);
     // If triggered from AI research, track per-entity result
     if (savedIdx !== null) {
       setAgentSaveResults((prev) => ({ ...prev, [savedIdx]: { ok: true, text: "Saved successfully" } }));
@@ -1038,26 +1063,33 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     );
   }
 
-  async function onSearchAmbiguousHospitals(key: string, query: string) {
+  async function onSearchAmbiguousHospitals(key: string, query: string, itemCity?: string) {
     setAmbiguousSearchQueries((prev) => ({ ...prev, [key]: query }));
-    
-    // Fallback to local filtering for instant results
-    const lower = query.toLowerCase();
-    const results = hospitalList
-      .filter((h) => 
-        h.name.toLowerCase().includes(lower) || 
-        (h.city ?? "").toLowerCase().includes(lower) ||
-        (h.state ?? "").toLowerCase().includes(lower)
-      )
-      .slice(0, 50); // Show more results locally
-    
-    setAmbiguousSearchResults((prev) => ({ ...prev, [key]: results }));
-    
-    // If query is empty, we don't need to load anything extra
-    if (query.trim().length === 0) return;
 
-    // Optional: still trigger background fetch if we want to be sure about server-side matches
-    // but for now, local search on 23-100 hospitals is sufficient.
+    const lower = query.trim().toLowerCase();
+    const cityLower = (itemCity ?? "").toLowerCase();
+
+    // Filter by city first — only show same-city hospitals unless user explicitly types a different city
+    const results = hospitalList
+      .filter((h) => {
+        const hCity = (h.city ?? "").toLowerCase();
+        const nameMatch = lower ? h.name.toLowerCase().includes(lower) : true;
+        const cityMatch = lower
+          ? hCity.includes(lower) || (h.state ?? "").toLowerCase().includes(lower)
+          : cityLower ? hCity.includes(cityLower) : true; // default: same-city only
+        return nameMatch || cityMatch;
+      })
+      // Sort same-city hospitals to the top
+      .sort((a, b) => {
+        const aCity = (a.city ?? "").toLowerCase();
+        const bCity = (b.city ?? "").toLowerCase();
+        const aMatch = cityLower && aCity.includes(cityLower) ? 0 : 1;
+        const bMatch = cityLower && bCity.includes(cityLower) ? 0 : 1;
+        return aMatch - bMatch;
+      })
+      .slice(0, 50);
+
+    setAmbiguousSearchResults((prev) => ({ ...prev, [key]: results }));
   }
 
   function onBrochureHospitalSearchChange(q: string) {
@@ -1406,7 +1438,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "kyc", "config", "patients", "appointments", "providers", "affiliations"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1420,6 +1452,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               patients: { label: "Patients", icon: "👤" },
               appointments: { label: "Appointments", icon: "📅" },
               providers: { label: "Providers", icon: "🏥" },
+              affiliations: { label: "Affiliations", icon: "🔗" },
             };
             const { label, icon, count } = labels[tab];
             return (
@@ -2405,6 +2438,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                     value={agentQuery}
                     onChange={(e) => setAgentQuery(e.target.value)}
                     placeholder="e.g. top cardiac hospitals in Mumbai, best orthopedic surgeons Delhi"
+                    maxLength={500}
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-slate-50"
                   />
                 </div>
@@ -2534,7 +2568,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                   type="text"
                                   placeholder="🔍 Search all hospitals..."
                                   value={searchQuery}
-                                  onChange={(e) => onSearchAmbiguousHospitals(key, e.target.value)}
+                                  onChange={(e) => onSearchAmbiguousHospitals(key, e.target.value, item.city)}
                                   className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-500"
                                 />
                               </div>
@@ -2574,7 +2608,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                     <div className="flex items-center justify-between px-1 pt-1">
                                       <p className="text-xs font-semibold text-slate-600">AI Suggested Matches</p>
                                       <button 
-                                        onClick={() => onSearchAmbiguousHospitals(key, " ")} 
+                                        onClick={() => onSearchAmbiguousHospitals(key, " ", item.city)}
                                         className="text-[10px] text-teal-600 font-bold hover:underline uppercase"
                                       >
                                         Browse All
@@ -3130,6 +3164,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         {/* ── PROVIDERS TAB ────────────────────────────────────────────── */}
         {activeTab === "providers" && (
           <AdminProvidersTab />
+        )}
+
+        {/* ── AFFILIATIONS TAB ─────────────────────────────────────────── */}
+        {activeTab === "affiliations" && (
+          <AdminAffiliationsTab />
         )}
 
         {/* ── CONTENT TAB ──────────────────────────────────────────────── */}
@@ -3732,22 +3771,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Doctors ({brochureDiff.doctors.new.length + brochureDiff.doctors.existing.length} total)
                 </h4>
-                {brochureDiff.doctors.new.length > 0 && (
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-xs font-semibold text-emerald-700 mb-2">+ {brochureDiff.doctors.new.length} new doctors will be created</p>
-                    <div className="space-y-1">
-                      {brochureDiff.doctors.new.map((d) => (
-                        <div key={d.fullName} className="flex gap-2 text-xs">
-                          <span className="font-medium text-emerald-800">{d.fullName}</span>
-                          {d.specialization && <span className="text-emerald-600">· {d.specialization}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
+                {/* Already-linked doctors */}
                 {brochureDiff.doctors.existing.length > 0 && (
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold text-slate-500 mb-2">✓ {brochureDiff.doctors.existing.length} doctors already exist — qualifications will be merged, empty fields filled</p>
+                    <p className="text-xs font-semibold text-slate-500 mb-2">✓ {brochureDiff.doctors.existing.length} already linked — qualifications merged, empty fields filled</p>
                     <div className="flex flex-wrap gap-1.5">
                       {brochureDiff.doctors.existing.map((d) => (
                         <span key={d.id} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-xs">{d.fullName}</span>
@@ -3755,6 +3783,92 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                     </div>
                   </div>
                 )}
+
+                {/* New doctors — admin must resolve each one */}
+                {brochureDiff.doctors.new.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-amber-700">
+                      ⚠ {brochureDiff.doctors.new.length} doctor{brochureDiff.doctors.new.length > 1 ? "s" : ""} not yet linked — choose an action for each:
+                    </p>
+                    {brochureDiff.doctors.new.map((d) => {
+                      const override = doctorIdOverrides[d.fullName];
+                      const isResolved = !!override;
+                      const allCandidates = [
+                        ...d.candidates,
+                        ...(doctorSearchResults[d.fullName] ?? []),
+                      ].filter((c, i, arr) => arr.findIndex((x) => x.id === c.id) === i);
+
+                      return (
+                        <div key={d.fullName} className={`rounded-xl border px-4 py-3 space-y-2 ${isResolved ? "border-emerald-300 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{d.fullName}</p>
+                              {d.specialization && <p className="text-xs text-slate-500">{d.specialization}</p>}
+                            </div>
+                            {isResolved && (
+                              <button
+                                onClick={() => setDoctorIdOverrides((prev) => { const n = { ...prev }; delete n[d.fullName]; return n; })}
+                                className="text-xs text-slate-400 hover:text-red-500 shrink-0"
+                              >
+                                undo
+                              </button>
+                            )}
+                          </div>
+
+                          {isResolved ? (
+                            <p className="text-xs text-emerald-700 font-medium">
+                              {override === "new"
+                                ? "✓ Will create as a new doctor"
+                                : `✓ Will link to existing doctor (ID: ${override.slice(0, 8)}…)`}
+                            </p>
+                          ) : (
+                            <>
+                              {/* Candidate chips from dry-run + search */}
+                              {allCandidates.length > 0 && (
+                                <div className="space-y-1">
+                                  <p className="text-xs text-slate-500">Possible matches — click to link:</p>
+                                  {allCandidates.map((c) => (
+                                    <button
+                                      key={c.id}
+                                      onClick={() => setDoctorIdOverrides((prev) => ({ ...prev, [d.fullName]: c.id }))}
+                                      className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50 text-left transition text-xs"
+                                    >
+                                      <span className="font-medium text-slate-700">{c.fullName}</span>
+                                      <span className="text-slate-400 shrink-0">{c.city ?? "—"}{c.specialization ? ` · ${c.specialization}` : ""}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Doctor search */}
+                              <div className="flex gap-2 items-center">
+                                <input
+                                  type="text"
+                                  value={doctorSearchQuery[d.fullName] ?? ""}
+                                  onChange={(e) => void searchDoctorsForOverride(d.fullName, e.target.value)}
+                                  placeholder="Search by name…"
+                                  className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-emerald-400 outline-none bg-white"
+                                />
+                                {doctorSearchBusy[d.fullName] && (
+                                  <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-emerald-500 rounded-full animate-spin shrink-0" />
+                                )}
+                              </div>
+
+                              {/* Create new option */}
+                              <button
+                                onClick={() => setDoctorIdOverrides((prev) => ({ ...prev, [d.fullName]: "new" }))}
+                                className="w-full py-1.5 border border-dashed border-emerald-400 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-100 transition"
+                              >
+                                + Create as new doctor
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {brochureDiff.doctors.new.length === 0 && brochureDiff.doctors.existing.length === 0 && (
                   <p className="text-sm text-slate-400 italic">No doctors in extracted data.</p>
                 )}
@@ -3807,16 +3921,28 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                onClick={confirmApply}
-                disabled={brochureApplyBusy}
-                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2 text-sm"
-              >
-                {brochureApplyBusy
-                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
-                  : brochureDiff.hospitalAction === "created" ? "✓ Confirm & Create Hospital" : "✓ Confirm & Save Changes"}
-              </button>
+              {(() => {
+                const unresolvedDoctors = brochureDiff.doctors.new.filter((d) => !doctorIdOverrides[d.fullName]);
+                return (
+                  <>
+                    {unresolvedDoctors.length > 0 && (
+                      <p className="w-full text-xs text-amber-600 text-right pr-1">
+                        {unresolvedDoctors.length} doctor{unresolvedDoctors.length > 1 ? "s" : ""} unresolved — they will be skipped
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={confirmApply}
+                      disabled={brochureApplyBusy}
+                      className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2 text-sm"
+                    >
+                      {brochureApplyBusy
+                        ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
+                        : brochureDiff.hospitalAction === "created" ? "✓ Confirm & Create Hospital" : "✓ Confirm & Save Changes"}
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

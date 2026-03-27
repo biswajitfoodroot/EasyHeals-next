@@ -8,74 +8,13 @@ import { useTranslations } from "@/i18n/LocaleContext";
 import { LOCALES } from "@/i18n/translations";
 
 import { ContributeModal } from "@/components/contribute/ContributeModal";
-import { categories, smartBrowseData } from "@/components/phase1/data";
 import { RegistrationModal } from "@/components/registration/RegistrationModal";
 import { ChatSearch } from "@/components/search/ChatSearch";
 import { SearchResults } from "@/components/search/SearchResults";
 import type { SearchIntent, SearchResponse, SearchResult } from "@/components/phase1/types";
 import { easyHealsPublicData } from "@/data/easyhealsPublicData";
-import { RewardsTeaser } from "@/components/gamification/RewardsTeaser";
 import HealthAssistant from "@/components/health-assistant/HealthAssistant";
 import styles from "@/components/homepage/homepage.module.css";
-
-type TopRatedEntry = {
-  id: string;
-  name: string;
-  slug: string;
-  city: string;
-  rating: number;
-  reviewCount: number;
-  specialties: string[];
-};
-
-/* ── Symptom-to-specialist mapping ─────────────────────────────────────────── */
-
-const symptomAreas = [
-  {
-    key: "head",
-    label: "Head & Brain",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a7 7 0 017 7c0 2.5-1.3 4.7-3.2 6l-.8 1H9l-.8-1A7 7 0 115 9a7 7 0 017-7z" /><path d="M9 21h6m-3-3v3" />
-      </svg>
-    ),
-    specialist: "Neurology",
-    description: "Headache, seizure, memory issues, dizziness, stroke signs.",
-  },
-  {
-    key: "heart",
-    label: "Chest & Heart",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-      </svg>
-    ),
-    specialist: "Cardiology",
-    description: "Chest pain, palpitations, breathlessness, blood pressure concerns.",
-  },
-  {
-    key: "joints",
-    label: "Joints & Bones",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 3l4 4-2 2 4 4 2-2 4 4" /><path d="M3 21l4.5-4.5" />
-      </svg>
-    ),
-    specialist: "Orthopaedics",
-    description: "Joint pain, fractures, back pain, sports injury, spine issues.",
-  },
-  {
-    key: "abdomen",
-    label: "Abdomen",
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <ellipse cx="12" cy="13" rx="7" ry="6" /><path d="M9 7c0-2.2 1.3-4 3-4s3 1.8 3 4" />
-      </svg>
-    ),
-    specialist: "Gastroenterology",
-    description: "Acidity, stomach pain, liver, digestion and bowel concerns.",
-  },
-];
 
 /* ── FAQ Data (SEO) ────────────────────────────────────────────────────────── */
 
@@ -106,32 +45,6 @@ const homeFAQs = [
   },
 ];
 
-function smartListingAsSearchResult(item: {
-  id: string;
-  name: string;
-  location: string;
-  tags: string[];
-  rating: string;
-}): SearchResult {
-  const [city] = item.location.split(",").slice(-1);
-  return {
-    id: item.id,
-    type: item.name.toLowerCase().includes("dr") ? "doctor" : "hospital",
-    name: item.name,
-    slug: item.id,
-    city: (city ?? item.location).trim(),
-    state: null,
-    rating: Number(item.rating) || 0,
-    verified: true,
-    communityVerified: true,
-    specialties: item.tags,
-    source: "seed",
-    score: Number(item.rating) || 0,
-    description: null,
-    profileUrl: item.name.toLowerCase().includes("dr") ? `/doctors/${item.id}` : `/hospitals/${item.id}`,
-    phone: null,
-  };
-}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    HOMEPAGE COMPONENT
@@ -168,12 +81,16 @@ export default function HomePage() {
   const [queuedPrompt, setQueuedPrompt] = useState<string | null>(null);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [contributeTarget, setContributeTarget] = useState<SearchResult | null>(null);
-  const [activeCategory, setActiveCategory] = useState<(typeof categories)[number]["key"]>("hospital");
-  const [activeSymptomArea, setActiveSymptomArea] = useState(symptomAreas[0]);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [personBarDismissed, setPersonBarDismissed] = useState(false);
   const [openFQIndex, setOpenFQIndex] = useState<number | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [stats, setStats] = useState({
+    hospitalLabel: "12k+",
+    cityLabel: "50+",
+    languageLabel: "9+",
+    doctorLabel: "5k+",
+  });
 
   const currentLocale = LOCALES.find((l) => l.code === locale);
 
@@ -188,12 +105,6 @@ export default function HomePage() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
-  const smartCards = useMemo(
-    () => smartBrowseData[activeCategory] ?? smartBrowseData.hospital,
-    [activeCategory],
-  );
-
-  const [topRated, setTopRated] = useState<TopRatedEntry[]>([]);
   const [city, setCity] = useState<string | null>(null);
 
   // Filtered city groups based on search input
@@ -210,6 +121,16 @@ export default function HomePage() {
     fetch("/api/v1/patients/me", { credentials: "include" })
       .then((r) => setIsLoggedIn(r.ok))
       .catch(() => setIsLoggedIn(false));
+  }, []);
+
+  // Live platform stats
+  useEffect(() => {
+    fetch("/api/public/stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { data?: { hospitalLabel: string; cityLabel: string; languageLabel: string; doctorLabel: string } } | null) => {
+        if (d?.data) setStats(d.data);
+      })
+      .catch(() => {});
   }, []);
 
   // Personalization dismissal
@@ -277,18 +198,6 @@ export default function HomePage() {
     );
   }
 
-  // Top rated data — refresh when category or city changes
-  useEffect(() => {
-    const params = new URLSearchParams({ category: activeCategory });
-    if (city) params.set("city", city);
-    fetch(`/api/public/top-rated?${params.toString()}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { data?: TopRatedEntry[] } | null) => {
-        if (data?.data?.length) setTopRated(data.data);
-        else setTopRated([]);
-      })
-      .catch(() => setTopRated([]));
-  }, [activeCategory, city]);
 
   function handleSearch(payload: SearchResponse) {
     setIntent(payload.intent);
@@ -479,10 +388,10 @@ export default function HomePage() {
               <span>💊 No Medication Advice</span>
             </div>
             <div className={styles.heroStats}>
-              <article><strong>12k+</strong><span>{t("home.statHospitals")}</span></article>
-              <article><strong>50+</strong><span>{t("home.statCities")}</span></article>
-              <article><strong>5</strong><span>{t("home.statLanguages")}</span></article>
-              <article><strong>4.8★</strong><span>{t("home.statRating")}</span></article>
+              <article><strong>{stats.hospitalLabel}</strong><span>{t("home.statHospitals")}</span></article>
+              <article><strong>{stats.cityLabel}</strong><span>{t("home.statCities")}</span></article>
+              <article><strong>{stats.languageLabel}</strong><span>{t("home.statLanguages")}</span></article>
+              <article><strong>{stats.doctorLabel}</strong><span>{t("home.statDoctors")}</span></article>
             </div>
           </div>
         </div>
@@ -513,7 +422,7 @@ export default function HomePage() {
               <div className={styles.heroStats}>
                 <article><strong>12k+</strong><span>{t("home.statHospitals")}</span></article>
                 <article><strong>50+</strong><span>{t("home.statCities")}</span></article>
-                <article><strong>5</strong><span>{t("home.statLanguages")}</span></article>
+                <article><strong>9+</strong><span>{t("home.statLanguages")}</span></article>
                 <article><strong>4.8★</strong><span>{t("home.statRating")}</span></article>
               </div>
             </div>
@@ -559,76 +468,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          ④ QUICK ACCESS GRID — Browse categories
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section className={styles.quickSection} aria-labelledby="quick-title">
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>Find Healthcare</span>
-          <h2 id="quick-title" className={styles.sectionTitle}>{t("home.whatLooking")}</h2>
-          <p className={styles.sectionSubtitle}>Find the right healthcare across India — verified private hospitals, specialist doctors, lab tests and treatments.</p>
-        </div>
-
-        <div className={styles.quickGrid}>
-          <Link href="/hospitals" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21V7a2 2 0 012-2h14a2 2 0 012 2v14" /><path d="M3 21h18" /><path d="M9 21V12h6v9" /><path d="M12 7v3m-1.5-1.5h3" />
-              </svg>
-            </span>
-            {t("nav.hospitals")}
-          </Link>
-          <Link href="/doctors" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="3" /><path d="M6.5 20a5.5 5.5 0 0111 0" /><path d="M14 15h2a2 2 0 012 2v1" />
-              </svg>
-            </span>
-            {t("nav.doctors")}
-          </Link>
-          <Link href="/hospitals" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V8l-5-5H9z" /><path d="M9 3v5h10" /><path d="M9 13h6m-3-3v6" />
-              </svg>
-            </span>
-            {t("home.labTests")}
-          </Link>
-          <Link href="/treatments" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 7l-1 1-4-4 1-1a2 2 0 012.83 0l1.17 1.17A2 2 0 0119 7z" /><path d="M14 8L5 17l-2 4 4-2 9-9" /><path d="M7.5 13.5l3 3" />
-              </svg>
-            </span>
-            {t("nav.treatments")}
-          </Link>
-          <Link href="/diagnostics" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              {/* Test tube / diagnostics icon */}
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14.5 2L20 7.5l-8.5 8.5a4.5 4.5 0 01-6.37-6.37L14.5 2z" /><path d="M15 7l-1 1" /><path d="M4 20h16" />
-              </svg>
-            </span>
-            Diagnostics
-          </Link>
-          <Link href="/symptoms" className={styles.quickCard}>
-            <span className={styles.quickIcon}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z" /><path d="M12 6v6l4 2" />
-              </svg>
-            </span>
-            {t("home.symptoms")}
-          </Link>
-          <button type="button" className={`${styles.quickCard} ${styles.quickCardHighlight}`} onClick={() => setRegistrationOpen(true)}>
-            <span className={styles.quickIcon} style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14m-7-7h14" />
-              </svg>
-            </span>
-            {t("home.listHospitalFree")}
-          </button>
-        </div>
-      </section>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           ⑤ TRUST & SUPPORT STRIP — Institutional backing
@@ -684,133 +523,12 @@ export default function HomePage() {
             <span>🛡️ DPDP Compliant</span>
             <span>✅ Community Verified Listings</span>
             <span>🆓 Free for Patients</span>
-            <span>🌐 5 Indian Languages</span>
+            <span>🌐 9 Languages</span>
             <span>🔒 AES-256 Encrypted</span>
           </div>
         </div>
       </section>
 
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          ⑥ TOP RATED NEAR YOU — Category tabs + listings
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section className={styles.ratedSection} aria-labelledby="rated-title">
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>Verified Healthcare</span>
-          <h2 id="rated-title" className={styles.sectionTitle}>
-            {city ? `${t("home.topRatedIn")} ${city}` : t("home.topRatedNear")}
-          </h2>
-          <p className={styles.sectionSubtitle}>Community-verified healthcare providers in your area</p>
-        </div>
-
-        <div className={styles.smartLayout}>
-          <aside className={styles.smartNav}>
-            {categories.map((category) => (
-              <button
-                key={category.key}
-                type="button"
-                className={activeCategory === category.key ? styles.smartNavActive : ""}
-                onClick={() => setActiveCategory(category.key)}
-              >
-                {category.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={activeCategory === ("symptom" as typeof activeCategory) ? styles.smartNavActive : ""}
-              onClick={() => setActiveCategory("symptom" as typeof activeCategory)}
-            >
-              Symptom Checker
-            </button>
-          </aside>
-
-          <div>
-            {activeCategory === ("symptom" as typeof activeCategory) ? (
-              /* Symptom-to-specialist */
-              <div>
-                <div className={styles.sectionHeader} style={{ textAlign: "left", marginBottom: 16 }}>
-                  <h3 className={styles.sectionTitle} style={{ fontSize: 24 }}>{t("home.notSureSpecialist")}</h3>
-                  <p className={styles.sectionSubtitle} style={{ margin: "6px 0 0" }}>{t("home.selectBodyArea")}</p>
-                </div>
-                <div className={styles.symptomLayout}>
-                  <div className={styles.areaButtons}>
-                    {symptomAreas.map((area) => (
-                      <button
-                        key={area.key}
-                        type="button"
-                        className={activeSymptomArea.key === area.key ? styles.areaActive : ""}
-                        onClick={() => setActiveSymptomArea(area)}
-                      >
-                        <span className={styles.areaIcon}>{area.icon}</span>
-                        {area.label}
-                      </button>
-                    ))}
-                  </div>
-                  <article className={styles.symptomPanel}>
-                    <h3>{activeSymptomArea.specialist}</h3>
-                    <p>{activeSymptomArea.description}</p>
-                    <button type="button" onClick={() => triggerPrompt(`Need ${activeSymptomArea.specialist} specialist`)}>
-                      Find {activeSymptomArea.specialist}
-                    </button>
-                  </article>
-                </div>
-              </div>
-            ) : (
-              /* Listings cards */
-              <div className={styles.smartCards}>
-                {topRated.length > 0
-                  ? topRated.map((entry) => (
-                      <article key={entry.id}>
-                        <h3>{entry.name}</h3>
-                        <p>{entry.city}</p>
-                        <div className={styles.tagRow}>
-                          {entry.specialties.slice(0, 3).map((tag) => (
-                            <span key={`${entry.id}-${tag}`}>{tag}</span>
-                          ))}
-                        </div>
-                        <div className={styles.smartFoot}>
-                          <span>⭐ {entry.rating.toFixed(1)} ({entry.reviewCount.toLocaleString("en-IN")})</span>
-                          <Link href={`/hospitals/${entry.slug}`} className={styles.smartViewBtn}>
-                            {t("home.viewProfile")}
-                          </Link>
-                        </div>
-                      </article>
-                    ))
-                  : smartCards.map((card) => (
-                      <article key={card.id}>
-                        <h3>{card.name}</h3>
-                        <p>{card.location}</p>
-                        <div className={styles.tagRow}>
-                          {card.tags.map((tag) => (
-                            <span key={`${card.id}-${tag}`}>{tag}</span>
-                          ))}
-                        </div>
-                        <div className={styles.smartFoot}>
-                          <span>⭐ {card.rating} ({card.reviews})</span>
-                          <button type="button" onClick={() => setContributeTarget(smartListingAsSearchResult(card))}>
-                            {t("home.suggestEdit")}
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          ⑦ GAMIFICATION — Rewards teaser (moved BEFORE provider section)
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <section className={styles.gamificationSection} aria-label="Rewards programme preview">
-        <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>Health Rewards</span>
-          <h2 className={styles.sectionTitle}>Earn Points for Every Health Action</h2>
-          <p className={styles.sectionSubtitle}>Search, book, and stay informed. Top patients in your city get featured on the leaderboard.</p>
-        </div>
-        <div className={styles.gamificationInner}>
-          <RewardsTeaser />
-        </div>
-      </section>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           ⑧ FOR DOCTORS & HOSPITALS — Free tools CTA

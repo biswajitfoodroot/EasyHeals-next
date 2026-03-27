@@ -193,6 +193,7 @@ export type Dict = {
     statCities: string;
     statLanguages: string;
     statRating: string;
+    statDoctors: string;
   };
   dashboard: {
     greetingMorning: string;
@@ -406,6 +407,7 @@ const en: Dict = {
     statCities: "Cities",
     statLanguages: "Languages",
     statRating: "Patient Rating",
+    statDoctors: "Doctors",
   },
   dashboard: {
     greetingMorning: "Good morning",
@@ -619,6 +621,7 @@ const hi: Dict = {
     statCities: "शहर",
     statLanguages: "भाषाएं",
     statRating: "रोगी रेटिंग",
+    statDoctors: "डॉक्टर",
   },
   dashboard: {
     greetingMorning: "सुप्रभात",
@@ -832,6 +835,7 @@ const mr: Dict = {
     statCities: "शहरे",
     statLanguages: "भाषा",
     statRating: "रुग्ण रेटिंग",
+    statDoctors: "डॉक्टर",
   },
   dashboard: {
     greetingMorning: "सुप्रभात",
@@ -1045,6 +1049,7 @@ const ta: Dict = {
     statCities: "நகரங்கள்",
     statLanguages: "மொழிகள்",
     statRating: "நோயாளி மதிப்பீடு",
+    statDoctors: "மருத்துவர்கள்",
   },
   dashboard: {
     greetingMorning: "காலை வணக்கம்",
@@ -1258,6 +1263,7 @@ const bn: Dict = {
     statCities: "শহর",
     statLanguages: "ভাষা",
     statRating: "রোগীর রেটিং",
+    statDoctors: "ডাক্তার",
   },
   dashboard: {
     greetingMorning: "শুভ সকাল",
@@ -1471,6 +1477,7 @@ const ml: Dict = {
     statCities: "നഗരങ്ങൾ",
     statLanguages: "ഭാഷകൾ",
     statRating: "രോഗി റേറ്റിംഗ്",
+    statDoctors: "ഡോക്ടർമാർ",
   },
   dashboard: {
     greetingMorning: "സുപ്രഭാതം",
@@ -1684,6 +1691,7 @@ const kn: Dict = {
     statCities: "ನಗರಗಳು",
     statLanguages: "ಭಾಷೆಗಳು",
     statRating: "ರೋಗಿ ರೇಟಿಂಗ್",
+    statDoctors: "ವೈದ್ಯರು",
   },
   dashboard: {
     greetingMorning: "ಶುಭೋದಯ",
@@ -1897,6 +1905,7 @@ const te: Dict = {
     statCities: "నగరాలు",
     statLanguages: "భాషలు",
     statRating: "రోగి రేటింగ్",
+    statDoctors: "వైద్యులు",
   },
   dashboard: {
     greetingMorning: "శుభోదయం",
@@ -2110,6 +2119,7 @@ const ar: Dict = {
     statCities: "مدينة",
     statLanguages: "لغة",
     statRating: "تقييم المريض",
+    statDoctors: "أطباء",
   },
   dashboard: {
     greetingMorning: "صباح الخير",
@@ -2323,6 +2333,7 @@ const si: Dict = {
     statCities: "නගර",
     statLanguages: "භාෂා",
     statRating: "රෝගී ශ්‍රේණිගත",
+    statDoctors: "වෛද්‍යවරුන්",
   },
   dashboard: {
     greetingMorning: "සුභ උදෑසනක්",

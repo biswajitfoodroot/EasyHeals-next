@@ -18,6 +18,7 @@ import { LocaleProvider } from "@/i18n/LocaleContext";
 import type { Locale } from "@/i18n/translations";
 import { SiteNav } from "@/components/SiteNav";
 import { MSG91HelloChat } from "@/components/MSG91HelloChat";
+import { MobileBottomNav } from "@/components/MobileBottomNav";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -161,7 +162,10 @@ export default async function RootLayout({
       <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable} ${notoSans.variable} ${notoBengali.variable} ${notoTamil.variable} ${notoMalayalam.variable} ${notoKannada.variable} ${notoTelugu.variable} ${notoArabic.variable} ${notoSinhala.variable}`}>
         <LocaleProvider initialLocale={initialLocale}>
           <SiteNav />
-          {children}
+          <div className="pb-[64px] md:pb-0">
+            {children}
+          </div>
+          <MobileBottomNav />
           <MSG91HelloChat />
         </LocaleProvider>
       </body>

@@ -507,6 +507,38 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
             </div>
           </section>
         ) : null}
+
+        {/* ── Related: Affiliated Doctors ── */}
+        {data.doctors.length > 0 && (
+          <div className={styles.relatedSection}>
+            <h3 className={styles.relatedTitle}>👨‍⚕️ Doctors at this Hospital</h3>
+            <div className={styles.relatedScroll}>
+              {data.doctors.slice(0, 10).map((doc) => (
+                <Link key={doc.id} href={doc.profileUrl} className={styles.relatedCard}>
+                  <span className={styles.relatedCardName}>{doc.name}</span>
+                  <span className={styles.relatedCardSub}>{doc.specialization ?? "Specialist"}</span>
+                  <span className={styles.relatedCardBadge}>★ {doc.rating.toFixed(1)}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Related: Similar Hospitals ── */}
+        {data.nearbyHospitals.length > 0 && (
+          <div className={styles.relatedSection}>
+            <h3 className={styles.relatedTitle}>🏥 Similar Hospitals You May Consider</h3>
+            <div className={styles.relatedScroll}>
+              {data.nearbyHospitals.slice(0, 8).map((item) => (
+                <Link key={item.id} href={item.profileUrl} className={styles.relatedCard}>
+                  <span className={styles.relatedCardName}>{item.name}</span>
+                  <span className={styles.relatedCardSub}>{item.city}{item.state ? `, ${item.state}` : ""}</span>
+                  <span className={styles.relatedCardBadge}>★ {item.rating.toFixed(1)}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <div className={styles.mobileBar}>

@@ -9,6 +9,16 @@ import { writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
 import { slugify } from "@/lib/strings";
 
+// ── Name normalization — used for dedup-safe matching ────────────────────────
+// Strips leading "Dr."/"Dr " prefix and normalises whitespace/case so that
+// "Dr. Amitabha Saha", "Dr Amitabha Saha", "dr. amitabha saha" all compare equal.
+function normalizeName(name: string): string {
+  return name.trim()
+    .replace(/^dr\.?\s+/i, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
 // ── Clean helpers ────────────────────────────────────────────────────────────
 function cleanStr(v: unknown): string | undefined {
   if (v == null || v === "" || typeof v !== "string") return undefined;
@@ -71,6 +81,10 @@ const applySchema = z.object({
   dryRun: z.boolean().optional(),
   // quickSave: skip confirmation for 0-1 candidates — auto-create or auto-update
   quickSave: z.boolean().optional(),
+  // doctorIdOverrides: admin explicitly maps extracted doctor name → existing doctor ID or "new"
+  // "new" = force-create a fresh record regardless of any DB match
+  // "<uuid>" = link to this existing doctor without changing their data
+  doctorIdOverrides: z.record(z.string(), z.string()).optional(),
 }).passthrough();
 
 export type HospitalCandidate = {
@@ -82,6 +96,8 @@ export type HospitalCandidate = {
   phone: string | null;
   isActive: boolean;
 };
+
+export type DoctorCandidate = { id: string; fullName: string; city: string | null; specialization: string | null };
 
 export type BrochureDiff = {
   dryRun: true;
@@ -98,7 +114,9 @@ export type BrochureDiff = {
     fieldFills: Array<{ field: string; value: string }>;
   };
   doctors: {
-    new: Array<{ fullName: string; specialization: string | null }>;
+    /** Doctors not yet in DB (or not linked) — admin must decide: link to candidate or create new */
+    new: Array<{ fullName: string; specialization: string | null; candidates: DoctorCandidate[] }>;
+    /** Doctors already matched to this hospital — will have qualifications merged */
     existing: Array<{ id: string; fullName: string }>;
   };
   packages: {
@@ -129,6 +147,7 @@ export async function POST(req: NextRequest) {
   const h = raw.hospital;
   const dryRun = raw.dryRun ?? false;
   const quickSave = raw.quickSave ?? false;
+  const doctorIdOverrides: Record<string, string> = raw.doctorIdOverrides ?? {};
 
   const hospitalName = h.name.trim();
   const hospitalCity = cleanStr(h.city) ?? "";
@@ -168,43 +187,44 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Case D: slug-based lookup
+  // Strip common words so "Aster Dental Clinic" → ["Aster", "Dental"] — avoids matching every hospital with "Clinic"
+  const stopWords = new Set(["hospital", "clinic", "centre", "center", "nursing", "home", "medical", "health", "care", "and", "the", "multi", "super", "speciality", "specialty", "institute", "foundation"]);
+  const nameParts = hospitalName.split(/\s+/).filter((w) => w.length > 2 && !stopWords.has(w.toLowerCase()));
+
+  const seen = new Set<string>();
+  const candidates: HospitalCandidate[] = [];
+
+  // Case D: slug-based lookup (city-scoped slug preferred)
   const baseSlug = slugify(`${hospitalName} ${hospitalCity || ""}`.trim());
-  const slugCandidates: HospitalCandidate[] = [];
   if (baseSlug) {
     const bySlug = await db
       .select({ id: hospitals.id, name: hospitals.name, slug: hospitals.slug, city: hospitals.city, state: hospitals.state, phone: hospitals.phone, isActive: hospitals.isActive })
       .from(hospitals)
       .where(like(hospitals.slug, `${baseSlug}%`))
       .limit(4);
-    slugCandidates.push(...bySlug);
+    for (const r of bySlug) { if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); } }
   }
 
-  // Case E: fuzzy name search
-  const nameParts = hospitalName.split(/\s+/).filter((w) => w.length > 3);
-  const fuzzyConditions = [
-    ...nameParts.map((part) => like(hospitals.name, `%${part}%`)),
-    ...(hospitalCity ? [like(hospitals.name, `%${hospitalCity}%`), like(hospitals.city, `%${hospitalCity}%`)] : []),
-  ];
-
-  const fuzzyCandidates: HospitalCandidate[] = [];
-  if (fuzzyConditions.length > 0) {
-    const rows = await db
+  // Case E-1: city-scoped name search (most precise — same city + any meaningful name word)
+  if (nameParts.length > 0 && hospitalCity) {
+    const nameConditions = nameParts.map((part) => like(hospitals.name, `%${part}%`));
+    const cityScoped = await db
       .select({ id: hospitals.id, name: hospitals.name, slug: hospitals.slug, city: hospitals.city, state: hospitals.state, phone: hospitals.phone, isActive: hospitals.isActive })
       .from(hospitals)
-      .where(or(...fuzzyConditions))
-      .limit(8);
-    fuzzyCandidates.push(...rows);
+      .where(and(like(hospitals.city, `%${hospitalCity}%`), or(...nameConditions)))
+      .limit(6);
+    for (const r of cityScoped) { if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); } }
   }
 
-  // Merge, deduplicate by id
-  const seen = new Set<string>();
-  const candidates: HospitalCandidate[] = [];
-  for (const c of [...slugCandidates, ...fuzzyCandidates]) {
-    if (!seen.has(c.id)) {
-      seen.add(c.id);
-      candidates.push(c);
-    }
+  // Case E-2: name-only fallback — only if city-scoped search found nothing
+  if (candidates.length === 0 && nameParts.length > 0) {
+    const nameConditions = nameParts.map((part) => like(hospitals.name, `%${part}%`));
+    const byName = await db
+      .select({ id: hospitals.id, name: hospitals.name, slug: hospitals.slug, city: hospitals.city, state: hospitals.state, phone: hospitals.phone, isActive: hospitals.isActive })
+      .from(hospitals)
+      .where(and(...nameConditions))
+      .limit(5);
+    for (const r of byName) { if (!seen.has(r.id)) { candidates.push(r); seen.add(r.id); } }
   }
 
   // Case F: quickSave intelligence — only ask when genuinely ambiguous (2+ candidates)
@@ -270,7 +290,7 @@ async function createAndApply(
       doctors: {
         new: raw.doctors
           .filter((d) => d.fullName.trim())
-          .map((d) => ({ fullName: d.fullName.trim(), specialization: cleanStr(d.specialization) ?? null })),
+          .map((d) => ({ fullName: d.fullName.trim(), specialization: cleanStr(d.specialization) ?? null, candidates: [] })),
         existing: [],
       },
       packages: {
@@ -327,6 +347,7 @@ async function applyData(
   dryRun: boolean,
 ) {
   const h = raw.hospital;
+  const doctorIdOverrides: Record<string, string> = raw.doctorIdOverrides ?? {};
   const incomingSpecialties = [...new Set([...cleanArr(h.specialties), ...cleanArr(raw.services).slice(0, 20)])];
   const incomingFacilities = cleanArr(h.facilities);
   const incomingAccreditations = cleanArr(h.accreditations);
@@ -412,12 +433,16 @@ async function applyData(
     docInput: Record<string, unknown>;
     fullName: string;
     existingId: string | null;
+    /** True when existingId came from an admin override — don't modify that doctor's data */
+    isLinkedOverride: boolean;
     existingQuals: string[];
     existingSpecialization: string | null;
     existingBio: string | null;
     existingFee: number | null;
     existingYoe: number | null;
     existingCity: string | null;
+    /** Same-city candidates returned to admin during dry-run for manual selection */
+    candidates: DoctorCandidate[];
   };
 
   const resolvedDoctors: ResolvedDoctor[] = [];
@@ -425,30 +450,114 @@ async function applyData(
     const fullName = doc.fullName.trim();
     if (!fullName) continue;
 
-    const [existingDoc] = await db
+    const override = doctorIdOverrides[fullName];
+
+    // ── Admin-explicit override ──
+    if (override === "new") {
+      // Force-create a fresh record
+      resolvedDoctors.push({
+        docInput: doc, fullName, existingId: null, isLinkedOverride: false,
+        existingQuals: [], existingSpecialization: null, existingBio: null,
+        existingFee: null, existingYoe: null, existingCity: null, candidates: [],
+      });
+      continue;
+    }
+    if (override && override !== "new") {
+      // Admin linked to a specific existing doctor ID
+      const [overrideDoc] = await db
+        .select({ id: doctors.id, qualifications: doctors.qualifications, specialization: doctors.specialization,
+          bio: doctors.bio, consultationFee: doctors.consultationFee, yearsOfExperience: doctors.yearsOfExperience, city: doctors.city })
+        .from(doctors).where(eq(doctors.id, override)).limit(1);
+      resolvedDoctors.push({
+        docInput: doc, fullName, existingId: overrideDoc?.id ?? null, isLinkedOverride: true,
+        existingQuals: [], existingSpecialization: null, existingBio: null,
+        existingFee: null, existingYoe: null, existingCity: null, candidates: [],
+      });
+      continue;
+    }
+
+    // ── Auto-resolve: pass 1 — already affiliated with THIS hospital ──
+    // Use normalized name comparison to survive "Dr." prefix / casing differences.
+    const normalizedFullName = normalizeName(fullName);
+    const allAffiliated = await db
       .select({
-        id: doctors.id,
-        qualifications: doctors.qualifications,
-        specialization: doctors.specialization,
-        bio: doctors.bio,
-        consultationFee: doctors.consultationFee,
-        yearsOfExperience: doctors.yearsOfExperience,
-        city: doctors.city,
+        id: doctors.id, fullName: doctors.fullName, qualifications: doctors.qualifications,
+        specialization: doctors.specialization, bio: doctors.bio,
+        consultationFee: doctors.consultationFee, yearsOfExperience: doctors.yearsOfExperience, city: doctors.city,
       })
-      .from(doctors)
-      .where(eq(doctors.fullName, fullName))
-      .limit(1);
+      .from(doctorHospitalAffiliations)
+      .innerJoin(doctors, eq(doctorHospitalAffiliations.doctorId, doctors.id))
+      .where(eq(doctorHospitalAffiliations.hospitalId, hospitalId))
+      .limit(200);
+
+    const affiliatedDoc = allAffiliated.find(
+      (d) => normalizeName(d.fullName) === normalizedFullName,
+    );
+
+    let existingDoc = affiliatedDoc ?? undefined;
+
+    // ── Pass 2: same city + normalized name ──
+    if (!existingDoc && hospitalCity) {
+      const cityDocs = await db
+        .select({
+          id: doctors.id, fullName: doctors.fullName, qualifications: doctors.qualifications,
+          specialization: doctors.specialization, bio: doctors.bio,
+          consultationFee: doctors.consultationFee, yearsOfExperience: doctors.yearsOfExperience, city: doctors.city,
+        })
+        .from(doctors)
+        .where(eq(doctors.city, hospitalCity))
+        .limit(500);
+      existingDoc = cityDocs.find((d) => normalizeName(d.fullName) === normalizedFullName);
+    }
+
+    // ── Pass 2b: global exact normalized name match (last safe auto-resolve) ──
+    // Pre-filter with the last word of the name (most distinctive), then compare
+    // normalized. Only resolves if EXACTLY ONE match globally — avoids false
+    // positives for common names.
+    if (!existingDoc) {
+      const lastName = fullName.trim().split(/\s+/).pop() ?? fullName;
+      const candidateGlobal = await db
+        .select({
+          id: doctors.id, fullName: doctors.fullName, qualifications: doctors.qualifications,
+          specialization: doctors.specialization, bio: doctors.bio,
+          consultationFee: doctors.consultationFee, yearsOfExperience: doctors.yearsOfExperience, city: doctors.city,
+        })
+        .from(doctors)
+        .where(like(doctors.fullName, `%${lastName}%`))
+        .limit(50);
+      const nameMatches = candidateGlobal.filter((d) => normalizeName(d.fullName) === normalizedFullName);
+      if (nameMatches.length === 1) existingDoc = nameMatches[0];
+      // If >1 match globally, leave existingDoc undefined so admin gets candidate list
+    }
+
+    // ── Pass 3: no match → collect same-city candidates for admin review in dry-run ──
+    let candidates: DoctorCandidate[] = [];
+    if (!existingDoc) {
+      // Partial name match in same city so admin can pick the right record
+      const nameParts = fullName.split(/\s+/).filter((w) => w.length > 2);
+      if (nameParts.length > 0) {
+        const nameConditions = nameParts.map((w) => like(doctors.fullName, `%${w}%`));
+        const cityCondition = hospitalCity ? eq(doctors.city, hospitalCity) : undefined;
+        candidates = await db
+          .select({ id: doctors.id, fullName: doctors.fullName, city: doctors.city, specialization: doctors.specialization })
+          .from(doctors)
+          .where(cityCondition ? and(cityCondition, or(...nameConditions)) : or(...nameConditions))
+          .orderBy(doctors.fullName)
+          .limit(10);
+      }
+    }
 
     resolvedDoctors.push({
-      docInput: doc,
-      fullName,
+      docInput: doc, fullName,
       existingId: existingDoc?.id ?? null,
+      isLinkedOverride: false,
       existingQuals: Array.isArray(existingDoc?.qualifications) ? existingDoc.qualifications : [],
       existingSpecialization: existingDoc?.specialization ?? null,
       existingBio: existingDoc?.bio ?? null,
       existingFee: existingDoc?.consultationFee ?? null,
       existingYoe: existingDoc?.yearsOfExperience ?? null,
       existingCity: existingDoc?.city ?? null,
+      candidates,
     });
   }
 
@@ -500,7 +609,11 @@ async function applyData(
     doctors: {
       new: resolvedDoctors
         .filter((r) => !r.existingId)
-        .map((r) => ({ fullName: r.fullName, specialization: cleanStr(r.docInput.specialization) ?? null })),
+        .map((r) => ({
+          fullName: r.fullName,
+          specialization: cleanStr(r.docInput.specialization) ?? null,
+          candidates: r.candidates,
+        })),
       existing: resolvedDoctors
         .filter((r) => !!r.existingId)
         .map((r) => ({ id: r.existingId!, fullName: r.fullName })),
@@ -551,61 +664,88 @@ async function applyData(
 
     if (r.existingId) {
       doctorId = r.existingId;
-      doctorsUpdated++;
 
-      const mergedQuals = mergeArr(r.existingQuals, cleanArr(r.docInput.qualifications));
-      const docUpdate: Record<string, unknown> = {
-        qualifications: mergedQuals,
-        updatedAt: new Date(),
-      };
-      // Only fill null scalars
-      if (!r.existingSpecialization && cleanStr(r.docInput.specialization)) {
-        docUpdate.specialization = cleanStr(r.docInput.specialization);
-      }
-      if (!r.existingBio && cleanStr(r.docInput.bio)) {
-        docUpdate.bio = cleanStr(r.docInput.bio);
-      }
-      if (!r.existingFee && cleanNum(r.docInput.consultationFee)) {
-        docUpdate.consultationFee = cleanNum(r.docInput.consultationFee);
-      }
-      if (!r.existingYoe) {
-        const yoe = cleanNum(r.docInput.yearsOfExperience);
-        if (yoe) docUpdate.yearsOfExperience = Math.round(yoe);
-      }
-      if (!r.existingCity && hospitalCity) {
-        docUpdate.city = hospitalCity;
-      }
+      if (r.isLinkedOverride) {
+        // Admin explicitly linked this doctor — only create the affiliation, don't touch their data
+        doctorsUpdated++;
+      } else {
+        doctorsUpdated++;
 
-      await db.update(doctors).set(docUpdate).where(eq(doctors.id, doctorId));
+        const mergedQuals = mergeArr(r.existingQuals, cleanArr(r.docInput.qualifications));
+        const docUpdate: Record<string, unknown> = {
+          qualifications: mergedQuals,
+          updatedAt: new Date(),
+        };
+        // Only fill null scalars
+        if (!r.existingSpecialization && cleanStr(r.docInput.specialization)) {
+          docUpdate.specialization = cleanStr(r.docInput.specialization);
+        }
+        if (!r.existingBio && cleanStr(r.docInput.bio)) {
+          docUpdate.bio = cleanStr(r.docInput.bio);
+        }
+        if (!r.existingFee && cleanNum(r.docInput.consultationFee)) {
+          docUpdate.consultationFee = cleanNum(r.docInput.consultationFee);
+        }
+        if (!r.existingYoe) {
+          const yoe = cleanNum(r.docInput.yearsOfExperience);
+          if (yoe) docUpdate.yearsOfExperience = Math.round(yoe);
+        }
+        if (!r.existingCity && hospitalCity) {
+          docUpdate.city = hospitalCity;
+        }
+
+        await db.update(doctors).set(docUpdate).where(eq(doctors.id, doctorId));
+      }
     } else {
-      let slug = slugify(r.fullName) || `doctor-${crypto.randomUUID().slice(0, 8)}`;
-      let suffix = 0;
-      for (;;) {
-        const [c] = await db.select({ id: doctors.id }).from(doctors).where(eq(doctors.slug, slug)).limit(1);
-        if (!c) break;
-        slug = `${slugify(r.fullName)}-${++suffix}`;
+      // ── IDEMPOTENCY GUARD: last-resort dedup before INSERT ──────────────────
+      // Even if all resolve passes missed (name variant, missing city, etc.),
+      // do one final normalized-name check. If exactly one doctor with this name
+      // exists globally, reuse them — prevents duplicate records on re-runs.
+      const lastName = r.fullName.trim().split(/\s+/).pop() ?? r.fullName;
+      const guardCandidates = await db
+        .select({ id: doctors.id, fullName: doctors.fullName })
+        .from(doctors)
+        .where(like(doctors.fullName, `%${lastName}%`))
+        .limit(50);
+      const guardMatch = guardCandidates.filter(
+        (d) => normalizeName(d.fullName) === normalizeName(r.fullName),
+      );
+
+      if (guardMatch.length === 1) {
+        // Exactly one global match — reuse instead of creating a duplicate
+        doctorId = guardMatch[0].id;
+        doctorsUpdated++;
+      } else {
+        // 0 or ambiguous (>1) — safe to create
+        let slug = slugify(r.fullName) || `doctor-${crypto.randomUUID().slice(0, 8)}`;
+        let suffix = 0;
+        for (;;) {
+          const [c] = await db.select({ id: doctors.id }).from(doctors).where(eq(doctors.slug, slug)).limit(1);
+          if (!c) break;
+          slug = `${slugify(r.fullName)}-${++suffix}`;
+        }
+
+        const [created] = await db
+          .insert(doctors)
+          .values({
+            fullName: r.fullName,
+            slug,
+            specialization: cleanStr(r.docInput.specialization),
+            qualifications: cleanArr(r.docInput.qualifications),
+            yearsOfExperience: (() => {
+              const n = cleanNum(r.docInput.yearsOfExperience);
+              return n ? Math.round(n) : undefined;
+            })(),
+            consultationFee: cleanNum(r.docInput.consultationFee),
+            bio: cleanStr(r.docInput.bio),
+            city: hospitalCity || undefined,
+            isActive: true,
+          })
+          .returning({ id: doctors.id });
+
+        doctorId = created.id;
+        doctorsCreated++;
       }
-
-      const [created] = await db
-        .insert(doctors)
-        .values({
-          fullName: r.fullName,
-          slug,
-          specialization: cleanStr(r.docInput.specialization),
-          qualifications: cleanArr(r.docInput.qualifications),
-          yearsOfExperience: (() => {
-            const n = cleanNum(r.docInput.yearsOfExperience);
-            return n ? Math.round(n) : undefined;
-          })(),
-          consultationFee: cleanNum(r.docInput.consultationFee),
-          bio: cleanStr(r.docInput.bio),
-          city: hospitalCity || undefined,
-          isActive: true,
-        })
-        .returning({ id: doctors.id });
-
-      doctorId = created.id;
-      doctorsCreated++;
     }
 
     // Link to hospital if not already affiliated

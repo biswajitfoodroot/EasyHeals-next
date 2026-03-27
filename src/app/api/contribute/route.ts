@@ -25,46 +25,24 @@ function toTrustChange(status: "auto_approve" | "pending_review" | "auto_reject"
   return 0;
 }
 
+// Contributors (public users) may only suggest service-availability data.
+// Core identity fields (name, phone, email, address, website, description) are
+// editable only by portal owners (hospital_admin / doctor role) and EasyHeals admins.
 function normalizeHospitalPatch(field: string, value: unknown): Record<string, unknown> | null {
   switch (field.toLowerCase()) {
-    case "name":
-      return typeof value === "string" ? { name: value } : null;
-    case "phone":
-      return typeof value === "string" ? { phone: value } : null;
-    case "email":
-      return typeof value === "string" ? { email: value } : null;
-    case "address":
-    case "addressline1":
-      return typeof value === "string" ? { addressLine1: value } : null;
-    case "website":
-      return typeof value === "string" ? { website: value } : null;
-    case "description":
-      return typeof value === "string" ? { description: value } : null;
     case "specialties":
       return Array.isArray(value) ? { specialties: value } : null;
     case "facilities":
       return Array.isArray(value) ? { facilities: value } : null;
     case "workinghours":
       return typeof value === "object" && value !== null ? { workingHours: value } : null;
-    case "fees":
-    case "feesrange":
-      return typeof value === "object" && value !== null ? { feesRange: value } : null;
     default:
-      return null;
+      return null; // all other fields are portal/admin-only
   }
 }
 
 function normalizeDoctorPatch(field: string, value: unknown): Record<string, unknown> | null {
   switch (field.toLowerCase()) {
-    case "name":
-    case "fullname":
-      return typeof value === "string" ? { fullName: value } : null;
-    case "phone":
-      return typeof value === "string" ? { phone: value } : null;
-    case "email":
-      return typeof value === "string" ? { email: value } : null;
-    case "specialization":
-      return typeof value === "string" ? { specialization: value } : null;
     case "specialties":
       return Array.isArray(value) ? { specialties: value } : null;
     case "qualifications":
@@ -73,21 +51,8 @@ function normalizeDoctorPatch(field: string, value: unknown): Record<string, unk
       return Array.isArray(value) ? { languages: value } : null;
     case "consultationhours":
       return typeof value === "object" && value !== null ? { consultationHours: value } : null;
-    case "consultationfee":
-      return typeof value === "number" ? { consultationFee: value } : null;
-    case "fee":
-    case "feemin":
-    case "feemax":
-      if (typeof value === "object" && value !== null) {
-        const record = value as Record<string, unknown>;
-        return {
-          feeMin: typeof record.min === "number" ? record.min : undefined,
-          feeMax: typeof record.max === "number" ? record.max : undefined,
-        };
-      }
-      return null;
     default:
-      return null;
+      return null; // all other fields are portal/admin-only
   }
 }
 

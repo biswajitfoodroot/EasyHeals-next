@@ -18,20 +18,19 @@ type ContributorSession = {
   avatar: string;
 };
 
+// Contributors can only suggest service availability data.
+// Core contact/profile data (phone, email, address, website) is managed by portal owners & admins only.
 const hospitalFields = [
-  { key: "phone", label: "Phone Number" },
-  { key: "addressLine1", label: "Address" },
-  { key: "specialties", label: "Specialties" },
-  { key: "feesRange", label: "Consultation Fee" },
-  { key: "website", label: "Website" },
+  { key: "specialties", label: "Specialties / Departments" },
+  { key: "facilities", label: "Facilities Available" },
+  { key: "workinghours", label: "Working Hours" },
 ] as const;
 
 const doctorFields = [
-  { key: "phone", label: "Phone Number" },
-  { key: "specialization", label: "Specialization" },
   { key: "specialties", label: "Specialties" },
-  { key: "consultationFee", label: "Consultation Fee" },
   { key: "qualifications", label: "Qualifications" },
+  { key: "languages", label: "Languages Spoken" },
+  { key: "consultationhours", label: "Consultation Hours" },
 ] as const;
 
 declare global {
@@ -64,7 +63,7 @@ function loadGoogleScript(): Promise<void> {
 
 export function ContributeModal({ isOpen, target, onClose }: ContributeModalProps) {
   const fields = target?.type === "doctor" ? doctorFields : hospitalFields;
-  const [field, setField] = useState<(typeof hospitalFields)[number]["key"] | (typeof doctorFields)[number]["key"]>("phone");
+  const [field, setField] = useState<(typeof hospitalFields)[number]["key"] | (typeof doctorFields)[number]["key"]>("specialties");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -124,10 +123,10 @@ export function ContributeModal({ isOpen, target, onClose }: ContributeModalProp
         fieldChanged: field,
         oldValue: null,
         newValue:
-          field === "specialties" || field === "qualifications"
+          field === "specialties" || field === "qualifications" || field === "languages" || field === "facilities"
             ? value.split(",").map((item) => item.trim()).filter(Boolean)
-            : field === "consultationFee"
-              ? Number(value)
+            : field === "workinghours" || field === "consultationhours"
+              ? (() => { try { return JSON.parse(value); } catch { return value; } })()
               : value,
         changeType: "update",
         contributorId: contributor?.userId,
@@ -199,7 +198,7 @@ export function ContributeModal({ isOpen, target, onClose }: ContributeModalProp
             </p>
 
             <div className={styles.aiHint}>
-              All edits are Google-verified and AI-scored before going live. Sign in to track your contributions and build trust score.
+              You can suggest updates to service availability — specialties, facilities, and hours. Contact details and core profile are managed by the hospital/clinic directly.
             </div>
 
             {googleConfigured ? (
@@ -240,7 +239,17 @@ export function ContributeModal({ isOpen, target, onClose }: ContributeModalProp
 
             <label>
               New {selectedField.label}
-              <input value={value} onChange={(event) => setValue(event.target.value)} />
+              <input
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder={
+                  field === "specialties" || field === "facilities" || field === "qualifications" || field === "languages"
+                    ? "Comma-separated, e.g. Cardiology, Orthopaedics"
+                    : field === "workinghours" || field === "consultationhours"
+                      ? "e.g. Mon-Sat 9am-6pm"
+                      : ""
+                }
+              />
             </label>
 
             <label>
