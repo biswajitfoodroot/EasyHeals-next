@@ -98,6 +98,8 @@ const TABS = ["overview", "doctors", "packages", "services", "reviews", "locatio
 type TabKey = (typeof TABS)[number];
 
 function ratingText(rating: number, count: number) {
+  // When no real reviews yet, show 4.0 (New) per Bayesian prior
+  if (count === 0) return "4.0 (New)";
   return `${rating.toFixed(1)} (${count.toLocaleString("en-IN")})`;
 }
 

@@ -115,7 +115,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         data.doctor.specialization,
         data.doctor.city,
         data.doctor.state,
-        `★ ${data.doctor.rating.toFixed(1)} (${data.doctor.reviewCount.toLocaleString("en-IN")})`,
+        `★ ${data.doctor.reviewCount === 0 ? "4.0 (New)" : `${data.doctor.rating.toFixed(1)} (${data.doctor.reviewCount.toLocaleString("en-IN")})`}`,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -424,7 +424,8 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
           <section className={styles.panel}>
             <h2>{t("doctor.ratingsTitle")}</h2>
             <p>
-              {t("common.currentScore")}: <strong>{data.doctor.rating.toFixed(1)} / 5</strong> from {data.doctor.reviewCount.toLocaleString("en-IN")} reviews.
+              {t("common.currentScore")}: <strong>{data.doctor.reviewCount === 0 ? "4.0" : data.doctor.rating.toFixed(1)} / 5</strong>{" "}
+              {data.doctor.reviewCount === 0 ? "(New — no reviews yet)" : `from ${data.doctor.reviewCount.toLocaleString("en-IN")} reviews`}.
             </p>
             {data.doctor.aiReviewSummary ? (
               <div style={{ marginTop: "12px", padding: "14px 16px", borderRadius: "12px", border: "1px solid rgba(77,255,216,0.2)", background: "rgba(0,184,150,0.06)" }}>

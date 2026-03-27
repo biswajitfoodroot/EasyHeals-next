@@ -44,12 +44,14 @@ type DirectorySearchListProps = {
   cityOptions: string[];
 };
 
-function Stars({ rating }: { rating: number }) {
-  const full = Math.min(5, Math.round(rating));
+function Stars({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
+  // Bayesian prior: entities with no reviews start at 4.0
+  const effective = (reviewCount === 0 || reviewCount == null) && rating === 0 ? 4.0 : rating;
+  const full = Math.min(5, Math.round(effective));
   return (
     <span className={styles.starRow}>
       {"★".repeat(full)}{"☆".repeat(5 - full)}
-      <span>{rating.toFixed(1)}</span>
+      <span>{effective.toFixed(1)}</span>
     </span>
   );
 }
@@ -229,7 +231,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             </div>
 
             <div className={styles.cardMeta} data-testid="card-meta">
-              <Stars rating={item.rating} />
+              <Stars rating={item.rating} reviewCount={item.reviewCount} />
               {item.reviewCount ? (
                 <span className={styles.reviewCount} data-testid="card-review-count">
                   ({item.reviewCount.toLocaleString("en-IN")})

@@ -125,6 +125,8 @@ export const hospitals = sqliteTable(
     googlePlaceId: text("google_place_id").unique(),
     rating: real("rating").notNull().default(0),
     reviewCount: integer("review_count").notNull().default(0),
+    reviewSum: real("review_sum").notNull().default(0),
+    googleRating: real("google_rating"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     // CRM mirror fields — present in the shared DB, do not drop on Drizzle select
     contactPerson: text("contact_person"),
@@ -407,6 +409,8 @@ export const doctors = sqliteTable("doctors", {
   feeMax: real("fee_max"),
   rating: real("rating").notNull().default(0),
   reviewCount: integer("review_count").notNull().default(0),
+  reviewSum: real("review_sum").notNull().default(0),
+  googleRating: real("google_rating"),
   verified: integer("verified", { mode: "boolean" }).notNull().default(false),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   // CRM mirror fields — present in shared DB doctors table
@@ -2035,6 +2039,39 @@ export const usageTopups = sqliteTable(
   (table) => [
     index("topup_hospital_idx").on(table.hospitalId),
     index("topup_type_idx").on(table.topupType),
+  ],
+);
+
+// ── Patient Reviews ──────────────────────────────────────────────────────────
+// entityType: "hospital" | "doctor"
+// status: "pending" | "approved" | "rejected"
+// Each approved review triggers a Bayesian rating recalculation on the entity.
+export const patientReviews = sqliteTable(
+  "patient_reviews",
+  {
+    id: id(),
+    entityType: text("entity_type").notNull(),   // "hospital" | "doctor"
+    entityId: text("entity_id").notNull(),
+    patientId: text("patient_id").references(() => patients.id),
+    patientName: text("patient_name"),           // display name (may differ from patients table)
+    patientPhone: text("patient_phone"),
+    rating: real("rating").notNull(),            // 1–5
+    title: text("title"),
+    body: text("body"),
+    visitDate: integer("visit_date", { mode: "timestamp_ms" }),
+    status: text("status").notNull().default("pending"),
+    // pending | approved | rejected
+    moderatedByUserId: text("moderated_by_user_id").references(() => users.id),
+    moderatedAt: integer("moderated_at", { mode: "timestamp_ms" }),
+    moderationNote: text("moderation_note"),
+    source: text("source").notNull().default("web"), // web | portal | import
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("pr_entity_idx").on(table.entityType, table.entityId),
+    index("pr_status_idx").on(table.status),
+    index("pr_patient_idx").on(table.patientId),
   ],
 );
 
