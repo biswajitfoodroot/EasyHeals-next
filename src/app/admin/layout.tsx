@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AdminNav } from "@/app/admin/AdminNav";
+import { AdminShell } from "@/app/admin/AdminShell";
 import { getAuthFromCookies } from "@/lib/auth";
 import { buildMetadata } from "@/lib/seo";
 
@@ -19,9 +20,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <AdminNav me={{ fullName: auth.fullName, email: auth.email, role: auth.role }} />
-      <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-    </div>
+    <AdminShell nav={<AdminNav me={{ fullName: auth.fullName, email: auth.email, role: auth.role }} />}>
+      {children}
+    </AdminShell>
   );
 }

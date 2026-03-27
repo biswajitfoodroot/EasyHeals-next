@@ -3,7 +3,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AdminPatientsTab } from "./AdminPatientsTab";
-import { AdminAppointmentsTab } from "./AdminAppointmentsTab";
 import { AdminProvidersTab } from "./AdminProvidersTab";
 import { AdminAffiliationsTab } from "./AdminAffiliationsTab";
 import { AdminReviewsTab } from "./AdminReviewsTab";
@@ -227,7 +226,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "appointments" | "providers" | "kyc" | "content" | "affiliations" | "reviews";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "providers" | "kyc" | "content" | "affiliations" | "reviews";
 
 type DoctorCandidate = { id: string; fullName: string; city: string | null; specialization: string | null };
 
@@ -259,7 +258,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "appointments", "providers", "affiliations"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -1439,7 +1438,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "appointments", "providers", "affiliations"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1452,7 +1451,6 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               kyc: { label: "KYC Requests", icon: "🪪" },
               config: { label: "Config & Flags", icon: "⚙️" },
               patients: { label: "Patients", icon: "👤" },
-              appointments: { label: "Appointments", icon: "📅" },
               providers: { label: "Providers", icon: "🏥" },
               affiliations: { label: "Affiliations", icon: "🔗" },
             };
@@ -3156,11 +3154,6 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         {/* ── PATIENTS TAB ─────────────────────────────────────────────── */}
         {activeTab === "patients" && (
           <AdminPatientsTab />
-        )}
-
-        {/* ── APPOINTMENTS TAB ─────────────────────────────────────────── */}
-        {activeTab === "appointments" && (
-          <AdminAppointmentsTab />
         )}
 
         {/* ── PROVIDERS TAB ────────────────────────────────────────────── */}

@@ -42,7 +42,7 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
   {
     heading: "Operations",
     items: [
-      { href: "/admin?tab=appointments", label: "Appointments", icon: "📅" },
+      { href: "/provider-management/appointments", label: "Appointments", icon: "📅" },
       { href: "/admin?tab=patients", label: "Patients", icon: "🧑‍⚕️" },
       { href: "/admin?tab=providers", label: "Providers", icon: "🏥" },
     ],

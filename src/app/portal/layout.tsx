@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { hospitals, doctors, providerAgreements } from "@/db/schema";
 import { getAuthFromCookies } from "@/lib/auth";
 import PortalNav from "@/components/portal/PortalNav";
+import { PortalShell } from "@/components/portal/PortalShell";
 
 const PORTAL_ROLES = ["hospital_admin", "doctor", "receptionist"];
 
@@ -62,16 +63,17 @@ export default async function PortalLayout({ children }: { children: React.React
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <PortalNav
-        userRole={auth.role}
-        userName={auth.fullName}
-        entityName={entityName}
-        hasActiveAgreement={hasActiveAgreement}
-      />
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        {children}
-      </main>
-    </div>
+    <PortalShell
+      nav={
+        <PortalNav
+          userRole={auth.role}
+          userName={auth.fullName}
+          entityName={entityName}
+          hasActiveAgreement={hasActiveAgreement}
+        />
+      }
+    >
+      {children}
+    </PortalShell>
   );
 }

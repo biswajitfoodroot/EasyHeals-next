@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getAuthFromCookies } from "@/lib/auth";
 import { ProviderManagementNav } from "@/components/provider-management/ProviderManagementNav";
+import { PMShell } from "@/components/provider-management/PMShell";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = buildMetadata({
@@ -26,9 +27,8 @@ export default async function ProviderManagementLayout({ children }: { children:
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <ProviderManagementNav me={{ fullName: auth.fullName, email: auth.email, role: auth.role }} />
-      <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-    </div>
+    <PMShell nav={<ProviderManagementNav me={{ fullName: auth.fullName, email: auth.email, role: auth.role }} />}>
+      {children}
+    </PMShell>
   );
 }
