@@ -114,6 +114,7 @@ export const hospitals = sqliteTable(
     photos: text("photos", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
     accreditations: text("accreditations", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
     description: text("description"),
+    seoKeywords: text("seo_keywords", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
     source: text("source").notNull().default("crowd"),
     verified: integer("verified", { mode: "boolean" }).notNull().default(false),
     communityVerified: integer("community_verified", { mode: "boolean" }).notNull().default(false),
@@ -464,9 +465,57 @@ export const doctorHospitalAffiliations = sqliteTable(
   ],
 );
 
+// ── Research Batch Jobs (migration 0017) ──────────────────────────────────────
+// Tracks multi-entity AI research runs (batch mode in admin UI).
+// Table was created by drizzle/run-0017.ts — this is the Drizzle schema definition.
+// MUST be defined before ingestionJobs because ingestionJobs.batchId references this table.
+
+export type ResearchBatchItem = {
+  name: string;
+  city?: string | null;
+  type: "hospital" | "clinic" | "doctor" | "unknown";
+  status: "pending" | "processing" | "done" | "failed";
+  jobId?: string | null;
+  error?: string | null;
+  specialtyCount?: number;
+  doctorCount?: number;
+  priceCount?: number;
+  confidence?: number;
+  // Discovery mode (populated only for discovery_search items)
+  discoveredCount?: number;
+  discoveredEntities?: Array<{
+    jobId: string;
+    name: string;
+    city: string | null;
+    confidence: number;
+  }>;
+};
+
+export const researchBatchJobs = sqliteTable(
+  "research_batch_jobs",
+  {
+    id: id(),
+    createdByUserId: text("created_by_user_id").references(() => users.id),
+    status: text("status").notNull().default("pending"),
+    totalCount: integer("total_count").notNull().default(0),
+    doneCount: integer("done_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    city: text("city"),
+    entityType: text("entity_type").notNull().default("hospital"),
+    items: text("items", { mode: "json" }).$type<ResearchBatchItem[]>().default(sql`'[]'`),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("research_batch_jobs_user_idx").on(table.createdByUserId),
+    index("research_batch_jobs_status_idx").on(table.status),
+  ],
+);
+
 export const ingestionJobs = sqliteTable("ingestion_jobs", {
   id: id(),
   requestedByUserId: text("requested_by_user_id").references(() => users.id),
+  batchId: text("batch_id").references(() => researchBatchJobs.id),
   status: text("status").notNull().default("queued"),
   sourceUrl: text("source_url").notNull(),
   searchQuery: text("search_query"),

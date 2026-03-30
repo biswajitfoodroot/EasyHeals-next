@@ -70,15 +70,24 @@ export async function POST(req: NextRequest) {
 
   const searchPrompt = `Research the following healthcare query${locationHint}: "${query}"
 
-Find hospitals, clinics, and specialist doctors matching this query.
-For each result found, note:
-1. Name of the hospital, clinic, or doctor
-2. Their city/location
-3. Website URL if available
-4. Phone number if available
-5. Brief description of their specialties or services
+COMPREHENSIVE RESEARCH INSTRUCTIONS — follow each step:
 
-Provide a comprehensive summary of what you found.`;
+1. Find all hospitals/clinics matching this query in the specified location. For each:
+   - Official website (home, About, Departments, Doctors pages)
+   - Google Maps listing: full address, PIN code, phone, rating, review count, working hours
+   - Practo.com listing: search practo.com for this hospital — get ALL affiliated doctors with specialization, qualifications, consultation fee, OPD timings
+
+2. For EVERY specialty department found at each hospital (Cardiology, Orthopaedics, Neurology, Oncology, Gastroenterology, ENT, Urology, Gynaecology, Neurosurgery, Pulmonology, Dermatology, Psychiatry, Nephrology, Neonatology, Transplant, etc.):
+   - Find the specific doctors: full name, qualifications (MBBS/MD/MS/DM/MCh/DNB), years of experience, consultation fee
+   - Search "[hospital name] [specialty] doctors" explicitly if the main page doesn't list them
+
+3. Treatment prices: search "[hospital name] [procedure] cost/price" for key procedures — knee replacement, hip replacement, angioplasty, bypass surgery, IVF, cataract, appendectomy, hernia, kidney stone, dialysis
+
+4. Additional sources: JustDial, Sulekha, Credihealth, GoMedii for any doctor or price data not found above
+
+5. Patient reviews: recent Google reviews and Practo reviews — sentiments on doctor quality, infrastructure, cleanliness, waiting time
+
+Return an EXHAUSTIVE summary: every hospital with specialties AND every doctor name organized by specialty, complete contact details, all prices found.`;
 
   let searchResult;
   try {

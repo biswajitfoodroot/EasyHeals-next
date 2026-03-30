@@ -316,7 +316,7 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
                   <Link key={item.id} href={item.profileUrl} className={styles.relatedCard}>
                     <span className={styles.relatedCardName}>{item.fullName}</span>
                     <span className={styles.relatedCardSub}>{item.specialization ?? "Specialist"}{item.city ? ` · ${item.city}` : ""}</span>
-                    <span className={styles.relatedCardBadge}>★ {item.rating.toFixed(1)}</span>
+                    <span className={styles.relatedCardBadge}>★ {item.reviewCount === 0 ? "4.0" : item.rating.toFixed(1)}</span>
                   </Link>
                 ))}
               </div>

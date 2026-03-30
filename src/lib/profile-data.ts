@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, like, ne, not, or } from "drizzle-orm";
 
 import { db } from "@/db/client";
-import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, providerAgreements, taxonomyNodes } from "@/db/schema";
+import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, patientReviews, providerAgreements, taxonomyNodes } from "@/db/schema";
 import { enrichDoctorProfile } from "@/lib/doctor-enrich";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 
@@ -156,6 +156,26 @@ export async function getHospitalProfileBySlug(slug: string) {
     .orderBy(desc(hospitals.rating), asc(hospitals.name))
     .limit(12);
 
+  // Fetch approved patient reviews for this hospital
+  const reviewRows = await db
+    .select({
+      id: patientReviews.id,
+      patientName: patientReviews.patientName,
+      rating: patientReviews.rating,
+      title: patientReviews.title,
+      body: patientReviews.body,
+      visitDate: patientReviews.visitDate,
+      createdAt: patientReviews.createdAt,
+    })
+    .from(patientReviews)
+    .where(and(
+      eq(patientReviews.entityType, "hospital"),
+      eq(patientReviews.entityId, hospital.id),
+      eq(patientReviews.status, "approved"),
+    ))
+    .orderBy(desc(patientReviews.createdAt))
+    .limit(20);
+
   const mainAddress = formatHospitalLocation({
     addressLine1: hospital.addressLine1,
     city: hospital.city,
@@ -225,6 +245,15 @@ export async function getHospitalProfileBySlug(slug: string) {
         longitude: row.longitude,
         address: formatHospitalLocation({ addressLine1: row.addressLine1, city: row.city, state: row.state }),
       }),
+    })),
+    reviews: reviewRows.map((r) => ({
+      id: r.id,
+      patientName: r.patientName ?? "Anonymous",
+      rating: r.rating,
+      title: r.title ?? null,
+      body: r.body ?? null,
+      visitDate: r.visitDate instanceof Date ? r.visitDate.toISOString() : r.visitDate ?? null,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt ?? null,
     })),
   };
 }

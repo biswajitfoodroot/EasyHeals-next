@@ -342,8 +342,9 @@ function AppointmentsTab({ appointments, loading }: { appointments: Appointment[
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ml-2 shrink-0 ${
                                 d.aiStatus === "done" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                                 d.aiStatus === "processing" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                                "bg-slate-50 text-slate-600 border-slate-200"
-                              }`}>{d.aiStatus === "done" ? "AI Extracted" : d.aiStatus === "processing" ? "Processing…" : "Queued"}</span>
+                                d.aiStatus === "failed" ? "bg-red-50 text-red-600 border-red-200" :
+                                "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}>{d.aiStatus === "done" ? "AI Extracted" : d.aiStatus === "processing" ? "Processing…" : d.aiStatus === "failed" ? "Scan Failed" : "Pending AI Scan"}</span>
                             </div>
                           ))}
                         </div>
@@ -374,16 +375,26 @@ function RecordsTab() {
   const [formType, setFormType] = useState("other");
   const [showForm, setShowForm] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
+  const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null);
 
-  const loadDocs = useCallback(async () => {
-    setLoading(true);
+  const loadDocs = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch("/api/v1/patients/documents", { credentials: "include" });
       if (res.ok) { const j = await res.json() as { data: HealthDocument[] }; setDocs(j.data ?? []); }
-    } finally { setLoading(false); }
+    } finally { if (!silent) setLoading(false); }
   }, []);
 
   useEffect(() => { void loadDocs(); }, [loadDocs]);
+
+  // Poll silently every 5 s while any document is pending/processing
+  useEffect(() => {
+    const inFlight = docs.some((d) => d.aiStatus === "pending" || d.aiStatus === "processing");
+    if (!inFlight) return;
+    const timer = setInterval(() => { void loadDocs(true); }, 5000);
+    return () => clearInterval(timer);
+  }, [docs, loadDocs]);
 
   async function upload() {
     if (!selectedFile) { setUploadMsg({ ok: false, text: "Pick a file first." }); return; }
@@ -406,7 +417,45 @@ function RecordsTab() {
     finally { setUploading(false); }
   }
 
-  function handleFile(file: File) { setSelectedFile(file); setFormTitle(file.name.replace(/\.[^.]+$/, "")); setShowForm(true); }
+  async function deleteDoc(documentId: string) {
+    setDeletingDocId(documentId);
+    try {
+      await fetch(`/api/v1/patients/documents/${documentId}`, { method: "DELETE", credentials: "include" });
+      setDocs((prev) => prev.filter((d) => d.id !== documentId));
+    } finally {
+      setDeletingDocId(null);
+      setConfirmDeleteDocId(null);
+    }
+  }
+
+  async function retryAiScan(documentId: string) {
+    // Re-trigger extraction for a failed/stuck document via internal endpoint
+    await fetch("/api/v1/patients/documents/retry-scan", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentId }),
+    });
+    void loadDocs(true);
+  }
+
+  function handleFile(file: File) {
+    setSelectedFile(file);
+    setFormTitle(file.name.replace(/\.[^.]+$/, ""));
+    // Auto-detect type from filename hints
+    const lower = file.name.toLowerCase();
+    if (lower.includes("lab") || lower.includes("blood") || lower.includes("report") || lower.includes("cbc") || lower.includes("lft") || lower.includes("kft")) {
+      setFormType("lab_report");
+    } else if (lower.includes("prescription") || lower.includes("rx") || lower.includes("medicine")) {
+      setFormType("prescription");
+    } else if (lower.includes("discharge") || lower.includes("summary")) {
+      setFormType("discharge");
+    } else if (lower.includes("xray") || lower.includes("mri") || lower.includes("ct") || lower.includes("scan") || lower.includes("ultrasound") || lower.includes("echo") || file.type.startsWith("image/")) {
+      setFormType("imaging");
+    } else {
+      setFormType("other");
+    }
+    setShowForm(true);
+  }
 
   const filtered = filter === "all" ? docs : docs.filter((d) => d.docType === filter);
 
@@ -427,37 +476,89 @@ function RecordsTab() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
       </div>
 
-      {/* Upload form (shown after file selected) */}
+      {/* Upload panel (shown after file selected) */}
       {showForm && selectedFile && (
-        <div className="bg-white rounded-2xl border border-emerald-200 p-5 space-y-3 shadow-sm">
-          <p className="text-sm font-bold text-slate-700">Upload: {selectedFile.name}</p>
-          {uploadMsg && (
-            <p className={`text-xs p-2 rounded-lg ${uploadMsg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{uploadMsg.text}</p>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Document Title</label>
-              <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800" />
+        <div className="bg-white rounded-2xl border border-emerald-200 shadow-md overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 border-b border-emerald-100">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-lg shrink-0">
+                {selectedFile.type === "application/pdf" ? "📄" : "🖼️"}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-emerald-800 truncate">{selectedFile.name}</p>
+                <p className="text-[10px] text-emerald-600">{(selectedFile.size / 1024).toFixed(0)} KB</p>
+              </div>
             </div>
-            <div className="col-span-2">
-              <label className="text-xs font-semibold text-slate-600 block mb-1">Document Type</label>
-              <select value={formType} onChange={(e) => setFormType(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-800">
-                {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => void upload()} disabled={uploading}
-              className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-              style={{ background: "#1B8A4A" }}>
-              {uploading ? "Uploading…" : "Upload Document"}
-            </button>
             <button onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
-              className="px-4 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50">
-              Cancel
-            </button>
+              className="text-slate-400 hover:text-slate-600 text-lg leading-none shrink-0 ml-2">✕</button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {uploadMsg && (
+              <p className={`text-xs p-2.5 rounded-xl ${uploadMsg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{uploadMsg.text}</p>
+            )}
+
+            {/* Document name */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 block mb-1.5">Document Name</label>
+              <input
+                type="text"
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+                placeholder="e.g. Blood Test – March 2026"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-800"
+              />
+            </div>
+
+            {/* Document type pills */}
+            <div>
+              <label className="text-xs font-semibold text-slate-500 block mb-2">Document Type</label>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
+                  <button
+                    key={k}
+                    onClick={() => setFormType(k)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                      formType === k
+                        ? "text-white border-transparent"
+                        : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"
+                    }`}
+                    style={formType === k ? { background: "#1B8A4A" } : {}}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => void upload()}
+                disabled={uploading}
+                className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: "#1B8A4A" }}
+              >
+                {uploading ? (
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    Uploading…
+                  </>
+                ) : (
+                  <>📤 Upload</>
+                )}
+              </button>
+              <button
+                onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
+                className="px-4 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 text-center">
+              By uploading, you consent to AI-assisted extraction of health data for your personal records.
+            </p>
           </div>
         </div>
       )}
@@ -485,21 +586,53 @@ function RecordsTab() {
       ) : (
         <div className="space-y-2">
           {filtered.map((d) => (
-            <div key={d.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3 hover:shadow-sm transition">
-              <span className="text-2xl shrink-0">
+            <div key={d.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-start gap-3 hover:shadow-sm transition">
+              <span className="text-2xl shrink-0 mt-0.5">
                 {d.docType === "lab_report" ? "🧪" : d.docType === "prescription" ? "💊" : d.docType === "imaging" ? "🩻" : "📄"}
               </span>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-slate-800 text-sm truncate">{d.title ?? "Untitled"}</p>
                 <p className="text-xs text-slate-400">{DOC_TYPE_LABELS[d.docType ?? ""] ?? "Document"} · {formatDate(d.docDate ?? d.uploadedAt)}</p>
+                {(d.aiStatus === "pending" || d.aiStatus === "processing") && (
+                  <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+                    <span className="animate-spin inline-block">⏳</span>
+                    AI is reading your document…
+                  </p>
+                )}
+                {d.aiStatus === "failed" && (
+                  <button onClick={() => void retryAiScan(d.id)}
+                    className="text-[10px] text-red-600 hover:text-red-800 mt-0.5 underline">
+                    Retry AI scan →
+                  </button>
+                )}
               </div>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
-                d.aiStatus === "done" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                d.aiStatus === "processing" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                "bg-slate-50 text-slate-600 border-slate-200"
-              }`}>
-                {d.aiStatus === "done" ? "✓ AI Extracted" : d.aiStatus === "processing" ? "Processing…" : "Queued"}
-              </span>
+              <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                  d.aiStatus === "done" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  d.aiStatus === "processing" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                  d.aiStatus === "failed" ? "bg-red-50 text-red-600 border-red-200" :
+                  "bg-amber-50 text-amber-700 border-amber-200"
+                }`}>
+                  {d.aiStatus === "done" ? "✓ AI Extracted" : d.aiStatus === "processing" ? "Processing…" : d.aiStatus === "failed" ? "Scan Failed" : "Pending AI Scan"}
+                </span>
+                {confirmDeleteDocId === d.id ? (
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => void deleteDoc(d.id)} disabled={deletingDocId === d.id}
+                      className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg disabled:opacity-50">
+                      {deletingDocId === d.id ? "…" : "Delete"}
+                    </button>
+                    <button onClick={() => setConfirmDeleteDocId(null)}
+                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 border border-slate-200 rounded-lg">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteDocId(d.id)}
+                    className="text-[10px] text-slate-400 hover:text-red-500 transition">
+                    🗑 Delete
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -672,7 +805,7 @@ function TimelineTab({ appointments }: { appointments: Appointment[] }) {
 
 // ── AI Coach Tab ──────────────────────────────────────────────────────────────
 
-function CoachTab({ canUsePremium }: { canUsePremium: boolean }) {
+function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang?: string }) {
   const [mode, setMode] = useState<"chat" | "symptom">("chat");
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([
     { role: "assistant", text: "Hello! I'm your EasyHeals AI Health Coach. I can help you understand your health reports, explain symptoms, and give personalised wellness guidance based on your records.\n\nWhat would you like to discuss today?" },
@@ -817,10 +950,7 @@ function CoachTab({ canUsePremium }: { canUsePremium: boolean }) {
         </div>
       )}
 
-      {/* Disclaimer */}
-      <p className="text-xs text-slate-400 text-center">
-        AI guidance is informational only. Always consult a qualified doctor for medical decisions.
-      </p>
+      <MedicalDisclaimer lang={lang} />
     </div>
   );
 }
@@ -850,6 +980,8 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedScanned, setSelectedScanned] = useState<Set<number>>(new Set());
   const scanFileRef = useRef<HTMLInputElement>(null);
+  const [savedPrescriptions, setSavedPrescriptions] = useState<HealthDocument[]>([]);
+  const [showPrescriptionPicker, setShowPrescriptionPicker] = useState(false);
 
   // Add pill form
   const [pName, setPName] = useState(""); const [pDosage, setPDosage] = useState("");
@@ -892,6 +1024,13 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
         })));
       }
     }).catch(() => {}).finally(() => setVitalsLoading(false));
+    // Load saved prescriptions for "pick from saved" feature
+    fetch("/api/v1/patients/documents", { credentials: "include" }).then(async (r) => {
+      if (r.ok) {
+        const j = await r.json() as { data?: HealthDocument[] };
+        setSavedPrescriptions((j.data ?? []).filter((d) => d.docType === "prescription"));
+      }
+    }).catch(() => {});
   }, []);
 
   function toggleTaken(reminderId: string, time: string) {
@@ -960,6 +1099,26 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
     const updated = caregivers.filter((c) => c.id !== id); setCaregivers(updated); lsSet(LS_CAREGIVERS, updated);
   }
 
+  async function handleSavedPrescriptionScan(documentId: string) {
+    setShowPrescriptionPicker(false);
+    setScanLoading(true); setScanError(null); setScannedMeds(null); setSelectedScanned(new Set());
+    try {
+      const res = await fetch(`/api/v1/patients/prescription-scan?documentId=${encodeURIComponent(documentId)}`, {
+        method: "POST", credentials: "include",
+      });
+      if (res.ok) {
+        const j = await res.json() as { medications?: ScannedMed[] };
+        const meds = j.medications ?? [];
+        setScannedMeds(meds);
+        setSelectedScanned(new Set(meds.map((_, i) => i)));
+      } else {
+        const j = await res.json() as { error?: string };
+        setScanError(j.error ?? "Scan failed. Please try again.");
+      }
+    } catch { setScanError("Network error. Please try again."); }
+    finally { setScanLoading(false); }
+  }
+
   async function handlePrescriptionScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1007,41 +1166,77 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
 
   return (
     <div className="space-y-6">
-      {/* Simple / Advanced toggle */}
+      {/* Today's Pills / My Plan toggle */}
       <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-fit">
-        {(["simple", "advanced"] as const).map((m) => (
-          <button key={m} onClick={() => setMode(m)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${mode === m ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-            style={mode === m ? { background: "#1B8A4A" } : {}}>
-            {m === "simple" ? "Simple" : "Advanced"}
-          </button>
-        ))}
+        <button onClick={() => setMode("simple")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${mode === "simple" ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          style={mode === "simple" ? { background: "#1B8A4A" } : {}}>
+          💊 Today's Pills
+        </button>
+        <button onClick={() => setMode("advanced")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${mode === "advanced" ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+          style={mode === "advanced" ? { background: "#1B8A4A" } : {}}>
+          📋 My Plan
+        </button>
       </div>
 
       {/* ── Daily Pill Schedule ── */}
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <p className="text-sm font-bold text-slate-700">Today's Medications</p>
+          <p className="text-sm font-bold text-slate-700">
+            {mode === "simple" ? "Today's Pills" : "Medication Plan"}
+          </p>
           <div className="flex items-center gap-2">
-            {canUsePremium && (
+            {mode === "advanced" && canUsePremium && (
               <>
                 <input ref={scanFileRef} type="file" accept="image/*,application/pdf" className="hidden"
                   onChange={(e) => void handlePrescriptionScan(e)} />
                 <button onClick={() => scanFileRef.current?.click()} disabled={scanLoading}
                   className="text-xs font-semibold text-purple-600 border border-purple-200 px-3 py-1 rounded-lg hover:bg-purple-50 disabled:opacity-60 flex items-center gap-1">
-                  {scanLoading ? "Scanning…" : "📷 Scan Prescription"}
+                  {scanLoading ? "Scanning…" : "📷 Scan New"}
                 </button>
+                {savedPrescriptions.length > 0 && (
+                  <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowPrescriptionPicker(false); }}>
+                    <button
+                      onClick={() => setShowPrescriptionPicker((p) => !p)}
+                      disabled={scanLoading}
+                      className="text-xs font-semibold text-indigo-600 border border-indigo-200 px-3 py-1 rounded-lg hover:bg-indigo-50 disabled:opacity-60 flex items-center gap-1"
+                    >
+                      📋 From Saved
+                    </button>
+                    {showPrescriptionPicker && (
+                      <div className="absolute right-0 top-8 z-20 bg-white border border-slate-200 rounded-xl shadow-lg min-w-[220px] py-1">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase px-3 pt-2 pb-1">Saved Prescriptions</p>
+                        {savedPrescriptions.map((doc) => (
+                          <button
+                            key={doc.id}
+                            onClick={() => void handleSavedPrescriptionScan(doc.id)}
+                            className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100 first:border-0"
+                          >
+                            <span className="text-base shrink-0">📄</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-800 truncate">{doc.title ?? "Prescription"}</p>
+                              <p className="text-[10px] text-slate-400">{formatDate(doc.docDate ?? doc.uploadedAt)}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
-            <button onClick={() => setShowAddPill(true)} className="text-xs font-semibold text-emerald-600 border border-emerald-200 px-3 py-1 rounded-lg hover:bg-emerald-50">+ Add Medication</button>
+            {mode === "advanced" && (
+              <button onClick={() => setShowAddPill(true)} className="text-xs font-semibold text-emerald-600 border border-emerald-200 px-3 py-1 rounded-lg hover:bg-emerald-50">+ Add Medication</button>
+            )}
           </div>
         </div>
 
-        {/* Prescription scan results */}
-        {scanError && (
+        {/* Prescription scan results — My Plan mode only */}
+        {mode === "advanced" && scanError && (
           <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-700">{scanError}</div>
         )}
-        {scannedMeds !== null && (
+        {mode === "advanced" && scannedMeds !== null && (
           <div className="border border-purple-200 rounded-xl p-4 bg-purple-50 space-y-3">
             <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">
               {scannedMeds.length === 0 ? "No medications detected" : `${scannedMeds.length} medication${scannedMeds.length !== 1 ? "s" : ""} found`}
@@ -1086,7 +1281,10 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
           <div className="text-center py-6">
             <p className="text-3xl mb-2">💊</p>
             <p className="text-sm text-slate-500">No medications added yet</p>
-            <button onClick={() => setShowAddPill(true)} className="mt-3 text-xs font-semibold text-emerald-600 hover:underline">Add your first medication →</button>
+            <button onClick={() => { setMode("advanced"); setShowAddPill(true); }}
+              className="mt-3 text-xs font-semibold text-emerald-600 hover:underline">
+              Add your first medication →
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -1105,11 +1303,17 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
                             <p className={`text-sm font-semibold ${taken ? "text-emerald-700 line-through" : "text-slate-800"}`}>{pill.name}</p>
                             {pill.dosage && <p className="text-xs text-slate-400">{pill.dosage}</p>}
                           </div>
-                          <button
-                            onClick={() => toggleTaken(pill.id, slot.key)}
-                            className={`ml-3 shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition ${taken ? "bg-emerald-500 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-600"}`}>
-                            {taken ? "✓ Taken" : "Mark Taken"}
-                          </button>
+                          <div className="flex items-center gap-2 ml-3 shrink-0">
+                            <button
+                              onClick={() => toggleTaken(pill.id, slot.key)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${taken ? "bg-emerald-500 text-white" : "bg-white border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-600"}`}>
+                              {taken ? "✓ Taken" : "Mark Taken"}
+                            </button>
+                            <button onClick={() => void removePill(pill.id)}
+                              className="text-slate-300 hover:text-red-500 transition text-base leading-none" title="Remove medication">
+                              🗑
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1120,8 +1324,8 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
           </div>
         )}
 
-        {/* Add pill form */}
-        {showAddPill && (
+        {/* Add pill form — My Plan mode only */}
+        {mode === "advanced" && showAddPill && (
           <div className="border-t border-slate-100 pt-4 space-y-3">
             <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Add Medication</p>
             <div className="grid grid-cols-2 gap-2">
@@ -1162,19 +1366,18 @@ function RemindersTab({ canUsePremium, appointments }: { canUsePremium: boolean;
         )}
       </section>
 
-      {/* Medications list (advanced mode) */}
-      {mode === "advanced" && pills.length > 0 && (
+      {/* All Medications list */}
+      {pills.length > 0 && (
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
-          <p className="text-sm font-bold text-slate-700">All Medications</p>
+          <p className="text-sm font-bold text-slate-700">All Medications ({pills.length})</p>
           <div className="space-y-2">
             {pills.map((p) => (
               <div key={p.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800">{p.name} {p.dosage && <span className="text-slate-500 font-normal">· {p.dosage}</span>}</p>
-                  <p className="text-xs text-slate-400">{p.times.join(", ")} · since {formatDate(p.startDate)}</p>
-                  {p.notes && <p className="text-xs text-slate-400 italic">{p.notes}</p>}
+                  <p className="text-xs text-slate-400">{p.times.join(", ")}{p.notes ? ` · ${p.notes}` : ""}</p>
                 </div>
-                <button onClick={() => removePill(p.id)} className="ml-3 text-xs text-red-500 hover:text-red-700 font-semibold shrink-0">Remove</button>
+                <button onClick={() => void removePill(p.id)} className="ml-3 text-xs text-red-500 hover:text-red-700 font-semibold shrink-0">Remove</button>
               </div>
             ))}
           </div>
@@ -1363,6 +1566,10 @@ interface DietProfile {
   foodPref: "veg" | "non_veg" | "eggetarian" | "";
   foodLikes: string;
   foodDislikes: string;
+  goal: "lose_weight" | "gain_weight" | "maintain" | "manage_diabetes" | "manage_bp" | "fitness" | "";
+  goalWeight: string;
+  age: string;
+  activityLevel: "sedentary" | "light" | "moderate" | "active" | "";
 }
 
 interface FamilyMember {
@@ -1381,11 +1588,47 @@ interface AddressData {
   altPhone: string;
 }
 
-const LS_DIET_PROFILE = "eh_diet_profile_v1";
+const LS_DIET_PROFILE    = "eh_diet_profile_v1";
+const LS_PREFERRED_LANG  = "eh_preferred_lang_v1";
+
+// ── Medical Disclaimer ────────────────────────────────────────────────────────
+
+const DISCLAIMER_LANGS: Record<string, { name: string; text: string }> = {
+  en: { name: "English",    text: "This information is indicative only and not a substitute for professional medical advice. All AI-generated results, plans, and trends must be verified by a qualified healthcare practitioner before taking any action." },
+  hi: { name: "हिन्दी",     text: "यह जानकारी केवल सांकेतिक है और पेशेवर चिकित्सा सलाह का विकल्प नहीं है। सभी AI-जनित परिणाम, योजनाएँ और ट्रेंड किसी योग्य स्वास्थ्य विशेषज्ञ द्वारा सत्यापित किए जाने चाहिए।" },
+  bn: { name: "বাংলা",      text: "এই তথ্য শুধুমাত্র ইঙ্গিতমূলক এবং পেশাদার চিকিৎসা পরামর্শের বিকল্প নয়। সমস্ত AI-উৎপন্ন ফলাফল যেকোনো পদক্ষেপ নেওয়ার আগে একজন যোগ্য চিকিৎসক দ্বারা যাচাই করা উচিত।" },
+  mr: { name: "मराठी",      text: "ही माहिती केवळ सांकेतिक आहे आणि व्यावसायिक वैद्यकीय सल्ल्याचा पर्याय नाही। सर्व AI-निर्मित परिणाम कोणतीही कारवाई करण्यापूर्वी पात्र वैद्यकीय व्यावसायिकाने सत्यापित केले पाहिजेत।" },
+  ta: { name: "தமிழ்",     text: "இந்த தகவல் குறிப்பீட்டு மட்டுமே மற்றும் தொழில்முறை மருத்துவ ஆலோசனைக்கு மாற்றாக இல்லை. அனைத்து AI முடிவுகளும் ஒரு தகுதிவாய்ந்த மருத்துவரால் சரிபார்க்கப்பட வேண்டும்।" },
+  te: { name: "తెలుగు",    text: "ఈ సమాచారం సూచనాత్మకమైనది మాత్రమే మరియు వృత్తిపరమైన వైద్య సలహాకు ప్రత్యామ్నాయం కాదు. అన్ని AI ఫలితాలు అర్హత కలిగిన వైద్యుడిచే ధృవీకరించబడాలి।" },
+  kn: { name: "ಕನ್ನಡ",    text: "ಈ ಮಾಹಿತಿ ಕೇವಲ ಸಾಂಕೇತಿಕವಾಗಿದೆ ಮತ್ತು ವೃತ್ತಿಪರ ವೈದ್ಯಕೀಯ ಸಲಹೆಗೆ ಬದಲಿ ಅಲ್ಲ. ಎಲ್ಲಾ AI ಫಲಿತಾಂಶಗಳನ್ನು ಅರ್ಹ ವೈದ್ಯರಿಂದ ಪರಿಶೀಲಿಸಬೇಕು।" },
+};
+
+function MedicalDisclaimer({ lang = "en" }: { lang?: string }) {
+  const selected = DISCLAIMER_LANGS[lang] ?? DISCLAIMER_LANGS.en;
+  const english  = DISCLAIMER_LANGS.en;
+  const showBoth = lang !== "en" && selected;
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-1.5">
+      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+        ⚕️ Medical Disclaimer
+      </p>
+      {showBoth && (
+        <p className="text-xs text-slate-600 leading-relaxed">
+          <span className="font-semibold">{selected.name}:</span> {selected.text}
+        </p>
+      )}
+      <p className="text-xs text-slate-600 leading-relaxed">
+        {showBoth && <span className="font-semibold">English: </span>}
+        {english.text}
+      </p>
+    </div>
+  );
+}
 
 // ── Profile Tab ───────────────────────────────────────────────────────────────
 
-function ProfileTab({ patientName, canUsePremium: _canUsePremium }: { patientName: string; canUsePremium: boolean }) {
+function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", onLangChange }: { patientName: string; canUsePremium: boolean; lang?: string; onLangChange?: (l: string) => void }) {
   // DB fields
   const [displayName, setDisplayName] = useState(patientName);
   const [city, setCity]               = useState("");
@@ -1824,17 +2067,38 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium }: { patientNam
         </div>
       )}
 
+      {/* ── Language Preference ── */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-700">Language Preference</p>
+          <p className="text-xs text-slate-400 mt-0.5">Disclaimers and guidance will also appear in your chosen language</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(DISCLAIMER_LANGS).map(([code, { name }]) => (
+            <button key={code} onClick={() => onLangChange?.(code)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${lang === code ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:border-emerald-400"}`}
+              style={lang === code ? { background: "#1B8A4A" } : {}}>
+              {name}
+            </button>
+          ))}
+        </div>
+        <MedicalDisclaimer lang={lang} />
+      </section>
+
     </div>
   );
 }
 
 // ── Diet Plan Tab ─────────────────────────────────────────────────────────────
 
-function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
-  const [dp, setDp] = useState<DietProfile>(() => lsGet<DietProfile>(LS_DIET_PROFILE, { foodPref: "", foodLikes: "", foodDislikes: "" }));
+function DietPlanTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang?: string }) {
+  const EMPTY_DP: DietProfile = { foodPref: "", foodLikes: "", foodDislikes: "", goal: "", goalWeight: "", age: "", activityLevel: "" };
+  const [dp, setDp] = useState<DietProfile>(() => lsGet<DietProfile>(LS_DIET_PROFILE, EMPTY_DP));
   const [plan, setPlan]       = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
+  const [saving, setSaving]   = useState(false);
+  const [saved, setSaved]     = useState(false);
   const [recentVitals, setRecentVitals] = useState<VitalsEntry[]>([]);
   const [hp, setHp] = useState<HealthProfile>({ height: "", weight: "", bloodGroup: "", conditions: "", allergies: "" });
 
@@ -1842,7 +2106,7 @@ function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
     fetch("/api/v1/patients/vitals", { credentials: "include" }).then(async (r) => {
       if (r.ok) {
         const j = await r.json() as { data?: Array<{ id: string; recordedDate: string; bp: string | null; pulse: string | null; glucose: string | null; weight: string | null }> };
-        setRecentVitals((j.data ?? []).slice(0, 7).map((v) => ({
+        setRecentVitals((j.data ?? []).slice(0, 10).map((v) => ({
           id: v.id, date: v.recordedDate,
           bp: v.bp ?? undefined, pulse: v.pulse ?? undefined,
           glucose: v.glucose ?? undefined, weight: v.weight ?? undefined,
@@ -1859,6 +2123,19 @@ function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
 
   function saveDp(patch: Partial<DietProfile>) { const u = { ...dp, ...patch }; setDp(u); lsSet(LS_DIET_PROFILE, u); }
 
+  async function saveProfile() {
+    setSaving(true); setSaved(false);
+    try {
+      await fetch("/api/v1/patients/health-profile", {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ height: hp.height || null, weight: hp.weight || null, bloodGroup: hp.bloodGroup || null, conditions: hp.conditions || null, allergies: hp.allergies || null }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally { setSaving(false); }
+  }
+
   async function generatePlan() {
     if (!canUsePremium) return;
     setLoading(true); setError(null); setPlan(null);
@@ -1874,20 +2151,185 @@ function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
     finally { setLoading(false); }
   }
 
+  // ── Progress helpers ──────────────────────────────────────────────────────
+  function calcBmi() {
+    const h = parseFloat(hp.height);
+    const w = parseFloat(hp.weight || (recentVitals.find(v => v.weight)?.weight ?? ""));
+    if (!h || !w) return null;
+    return w / ((h / 100) ** 2);
+  }
+
+  function bmiLabel(bmi: number) {
+    if (bmi < 18.5) return { label: "Underweight", color: "text-blue-600 bg-blue-50 border-blue-200" };
+    if (bmi < 25)   return { label: "Normal",       color: "text-emerald-600 bg-emerald-50 border-emerald-200" };
+    if (bmi < 30)   return { label: "Overweight",   color: "text-amber-600 bg-amber-50 border-amber-200" };
+    return               { label: "Obese",          color: "text-red-600 bg-red-50 border-red-200" };
+  }
+
+  function weightTrend() {
+    const vals = recentVitals.map(v => v.weight ? parseFloat(v.weight) : NaN).filter(n => !isNaN(n));
+    if (vals.length < 2) return null;
+    const diff = vals[0] - vals[1];
+    if (Math.abs(diff) < 0.3) return { icon: "→", label: "Stable", diff: 0, goodFor: ["maintain"] };
+    if (diff < 0) return { icon: "↘", label: `−${Math.abs(diff).toFixed(1)} kg`, diff, goodFor: ["lose_weight"] };
+    return { icon: "↗", label: `+${diff.toFixed(1)} kg`, diff, goodFor: ["gain_weight", "fitness"] };
+  }
+
+  function bpTrend() {
+    const vals = recentVitals.map(v => {
+      const m = v.bp?.match(/^(\d+)/); return m ? parseInt(m[1]) : NaN;
+    }).filter(n => !isNaN(n));
+    if (vals.length < 2) return null;
+    const diff = vals[0] - vals[1];
+    if (Math.abs(diff) < 3) return { icon: "→", label: "Stable", systolic: vals[0], ok: vals[0] < 130 };
+    if (diff < 0) return { icon: "↘", label: `${vals[0]} mmHg ↓`, systolic: vals[0], ok: true };
+    return { icon: "↗", label: `${vals[0]} mmHg ↑`, systolic: vals[0], ok: vals[0] < 130 };
+  }
+
+  function glucoseTrend() {
+    const vals = recentVitals.map(v => v.glucose ? parseFloat(v.glucose) : NaN).filter(n => !isNaN(n));
+    if (vals.length < 2) return null;
+    const diff = vals[0] - vals[1];
+    if (Math.abs(diff) < 5) return { icon: "→", label: "Stable", value: vals[0], ok: vals[0] < 140 };
+    if (diff < 0) return { icon: "↘", label: `${vals[0]} mg/dL ↓`, value: vals[0], ok: true };
+    return { icon: "↗", label: `${vals[0]} mg/dL ↑`, value: vals[0], ok: vals[0] < 140 };
+  }
+
+  const bmi = calcBmi();
+  const wt = weightTrend(); const bp = bpTrend(); const gl = glucoseTrend();
+  const isOnTrack = (t: { goodFor?: string[]; ok?: boolean } | null) => {
+    if (!t) return null;
+    if ("goodFor" in t && dp.goal) return (t.goodFor ?? []).includes(dp.goal);
+    if ("ok" in t) return t.ok ?? true;
+    return null;
+  };
+
   const inputCls = "w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500";
+
+  const GOALS = [
+    { val: "lose_weight", label: "🎯 Lose Weight" },
+    { val: "gain_weight", label: "💪 Gain Weight" },
+    { val: "maintain",    label: "⚖️ Maintain Weight" },
+    { val: "manage_diabetes", label: "🩸 Manage Diabetes" },
+    { val: "manage_bp",   label: "❤️ Manage BP" },
+    { val: "fitness",     label: "🏃 General Fitness" },
+  ] as const;
+
+  const ACTIVITY = [
+    { val: "sedentary", label: "🛋️ Sedentary" },
+    { val: "light",     label: "🚶 Light" },
+    { val: "moderate",  label: "🚴 Moderate" },
+    { val: "active",    label: "🏋️ Active" },
+  ] as const;
 
   return (
     <div className="space-y-6">
 
-      {/* Food Preferences */}
+      {/* ── Health Profile & Goals ── */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-bold text-slate-700">Health Profile & Goals</p>
+            <p className="text-xs text-slate-400 mt-0.5">Used to personalise your AI diet plan</p>
+          </div>
+          <button onClick={() => void saveProfile()} disabled={saving}
+            className="text-xs font-semibold text-white px-3 py-1.5 rounded-xl disabled:opacity-50"
+            style={{ background: "#1B8A4A" }}>
+            {saving ? "Saving…" : saved ? "✓ Saved" : "Save Profile"}
+          </button>
+        </div>
+
+        {/* Body measurements */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: "Height (cm)", value: hp.height, set: (v: string) => setHp(p => ({ ...p, height: v })), placeholder: "e.g. 168" },
+            { label: "Current Weight (kg)", value: hp.weight, set: (v: string) => setHp(p => ({ ...p, weight: v })), placeholder: "e.g. 72" },
+            { label: "Goal Weight (kg)", value: dp.goalWeight, set: (v: string) => saveDp({ goalWeight: v }), placeholder: "e.g. 65" },
+            { label: "Age", value: dp.age, set: (v: string) => saveDp({ age: v }), placeholder: "e.g. 34" },
+          ].map((f) => (
+            <div key={f.label}>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">{f.label}</label>
+              <input type="text" value={f.value} onChange={(e) => f.set(e.target.value)}
+                placeholder={f.placeholder} className={inputCls} />
+            </div>
+          ))}
+        </div>
+
+        {/* Goal */}
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-2">Health Goal</label>
+          <div className="flex flex-wrap gap-2">
+            {GOALS.map(({ val, label }) => (
+              <button key={val} type="button" onClick={() => saveDp({ goal: val })}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${dp.goal === val ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:border-emerald-400"}`}
+                style={dp.goal === val ? { background: "#1B8A4A" } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Activity level */}
+        <div>
+          <label className="text-xs font-semibold text-slate-500 block mb-2">Activity Level</label>
+          <div className="flex flex-wrap gap-2">
+            {ACTIVITY.map(({ val, label }) => (
+              <button key={val} type="button" onClick={() => saveDp({ activityLevel: val })}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${dp.activityLevel === val ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:border-emerald-400"}`}
+                style={dp.activityLevel === val ? { background: "#1B8A4A" } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Medical details */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Blood Group</label>
+            <select value={hp.bloodGroup} onChange={(e) => setHp(p => ({ ...p, bloodGroup: e.target.value }))} className={inputCls}>
+              <option value="">Select</option>
+              {["A+","A−","B+","B−","AB+","AB−","O+","O−"].map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Medical Conditions</label>
+            <input type="text" value={hp.conditions} onChange={(e) => setHp(p => ({ ...p, conditions: e.target.value }))}
+              placeholder="e.g. Diabetes, Hypertension" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Allergies</label>
+            <input type="text" value={hp.allergies} onChange={(e) => setHp(p => ({ ...p, allergies: e.target.value }))}
+              placeholder="e.g. Peanuts, Lactose" className={inputCls} />
+          </div>
+        </div>
+
+        {/* BMI card */}
+        {bmi && (() => { const bl = bmiLabel(bmi); return (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold ${bl.color}`}>
+            <span className="text-2xl">⚖️</span>
+            <div>
+              <span className="font-bold">BMI: {bmi.toFixed(1)}</span>
+              <span className="mx-2">·</span>
+              <span>{bl.label}</span>
+            </div>
+            {dp.goalWeight && hp.height && (() => {
+              const h = parseFloat(hp.height); const gw = parseFloat(dp.goalWeight);
+              const goalBmi = gw / ((h / 100) ** 2);
+              return <span className="ml-auto text-xs font-normal opacity-70">Goal BMI: {goalBmi.toFixed(1)}</span>;
+            })()}
+          </div>
+        ); })()}
+      </section>
+
+      {/* ── Food Preferences ── */}
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div>
           <p className="text-sm font-bold text-slate-700">Food Preferences</p>
-          <p className="text-xs text-slate-400 mt-0.5">Used to personalise your AI diet plan</p>
+          <p className="text-xs text-slate-400 mt-0.5">Helps AI pick the right foods for your culture and taste</p>
         </div>
-
         <div>
-          <label className="text-xs font-semibold text-slate-600 block mb-2">Diet Type</label>
+          <label className="text-xs font-semibold text-slate-500 block mb-2">Diet Type</label>
           <div className="flex flex-wrap gap-2">
             {([
               { val: "veg",        label: "🥦 Vegetarian" },
@@ -1902,56 +2344,117 @@ function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
             ))}
           </div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Foods I Love</label>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Foods I Love</label>
             <input type="text" value={dp.foodLikes} onChange={(e) => saveDp({ foodLikes: e.target.value })}
               placeholder="e.g. Rice, Dal, Idli, Dosa" className={inputCls} />
           </div>
           <div>
-            <label className="text-xs font-semibold text-slate-600 block mb-1">Foods I Avoid</label>
+            <label className="text-xs font-semibold text-slate-500 block mb-1">Foods I Avoid</label>
             <input type="text" value={dp.foodDislikes} onChange={(e) => saveDp({ foodDislikes: e.target.value })}
               placeholder="e.g. Spicy food, Fried items" className={inputCls} />
           </div>
         </div>
       </section>
 
-      {/* Weekly Progress Snapshot */}
-      {recentVitals.length > 0 && (
-        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+      {/* ── Weekly Progress & Direction ── */}
+      {recentVitals.length > 0 ? (
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-slate-700">Recent Vitals (Last 7 Readings)</p>
-            <span className="text-xs text-slate-400">AI will analyse these for your plan</span>
+            <p className="text-sm font-bold text-slate-700">Weekly Progress</p>
+            <span className="text-xs text-slate-400">{recentVitals.length} readings logged</span>
           </div>
+
+          {/* Trend cards */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Weight", trend: wt, icon: "⚖️", unit: "kg" },
+              { label: "Blood Pressure", trend: bp, icon: "🫀", unit: "" },
+              { label: "Glucose", trend: gl, icon: "🩸", unit: "" },
+            ].map(({ label, trend, icon }) => {
+              const onTrack = isOnTrack(trend);
+              return (
+                <div key={label} className={`rounded-xl border p-3 text-center ${
+                  onTrack === true ? "bg-emerald-50 border-emerald-200" :
+                  onTrack === false ? "bg-red-50 border-red-200" :
+                  "bg-slate-50 border-slate-200"
+                }`}>
+                  <p className="text-lg mb-0.5">{icon}</p>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+                  {trend ? (
+                    <>
+                      <p className={`text-xl font-bold mt-1 ${onTrack === true ? "text-emerald-600" : onTrack === false ? "text-red-500" : "text-slate-600"}`}>
+                        {trend.icon}
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{"label" in trend ? trend.label : ""}</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-slate-400 mt-2">Need 2+ readings</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Direction summary */}
+          {dp.goal && (wt || bp || gl) && (() => {
+            const wtOk = isOnTrack(wt); const bpOk = isOnTrack(bp); const glOk = isOnTrack(gl);
+            const positives = [wtOk, bpOk, glOk].filter(x => x === true).length;
+            const negatives = [wtOk, bpOk, glOk].filter(x => x === false).length;
+            const GOAL_LABELS: Record<string, string> = { lose_weight: "weight loss", gain_weight: "weight gain", maintain: "maintenance", manage_diabetes: "diabetes management", manage_bp: "BP management", fitness: "fitness" };
+            return (
+              <div className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
+                positives > negatives ? "bg-emerald-50 border-emerald-200" :
+                negatives > positives ? "bg-red-50 border-red-200" :
+                "bg-amber-50 border-amber-200"
+              }`}>
+                <span className="text-2xl">{positives > negatives ? "🎉" : negatives > positives ? "⚠️" : "📊"}</span>
+                <div>
+                  <p className="text-xs font-bold text-slate-700">
+                    {positives > negatives ? "You're on track!" : negatives > positives ? "Needs attention" : "Mixed signals"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    {positives > negatives
+                      ? `Your trends support your ${GOAL_LABELS[dp.goal] ?? "goal"}. Keep it up!`
+                      : negatives > positives
+                      ? `Some metrics are moving against your ${GOAL_LABELS[dp.goal] ?? "goal"}. Generate a new plan below.`
+                      : "Log more vitals for a clearer direction."}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Vitals table */}
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="border-b border-slate-100">
-                {["Date","Weight","BP","Glucose"].map((h) => <th key={h} className="text-left py-1.5 px-2 text-slate-400 font-semibold">{h}</th>)}
+                {["Date","Weight","BP","Glucose","Pulse"].map((h) => <th key={h} className="text-left py-1.5 px-2 text-slate-400 font-semibold">{h}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-slate-50">
                 {recentVitals.map((v) => (
-                  <tr key={v.id}>
+                  <tr key={v.id} className="hover:bg-slate-50">
                     <td className="py-1.5 px-2 text-slate-600">{formatDate(v.date)}</td>
                     <td className="py-1.5 px-2 text-slate-600">{v.weight ? `${v.weight} kg` : "—"}</td>
                     <td className="py-1.5 px-2 text-slate-600">{v.bp ?? "—"}</td>
                     <td className="py-1.5 px-2 text-slate-600">{v.glucose ?? "—"}</td>
+                    <td className="py-1.5 px-2 text-slate-600">{v.pulse ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-400">Log vitals in <strong>Reminders</strong> tab to improve analysis accuracy.</p>
+          <p className="text-[10px] text-slate-400">Log vitals weekly in the <strong>Reminders → Elder Care</strong> section for trend tracking.</p>
+          <MedicalDisclaimer lang={lang} />
         </section>
-      )}
-
-      {recentVitals.length === 0 && (
+      ) : (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800">
-          📊 No vitals recorded yet. Log weight, glucose, and BP in the <strong>Reminders</strong> tab for AI to analyse weekly progress and improvements.
+          📊 No vitals recorded yet. Log weight, glucose, and BP weekly in the <strong>Reminders</strong> tab to see your progress direction here.
         </div>
       )}
 
-      {/* AI Diet Plan Generation */}
+      {/* ── AI Diet Plan ── */}
       <section className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 overflow-hidden">
         {!canUsePremium && (
           <PremiumGate
@@ -1959,52 +2462,44 @@ function DietPlanTab({ canUsePremium }: { canUsePremium: boolean }) {
             desc="Get a personalised weekly diet plan with progress analysis — tailored to your health profile, vitals, and food preferences."
           />
         )}
-
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-sm font-bold text-slate-700">AI Weekly Diet Plan + Progress Analysis</p>
-            <p className="text-xs text-slate-400 mt-0.5">Gemini analyses your weekly vitals trends and generates an adaptive plan</p>
+            <p className="text-xs text-slate-400 mt-0.5">Gemini analyses your vitals trends and generates an adaptive weekly plan</p>
           </div>
           <button onClick={() => void generatePlan()} disabled={loading || !canUsePremium}
             className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm disabled:opacity-60 transition"
             style={{ background: "#1B8A4A" }}>
-            {loading ? (
-              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analysing…</>
-            ) : "✨ Generate This Week's Plan"}
+            {loading ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Analysing…</> : "✨ Generate This Week's Plan"}
           </button>
         </div>
-
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
-
-        {plan && (
+        {plan ? (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Your Personalised Diet Plan</p>
               <span className="text-xs text-emerald-600">Generated {new Date().toLocaleDateString("en-IN")}</span>
             </div>
             <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{plan}</div>
+            <MedicalDisclaimer lang={lang} />
           </div>
-        )}
-
-        {!plan && !loading && (
+        ) : !loading && (
           <div className={`text-center py-8 ${!canUsePremium ? "blur-sm select-none pointer-events-none" : ""}`}>
             <p className="text-4xl mb-3">🥗</p>
-            <p className="text-sm font-medium text-slate-600">Set your food preferences above, then generate your plan.</p>
-            <p className="text-xs text-slate-400 mt-1">{recentVitals.length > 0 ? `AI will analyse ${recentVitals.length} recent vitals readings for progress insights.` : "Add vitals in Reminders tab for progress-aware suggestions."}</p>
+            <p className="text-sm font-medium text-slate-600">Complete your health profile above, then generate your plan.</p>
+            <p className="text-xs text-slate-400 mt-1">{recentVitals.length > 0 ? `AI will analyse ${recentVitals.length} vitals readings for progress-aware suggestions.` : "Add vitals in Reminders tab for progress-aware diet advice."}</p>
           </div>
         )}
       </section>
 
-      {/* Dietitian CTA */}
+      {/* ── Dietitian CTA ── */}
       <section className="bg-gradient-to-r from-teal-50 to-emerald-50 rounded-2xl border border-teal-200 p-5">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-teal-100 border border-teal-200 flex items-center justify-center text-2xl shrink-0">🥦</div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-slate-800 text-sm">Need a Dietitian?</p>
-            <p className="text-xs text-slate-600 mt-1">Get a 1-on-1 consultation with a certified clinical dietitian who can create a detailed, medically-tailored plan.</p>
-            <a href="/doctors?specialty=dietitian"
-              className="inline-block mt-3 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm transition"
-              style={{ background: "#1B8A4A" }}>
+            <p className="text-xs text-slate-600 mt-1">Get a 1-on-1 consultation with a certified clinical dietitian for a medically-tailored plan.</p>
+            <a href="/doctors?specialty=dietitian" className="inline-block mt-3 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm" style={{ background: "#1B8A4A" }}>
               Find a Dietitian →
             </a>
           </div>
@@ -2028,6 +2523,9 @@ export default function DashboardClient() {
   const [docsCount, setDocsCount] = useState(0);
   const [trial, setTrial] = useState<TrialStatus>({ inTrial: false, trialDaysLeft: 0, canUsePremium: false, tier: "free" });
   const [patientName, setPatientName] = useState("there");
+  const [preferredLang, setPreferredLang] = useState<string>(() => lsGet<string>(LS_PREFERRED_LANG, "en"));
+
+  function changeLang(lang: string) { setPreferredLang(lang); lsSet(LS_PREFERRED_LANG, lang); }
 
   function switchTab(tab: DashboardTab) {
     setActiveTab(tab);
@@ -2086,7 +2584,7 @@ export default function DashboardClient() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="h-screen bg-slate-50 flex overflow-hidden">
       {/* ── Sidebar ── */}
       <aside className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen shadow-sm">
         {/* Logo */}
@@ -2148,7 +2646,7 @@ export default function DashboardClient() {
 
       {/* ── Main content ── */}
       <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <div className="max-w-3xl mx-auto px-4 pt-6 pb-28 md:pb-12 space-y-6">
 
           {/* Page title */}
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -2278,9 +2776,9 @@ export default function DashboardClient() {
           {activeTab === "appointments" && <AppointmentsTab appointments={appointments} loading={loading} />}
           {activeTab === "records"      && <RecordsTab />}
           {activeTab === "timeline"     && <TimelineTab appointments={appointments} />}
-          {activeTab === "coach"        && <CoachTab canUsePremium={trial.canUsePremium} />}
-          {activeTab === "diet"         && <DietPlanTab canUsePremium={trial.canUsePremium} />}
-          {activeTab === "profile"      && <ProfileTab patientName={patientName} canUsePremium={trial.canUsePremium} />}
+          {activeTab === "coach"        && <CoachTab canUsePremium={trial.canUsePremium} lang={preferredLang} />}
+          {activeTab === "diet"         && <DietPlanTab canUsePremium={trial.canUsePremium} lang={preferredLang} />}
+          {activeTab === "profile"      && <ProfileTab patientName={patientName} canUsePremium={trial.canUsePremium} lang={preferredLang} onLangChange={changeLang} />}
           {activeTab === "reminders"    && (
             !trial.canUsePremium ? (
               <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-8 overflow-hidden">

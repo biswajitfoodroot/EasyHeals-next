@@ -1,6 +1,6 @@
 "use client";
 
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AdminPatientsTab } from "./AdminPatientsTab";
 import { AdminProvidersTab } from "./AdminProvidersTab";
@@ -51,6 +51,21 @@ const SPECIALTY_LIST = [
   "Urology",
   "Vascular Surgery",
 ] as const;
+
+/** Client-side mirror of classifyInput() from deep-research.ts (regex only, no server imports) */
+function classifyBatchLine(line: string): "discovery" | "entity" {
+  const q = line.toLowerCase().trim();
+  const patterns = [
+    /^top\s+\d+/,
+    /^best\s+(hospital|clinic|doctor|surgeon|specialist)/,
+    /^list\s+of/,
+    /^find\s+(hospitals?|clinics?|doctors?)/,
+    /^(hospitals?|clinics?|doctors?)\s+(in|near|at)\s+/,
+    /^\d+\s+(hospitals?|clinics?)\s+in\s+/,
+    /near\s+me/,
+  ];
+  return patterns.some(p => p.test(q)) ? "discovery" : "entity";
+}
 
 /** Compact specialty picker — clicking a chip appends/sets it into the query */
 function SpecialtyPicker({ onSelect, onSelectAll }: { onSelect: (name: string) => void; onSelectAll?: (names: readonly string[]) => void }) {
@@ -314,6 +329,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [ingestionMessage, setIngestionMessage] = useState<string | null>(null);
   const [recentJobs, setRecentJobs] = useState<IngestionJob[]>([]);
   const [details, setDetails] = useState<IngestionDetails | null>(null);
+  const reviewSectionRef = useRef<HTMLDivElement | null>(null);
+  const [duplicates, setDuplicates] = useState<{
+    doctors: Map<string, { existingId: string; existingName: string; existingSpecialization: string | null }>;
+    packages: Map<string, { existingId: string; existingPackageName: string; existingPriceMin: number | null; existingPriceMax: number | null }>;
+  } | null>(null);
 
   const [discoveryQuery, setDiscoveryQuery] = useState("");
   const [discoveryResults, setDiscoveryResults] = useState<DiscoveryResult[]>([]);
@@ -321,7 +341,10 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [researchQueue, setResearchQueue] = useState<ResearchQueueRow[]>([]);
 
   // ── AI Research Agent ───────────────────────────────────────────────────────
+  const [agentMode, setAgentMode] = useState<"single" | "batch">("single");
   const [agentQuery, setAgentQuery] = useState("");
+  const [agentBatchNames, setAgentBatchNames] = useState("");
+  const [agentDeepSearch, setAgentDeepSearch] = useState(false);
   const [agentCity, setAgentCity] = useState("");
   const [agentAutoQueue, setAgentAutoQueue] = useState(false);
   const [agentBusy, setAgentBusy] = useState(false);
@@ -340,7 +363,28 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     queuedCount: number;
     queuedItems: Array<{ id: string; sourceUrl: string; sourceTitle: string | null }>;
   } | null>(null);
+  
+  // Batch processing state
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ total: number; done: number; failed: number } | null>(null);
+  const [batchItems, setBatchItems] = useState<Array<{
+    name: string;
+    city?: string | null;
+    status: "pending" | "processing" | "done" | "failed";
+    jobId?: string | null;
+    error?: string | null;
+    specialtyCount?: number;
+    doctorCount?: number;
+    priceCount?: number;
+    confidence?: number;
+    discoveredCount?: number;
+    discoveredEntities?: Array<{ jobId: string; name: string; city: string | null; confidence: number }>;
+  }>>([]);
+
   const [agentError, setAgentError] = useState<string | null>(null);
+  // Batch mode bulk-save state
+  const [batchSaveBusy, setBatchSaveBusy] = useState(false);
+  const [batchSaveResult, setBatchSaveResult] = useState<{ applied: number; failed: number } | null>(null);
   // AI research save
   const [agentBatchBusy, setAgentBatchBusy] = useState(false);
   const [agentBatchResult, setAgentBatchResult] = useState<{
@@ -686,7 +730,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     }
   }
 
-  async function loadJobDetails(jobId: string) {
+  async function loadJobDetails(jobId: string, scrollToReview = false) {
     try {
       const response = await fetch(`/api/admin/ingestion/jobs?jobId=${encodeURIComponent(jobId)}`);
       const body = (await response.json()) as { data?: IngestionDetails; error?: string };
@@ -696,6 +740,26 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       }
       setDetails(body.data);
       setJobIdInput(jobId);
+
+      // Also fetch duplicate candidates in parallel (non-blocking — don't fail on error)
+      fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(jobId)}/duplicates`)
+        .then(r => r.json())
+        .then((dupBody: { data?: { doctors: Array<{candidateId: string; existingId: string; existingName: string; existingSpecialization: string | null}>; packages: Array<{candidateId: string; existingId: string; existingPackageName: string; existingPriceMin: number | null; existingPriceMax: number | null}> } }) => {
+          if (dupBody.data) {
+            setDuplicates({
+              doctors: new Map(dupBody.data.doctors.map(d => [d.candidateId, { existingId: d.existingId, existingName: d.existingName, existingSpecialization: d.existingSpecialization }])),
+              packages: new Map(dupBody.data.packages.map(p => [p.candidateId, { existingId: p.existingId, existingPackageName: p.existingPackageName, existingPriceMin: p.existingPriceMin, existingPriceMax: p.existingPriceMax }])),
+            });
+          }
+        })
+        .catch(() => { /* silently ignore duplicate detection errors */ });
+
+      if (scrollToReview) {
+        // defer scroll until after the re-render paints the review section
+        setTimeout(() => {
+          reviewSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
     } catch {
       setIngestionMessage("Unable to load ingestion details due to a network or server issue.");
     }
@@ -704,6 +768,110 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   // ── AI Research Agent Handler ───────────────────────────────────────────────
   async function onRunAgentResearch(e: FormEvent) {
     e.preventDefault();
+
+    // ── Batch mode ──────────────────────────────────────────────────────────
+    if (agentMode === "batch") {
+      const names = agentBatchNames
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (names.length === 0) return;
+
+      setAgentBusy(true);
+      setAgentError(null);
+      setBatchId(null);
+      setBatchProgress(null);
+      setBatchItems(names.map((name) => ({ name, city: agentCity || null, status: "pending" })));
+
+      try {
+        // Step 1: create batch job
+        const createRes = await fetch("/api/admin/research/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ names, city: agentCity || undefined }),
+        });
+        const createBody = await createRes.json().catch(() => ({}));
+        if (!createRes.ok) throw new Error(createBody.error ?? "Failed to create batch");
+
+        const newBatchId: string = createBody.data.batchId;
+        const total: number = createBody.data.total;
+        setBatchId(newBatchId);
+        setBatchProgress({ total, done: 0, failed: 0 });
+
+        // Step 2: poll process endpoint until done
+        let remaining = total;
+        let consecutiveErrors = 0;
+        while (remaining > 0) {
+          try {
+            const procRes = await fetch("/api/admin/research/batch/process", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ batchId: newBatchId, size: 3 }),
+            });
+            const procBody = await procRes.json().catch(() => ({}));
+            if (!procRes.ok) throw new Error(procBody.error ?? "Batch processing failed");
+
+            consecutiveErrors = 0;
+            const { processed, remaining: rem, items: updatedItems, batchStatus } = procBody.data as {
+              processed: number;
+              remaining: number;
+              items: Array<{ name: string; city?: string | null; status: string; jobId?: string | null; error?: string | null; specialtyCount?: number; doctorCount?: number; priceCount?: number; confidence?: number; discoveredCount?: number; discoveredEntities?: Array<{ jobId: string; name: string; city: string | null; confidence: number }> }>;
+              batchStatus: string;
+            };
+
+            remaining = rem;
+
+            // Merge updated items back into batchItems state
+            setBatchItems((prev) => {
+              const next = [...prev];
+              for (const updated of updatedItems) {
+                const idx = next.findIndex((it) => it.name === updated.name);
+                if (idx >= 0) next[idx] = { ...next[idx], ...updated } as typeof next[0];
+              }
+              return next;
+            });
+
+            // Update progress from batch status poll
+            const pollRes = await fetch(`/api/admin/research/batch?batchId=${encodeURIComponent(newBatchId)}`);
+            const pollBody = await pollRes.json().catch(() => ({}));
+            if (pollRes.ok && pollBody.data?.batch) {
+              const b = pollBody.data.batch;
+              setBatchProgress({ total: b.totalCount, done: b.doneCount, failed: b.failedCount });
+              remaining = b.totalCount - b.doneCount - b.failedCount;
+            }
+
+            if (batchStatus === "done" || batchStatus === "partial_failure" || processed === 0) break;
+          } catch (loopErr: any) {
+            consecutiveErrors++;
+            if (consecutiveErrors >= 2) {
+              // Sync final state from DB before giving up
+              try {
+                const pollRes = await fetch(`/api/admin/research/batch?batchId=${encodeURIComponent(newBatchId)}`);
+                const pollBody = await pollRes.json().catch(() => ({}));
+                if (pollRes.ok && pollBody.data?.batch) {
+                  const b = pollBody.data.batch;
+                  setBatchProgress({ total: b.totalCount, done: b.doneCount, failed: b.failedCount });
+                  const rem = b.totalCount - b.doneCount - b.failedCount;
+                  if (rem > 0) {
+                    setAgentError(`Processing interrupted after ${b.doneCount}/${b.totalCount} items. ${rem} item(s) remain pending — click Run AI Research again to continue.`);
+                  }
+                }
+              } catch { /* ignore */ }
+              break;
+            }
+            // Wait 2s and retry once before giving up
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+      } catch (err: any) {
+        setAgentError(err.message ?? "Unknown error");
+      } finally {
+        setAgentBusy(false);
+      }
+      return;
+    }
+
+    // ── Single mode ──────────────────────────────────────────────────────────
     setAgentBusy(true);
     setAgentError(null);
     setAgentResult(null);
@@ -1006,6 +1174,30 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     } finally {
       setAgentBatchBusy(false);
     }
+  }
+
+  // Bulk-apply all completed batch deep-research jobs to the DB
+  async function onBatchApplyAllJobs() {
+    const jobIds = batchItems
+      .filter((it) => it.status === "done" && it.jobId)
+      .map((it) => it.jobId as string);
+    if (jobIds.length === 0) return;
+    setBatchSaveBusy(true);
+    setBatchSaveResult(null);
+    let applied = 0;
+    let failed = 0;
+    for (const jobId of jobIds) {
+      try {
+        const res = await fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST" });
+        if (res.ok) applied++;
+        else failed++;
+      } catch {
+        failed++;
+      }
+    }
+    setBatchSaveResult({ applied, failed });
+    setBatchSaveBusy(false);
+    if (applied > 0) router.refresh();
   }
 
   async function onResolveAmbiguous(name: string, city: string, targetHospitalId: string) {
@@ -2030,7 +2222,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── SCRAPED DATA REVIEW CENTER ──────────────────────────────────── */}
         {details && (
-          <div className="space-y-6 pt-4 border-t-2 border-slate-200 animate-in fade-in zoom-in-95 duration-300">
+          <div ref={reviewSectionRef} className="space-y-6 pt-4 border-t-2 border-slate-200 animate-in fade-in zoom-in-95 duration-300">
             <h2 className="text-2xl font-bold tracking-tight text-slate-800 flex items-center gap-3">
               <span className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-base">🩺</span>
               Scraped Data Review Center
@@ -2192,6 +2384,45 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                     <p className="text-xs font-medium text-indigo-700">{item.matchDoctorName}</p>
                                   </div>
                                 )}
+                                {/* Duplicate detection badge */}
+                                {(() => {
+                                  const dup = duplicates?.doctors.get(item.id);
+                                  if (!dup) return null;
+                                  const isUpdateMode = !!item.matchDoctorId;
+                                  return (
+                                    <div className={`mt-2 p-2 rounded-lg border text-xs ${isUpdateMode ? "bg-blue-50 border-blue-200" : "bg-amber-50 border-amber-200"}`}>
+                                      <p className={`font-bold uppercase text-[10px] mb-1 ${isUpdateMode ? "text-blue-500" : "text-amber-500"}`}>
+                                        {isUpdateMode ? "✓ Will Update Existing" : "⚠ Possible Duplicate"}
+                                      </p>
+                                      <p className={`font-medium mb-2 ${isUpdateMode ? "text-blue-700" : "text-amber-700"}`}>
+                                        {dup.existingName}{dup.existingSpecialization ? ` · ${dup.existingSpecialization}` : ""}
+                                      </p>
+                                      {isUpdateMode ? (
+                                        <button
+                                          onClick={() => runReviewAction("doctor", item.id, "edit", { matchDoctorId: null })}
+                                          className="text-[10px] px-2 py-1 bg-white border border-slate-200 rounded text-slate-600 hover:bg-slate-50"
+                                        >
+                                          + Add as New Instead
+                                        </button>
+                                      ) : (
+                                        <div className="flex gap-1.5">
+                                          <button
+                                            onClick={() => runReviewAction("doctor", item.id, "edit", { matchDoctorId: dup.existingId })}
+                                            className="text-[10px] px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                          >
+                                            ↑ Update Existing
+                                          </button>
+                                          <button
+                                            onClick={() => runReviewAction("doctor", item.id, "edit", { matchDoctorId: null, mergeAction: "new" })}
+                                            className="text-[10px] px-2 py-1 bg-white border border-slate-300 rounded text-slate-600 hover:bg-slate-50"
+                                          >
+                                            + Add as New
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <div className="flex flex-col gap-2 shrink-0 items-end">
                                 <div className="flex gap-1.5">
@@ -2255,6 +2486,21 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                                 <p className="font-bold text-slate-800">{item.packageName}</p>
                                 <p className="text-sm text-slate-500">{item.department ?? "General"} • ₹{item.priceMin ?? "?"} - ₹{item.priceMax ?? "?"}</p>
                                 <span className={`inline-block mt-1 px-2 py-0.5 text-[0.65rem] font-bold uppercase rounded ${item.applyStatus === "approved" ? "bg-green-100 text-green-700" : item.applyStatus === "rejected" ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-500"}`}>{item.applyStatus}</span>
+                                {/* Package duplicate detection */}
+                                {(() => {
+                                  const dup = duplicates?.packages.get(item.id);
+                                  if (!dup) return null;
+                                  return (
+                                    <div className="mt-2 p-2 rounded-lg border border-amber-200 bg-amber-50 text-xs">
+                                      <p className="font-bold uppercase text-[10px] text-amber-500 mb-1">⚠ Already in DB</p>
+                                      <p className="text-amber-700 font-medium mb-1">
+                                        {dup.existingPackageName}
+                                        {(dup.existingPriceMin || dup.existingPriceMax) ? ` · ₹${dup.existingPriceMin ?? "?"}-${dup.existingPriceMax ?? "?"}` : ""}
+                                      </p>
+                                      <p className="text-amber-600 text-[10px]">Approving will overwrite the existing price.</p>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <div className="flex flex-col gap-1.5">
                                 <button onClick={() => { setEditModeId(item.id); setEditDraft({ packageName: item.packageName, department: item.department, priceMin: item.priceMin, priceMax: item.priceMax }); }} className="px-2 py-1 text-xs border border-slate-200 rounded text-slate-600 hover:bg-slate-50">Edit</button>
@@ -2433,14 +2679,65 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                       }
                     />
                   </div>
-                  <input
-                    required
-                    value={agentQuery}
-                    onChange={(e) => setAgentQuery(e.target.value)}
-                    placeholder="e.g. top cardiac hospitals in Mumbai, best orthopedic surgeons Delhi"
-                    maxLength={500}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-slate-50"
-                  />
+                  
+                  {/* Mode switcher tabs */}
+                  <div className="flex bg-slate-100 p-1 mb-3 rounded-lg w-fit">
+                    <button
+                      type="button"
+                      onClick={() => setAgentMode("single")}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors ${agentMode === "single" ? "bg-white text-teal-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                    >
+                      Single Query
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAgentMode("batch")}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors ${agentMode === "batch" ? "bg-white text-teal-700 shadow-sm" : "text-slate-600 hover:text-slate-900"}`}
+                    >
+                      Batch Names
+                    </button>
+                  </div>
+
+                  {agentMode === "single" ? (
+                    <input
+                      required
+                      value={agentQuery}
+                      onChange={(e) => setAgentQuery(e.target.value)}
+                      placeholder="e.g. top cardiac hospitals in Mumbai, best orthopedic surgeons Delhi"
+                      maxLength={500}
+                      className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-slate-50"
+                    />
+                  ) : (
+                    <>
+                      <textarea
+                        required
+                        value={agentBatchNames}
+                        onChange={(e) => setAgentBatchNames(e.target.value)}
+                        placeholder="Apollo Gleneagles Hospital, Kolkata&#10;Medica Superspecialty Hospital&#10;Top 5 hospitals in Paschim Medinipur"
+                        rows={6}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-slate-50 resize-y font-mono"
+                      />
+                      {agentBatchNames.trim() && (
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          {agentBatchNames.split("\n").map((line, li) => {
+                            const trimmed = line.trim();
+                            if (!trimmed) return null;
+                            const mode = classifyBatchLine(trimmed);
+                            return (
+                              <div key={li} className="flex items-center gap-2 text-xs">
+                                <span className={`px-1.5 py-0.5 rounded font-bold uppercase tracking-wide ${
+                                  mode === "discovery"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-slate-100 text-slate-500"
+                                }`}>{mode}</span>
+                                <span className="text-slate-600 truncate">{trimmed}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1 block">City (optional)</label>
@@ -2451,15 +2748,31 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-slate-50"
                   />
                 </div>
-                <div className="flex items-center gap-3 pt-6">
-                  <input
-                    id="autoQueue"
-                    type="checkbox"
-                    checked={agentAutoQueue}
-                    onChange={(e) => setAgentAutoQueue(e.target.checked)}
-                    className="w-4 h-4 accent-teal-600"
-                  />
-                  <label htmlFor="autoQueue" className="text-sm font-medium text-slate-700">Auto-queue discovered URLs for ingestion</label>
+
+                <div className="flex flex-col gap-3 sm:col-span-2 mt-2">
+                  {agentMode === "single" && (
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="deepSearch"
+                        type="checkbox"
+                        checked={agentDeepSearch}
+                        onChange={(e) => setAgentDeepSearch(e.target.checked)}
+                        className="w-4 h-4 accent-teal-600"
+                      />
+                      <label htmlFor="deepSearch" className="text-sm font-medium text-slate-700">Run Deep AI Research instantly on results (slower but max info)</label>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="autoQueue"
+                      type="checkbox"
+                      checked={agentAutoQueue}
+                      onChange={(e) => setAgentAutoQueue(e.target.checked)}
+                      className="w-4 h-4 accent-teal-600"
+                    />
+                    <label htmlFor="autoQueue" className="text-sm font-medium text-slate-700">Auto-queue discovered URLs for ingestion</label>
+                  </div>
                 </div>
               </div>
 
@@ -2477,8 +2790,116 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
             </form>
           </section>
 
-          {agentResult && (
-            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          {/* Batch Status UI */}
+          {agentMode === "batch" && batchId && batchProgress && (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-4">
+              <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="font-bold text-slate-800">Batch Process Results</h3>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex gap-4 text-sm font-medium">
+                      <span className="text-slate-500">Total: {batchProgress.total}</span>
+                      <span className="text-emerald-600">Done: {batchProgress.done}</span>
+                      {batchProgress.failed > 0 && <span className="text-red-500">Failed: {batchProgress.failed}</span>}
+                    </div>
+                    {batchItems.some((it) => it.status === "done" && it.jobId) && (
+                      <button
+                        type="button"
+                        disabled={batchSaveBusy || agentBusy}
+                        onClick={onBatchApplyAllJobs}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
+                      >
+                        {batchSaveBusy
+                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
+                          : `💾 Save All to DB (${batchItems.filter((it) => it.status === "done" && it.jobId).length})`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {batchSaveResult && (
+                  <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${batchSaveResult.failed > 0 ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-emerald-50 text-emerald-800 border border-emerald-200"}`}>
+                    {batchSaveResult.applied > 0 && <span>{batchSaveResult.applied} job(s) applied to DB. </span>}
+                    {batchSaveResult.failed > 0 && <span>{batchSaveResult.failed} failed — try opening them individually in Review.</span>}
+                  </div>
+                )}
+                {(batchProgress.done + batchProgress.failed < batchProgress.total) && (
+                  <div className="w-full bg-slate-200 h-2 mt-4 rounded-full overflow-hidden">
+                    <div className="bg-teal-500 h-full transition-all" style={{ width: `${((batchProgress.done + batchProgress.failed) / batchProgress.total) * 100}%` }} />
+                  </div>
+                )}
+              </div>
+              <div className="divide-y divide-slate-100 max-h-[600px] overflow-auto">
+                {batchItems.map((it, idx) => (
+                  <div key={idx} className="p-4 hover:bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-slate-800">{it.name} <span className="text-slate-400 font-normal text-xs">{it.city ? `(${it.city})` : ""}</span></p>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                        it.status === "done" ? "bg-emerald-100 text-emerald-800" :
+                        it.status === "failed" ? "bg-red-100 text-red-800" :
+                        it.status === "processing" ? "bg-amber-100 text-amber-800 animate-pulse" :
+                        "bg-slate-100 text-slate-600"
+                      }`}>{it.status.toUpperCase()}</span>
+                    </div>
+                    {it.error && <p className="text-xs text-red-500 mt-1">{it.error}</p>}
+                    
+                    {it.status === "done" && !it.discoveredCount && (
+                      <div className="mt-2">
+                        <div className="flex gap-4 text-xs text-slate-500">
+                          {it.specialtyCount !== undefined && <span>{it.specialtyCount} specialties</span>}
+                          {it.doctorCount !== undefined && <span>{it.doctorCount} doctors</span>}
+                          {it.priceCount !== undefined && <span>{it.priceCount} prices</span>}
+                          {it.confidence !== undefined && <span>{(it.confidence * 100).toFixed(0)}% conf</span>}
+                        </div>
+                        {it.jobId && (
+                          <button
+                            type="button"
+                            onClick={() => { setActiveTab("ingestion"); loadJobDetails(it.jobId!, true); }}
+                            className="mt-1.5 text-xs text-teal-600 hover:text-teal-800 font-medium"
+                          >
+                            Open in Review →
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    {it.status === "done" && it.discoveredCount !== undefined && (
+                      <div className="mt-3">
+                        <div className="flex flex-wrap gap-3 mb-2 text-xs text-slate-600">
+                          <span className="font-bold">{it.discoveredCount} hospitals discovered</span>
+                          {it.specialtyCount !== undefined && it.specialtyCount > 0 && <span>{it.specialtyCount} specialties total</span>}
+                          {it.doctorCount !== undefined && it.doctorCount > 0 && <span>{it.doctorCount} doctors total</span>}
+                          {it.priceCount !== undefined && it.priceCount > 0 && <span>{it.priceCount} prices found</span>}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {it.discoveredEntities?.map((sub: any, sIdx: number) => (
+                             <div key={sIdx} className="bg-white border border-slate-200 rounded p-2 shadow-sm text-xs">
+                               <p className="font-bold text-slate-800">{sub.name}</p>
+                               <p className="text-slate-500 mt-0.5">{sub.city}</p>
+                               <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+                                 <span className="text-emerald-600 font-semibold">{Math.round(sub.confidence * 100)}% conf</span>
+                                 {sub.jobId && (
+                                   <button
+                                     type="button"
+                                     onClick={() => { setActiveTab("ingestion"); loadJobDetails(sub.jobId, true); }}
+                                     className="text-teal-600 hover:text-teal-800 font-medium"
+                                   >
+                                     Open in Review →
+                                   </button>
+                                 )}
+                               </div>
+                             </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {agentMode === "single" && agentResult && (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-4">
               <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-slate-800">Results for: <span className="text-teal-700">"{agentResult.query}"</span></h3>

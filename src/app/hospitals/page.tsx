@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { DirectorySearchList } from "@/components/profiles/DirectorySearchList";
 import { listHospitalsDirectory } from "@/lib/profile-data";
 import { buildMetadata } from "@/lib/seo";
+import { normalizeCityName } from "@/lib/strings";
 
 export const revalidate = 3600;
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default async function HospitalsPage() {
   const rows = await listHospitalsDirectory(1000);
-  const cityOptions = Array.from(new Set(rows.map((item) => item.city))).sort((a, b) => a.localeCompare(b));
+  const cityOptions = Array.from(new Set(rows.map((item) => normalizeCityName(item.city)))).sort((a, b) => a.localeCompare(b));
 
   return (
     <DirectorySearchList
@@ -23,7 +24,7 @@ export default async function HospitalsPage() {
       items={rows.map((row) => ({
         id: row.id,
         name: row.name,
-        city: row.city,
+        city: normalizeCityName(row.city),
         state: row.state,
         specialties: row.specialties,
         rating: row.rating,

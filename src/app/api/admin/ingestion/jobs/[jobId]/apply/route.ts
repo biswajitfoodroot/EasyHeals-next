@@ -16,8 +16,10 @@
  *  6. Mark all applied candidates + job as "applied"
  */
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeCityName } from "@/lib/strings";
+import { generateHospitalSeoKeywords } from "@/lib/seo-keywords";
 
 import { db } from "@/db/client";
 import {
@@ -72,6 +74,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     db.select().from(ingestionPackageCandidates).where(eq(ingestionPackageCandidates.jobId, jobId)),
   ]);
 
+  // Map from candidateHospitalCandidateId → real DB hospitalId — declared here so the safety net below can pre-populate it
+  const hospitalIdMap = new Map<string, string>();
+
+  // Safety net: if doctors/services/packages reference hospital candidates from a DIFFERENT job
+  // (happens when saveDeepProfileToCandidates reuses an existing candidate), load those too.
+  const referencedHospCandIds = [
+    ...allDoctors.map(d => d.hospitalCandidateId),
+    ...allServices.map(s => s.hospitalCandidateId),
+    ...allPackages.map(p => p.hospitalCandidateId),
+  ].filter((id): id is string => !!id && !allHospitals.find(h => h.id === id));
+  const missingIds = [...new Set(referencedHospCandIds)];
+  if (missingIds.length > 0) {
+    const extra = await db.select().from(ingestionHospitalCandidates).where(inArray(ingestionHospitalCandidates.id, missingIds));
+
+    // Pre-populate hospitalIdMap for cross-job "applied" HCs (they'll be filtered by shouldSkip,
+    // but we still need to know their real hospital ID so doctors/packages can be affiliated).
+    for (const hc of extra) {
+      if (shouldSkip(hc.applyStatus, hc.reviewStatus)) {
+        // Already applied — map directly from matchHospitalId or look up by name+city
+        if (hc.matchHospitalId) {
+          hospitalIdMap.set(hc.id, hc.matchHospitalId);
+        } else {
+          const city = normalizeCityName(hc.city ?? "");
+          const [existing] = await db.select({ id: hospitals.id }).from(hospitals)
+            .where(and(eq(hospitals.name, hc.name), eq(hospitals.city, city))).limit(1);
+          if (existing) hospitalIdMap.set(hc.id, existing.id);
+        }
+      }
+    }
+
+    allHospitals.push(...extra);
+  }
+
   const eligibleHospitals = allHospitals.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
   const eligibleDoctors = allDoctors.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
   const eligibleServices = allServices.filter(c => !shouldSkip(c.applyStatus, c.reviewStatus));
@@ -94,9 +129,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   let servicesApplied = 0;
   let procedureCostsApplied = 0;
   let skippedCount = 0;
-
-  // Map from candidateHospitalCandidateId → real DB hospitalId
-  const hospitalIdMap = new Map<string, string>();
 
   // Job-level targetHospitalId (from Scrape Now with a target set)
   const jobSummary = job.summary as Record<string, unknown> | null;
@@ -134,6 +166,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         // Merge facilities (keyFacilities → facilities column)
         if (candidate.keyFacilities?.length) updateSet.facilities = candidate.keyFacilities;
 
+        // Regenerate SEO keywords with fresh data
+        updateSet.seoKeywords = generateHospitalSeoKeywords({
+          name: candidate.name,
+          city: normalizeCityName(candidate.city ?? ""),
+          state: candidate.state,
+          specialties: candidate.specialties ?? [],
+          facilities: candidate.keyFacilities ?? [],
+          description: candidate.description,
+        });
+
         await db.update(hospitals).set(updateSet).where(eq(hospitals.id, candidate.matchHospitalId));
         realHospitalId = candidate.matchHospitalId;
         hospitalsApplied++;
@@ -145,7 +187,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         const citySlug = slugify(candidate.city ?? job.targetCity ?? "india");
         const nameSlug = slugify(candidate.name);
         const slug = `${nameSlug}-${citySlug}`.slice(0, 110);
-        const candidateCity = candidate.city ?? job.targetCity ?? "Unknown";
+        const candidateCity = normalizeCityName(candidate.city ?? job.targetCity ?? "");
 
         // Check if a matching hospital already exists (by slug OR city+name)
         const [existingBySlug] = await db.select({ id: hospitals.id })
@@ -188,6 +230,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           if (candidate.specialties?.length) patchSet.specialties = candidate.specialties;
           if (candidate.keyFacilities?.length) patchSet.facilities = candidate.keyFacilities;
           if (candidate.operatingHours) patchSet.workingHours = candidate.operatingHours;
+          patchSet.seoKeywords = generateHospitalSeoKeywords({
+            name: candidate.name,
+            city: candidateCity,
+            state: candidate.state,
+            specialties: candidate.specialties ?? [],
+            facilities: candidate.keyFacilities ?? [],
+            description: candidate.description,
+          });
           await db.update(hospitals).set(patchSet).where(eq(hospitals.id, existId));
           realHospitalId = existId;
         } else {
@@ -209,6 +259,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
             description: candidate.description ?? null,
             specialties: candidate.specialties ?? [],
             facilities: candidate.keyFacilities ?? [],
+            seoKeywords: generateHospitalSeoKeywords({
+              name: candidate.name,
+              city: candidateCity,
+              state: candidate.state,
+              specialties: candidate.specialties ?? [],
+              facilities: candidate.keyFacilities ?? [],
+              description: candidate.description,
+            }),
             accreditations: [],
             latitude: candidate.latitude ?? null,
             longitude: candidate.longitude ?? null,
@@ -238,6 +296,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
     try {
       const hospitalId = resolveHospitalId(candidate.hospitalCandidateId);
       let realDoctorId: string;
+      let doctorIsNew = false; // track whether doctor was newly created (for isPrimary)
 
       if (candidate.matchDoctorId) {
         // ── UPDATE existing doctor record ──────────────────────────────────
@@ -255,6 +314,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         await db.update(doctors).set(updateSet).where(eq(doctors.id, candidate.matchDoctorId));
         realDoctorId = candidate.matchDoctorId;
       } else {
+        // ── Auto-deduplicate: check if a doctor with this name already exists at the same hospital ──
+        // This is the fallback when matchDoctorId wasn't set during review.
+        // (If the user explicitly chose "Add as New" via the UI, mergeAction = "new" and we skip this.)
+        let autoMatchedDoctorId: string | null = null;
+        if (candidate.mergeAction !== "new" && hospitalId) {
+          const normalizedName = candidate.fullName.trim().toLowerCase();
+          // Get all doctors affiliated with this hospital
+          const affiliated = await db
+            .select({ doctorId: doctorHospitalAffiliations.doctorId })
+            .from(doctorHospitalAffiliations)
+            .where(eq(doctorHospitalAffiliations.hospitalId, hospitalId));
+          const affiliatedIds = affiliated.map(a => a.doctorId).filter(Boolean) as string[];
+          if (affiliatedIds.length > 0) {
+            const existing = await db
+              .select({ id: doctors.id, fullName: doctors.fullName })
+              .from(doctors)
+              .where(inArray(doctors.id, affiliatedIds));
+            for (const d of existing) {
+              if (d.fullName.trim().toLowerCase() === normalizedName) {
+                autoMatchedDoctorId = d.id;
+                break;
+              }
+            }
+          }
+        }
+
+        if (autoMatchedDoctorId) {
+          // Update the auto-matched doctor record
+          const updateSet: Partial<typeof doctors.$inferInsert> = { updatedAt: new Date() };
+          if (candidate.specialization) updateSet.specialization = candidate.specialization;
+          if (candidate.phone) updateSet.phone = candidate.phone;
+          if (candidate.email) updateSet.email = candidate.email;
+          if (candidate.consultationFee) updateSet.consultationFee = candidate.consultationFee;
+          if (candidate.feeMin) updateSet.feeMin = candidate.feeMin;
+          if (candidate.feeMax) updateSet.feeMax = candidate.feeMax;
+          if (candidate.yearsOfExperience) updateSet.yearsOfExperience = candidate.yearsOfExperience;
+          if (candidate.qualifications?.length) updateSet.qualifications = candidate.qualifications;
+          await db.update(doctors).set(updateSet).where(eq(doctors.id, autoMatchedDoctorId));
+          realDoctorId = autoMatchedDoctorId;
+        } else {
         // ── CREATE new doctor ──────────────────────────────────────────────
         const baseSlug = slugify(candidate.fullName);
         const suffix = Date.now().toString(36).slice(-4);
@@ -283,7 +382,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         }).returning();
 
         realDoctorId = newDoctor.id;
-      }
+        doctorIsNew = true;
+        } // end else (create new doctor)
+      } // end outer else (no matchDoctorId)
 
       doctorsApplied++;
 
@@ -297,7 +398,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           schedule: candidate.schedule ?? null,
           feeMin: candidate.feeMin ?? null,
           feeMax: candidate.feeMax ?? null,
-          isPrimary: !candidate.matchDoctorId, // new doctors get primary affiliation
+          isPrimary: doctorIsNew, // only truly new doctors get primary affiliation
           source: "admin_ingestion",
           isActive: true,
           updatedAt: new Date(),

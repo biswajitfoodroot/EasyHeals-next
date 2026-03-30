@@ -23,6 +23,7 @@ export function buildHospitalJsonLd(h: {
   rating: number;
   reviewCount: number;
   specialties: string[];
+  seoKeywords?: string[] | null;
 }) {
   return {
     "@context": "https://schema.org",
@@ -33,6 +34,8 @@ export function buildHospitalJsonLd(h: {
     telephone: h.phone ?? undefined,
     email: h.email ?? undefined,
     sameAs: h.website ? [h.website] : undefined,
+    // keywords helps AI search crawlers (Gemini, Bing/Copilot, ChatGPT) understand context
+    keywords: h.seoKeywords?.length ? h.seoKeywords.slice(0, 20).join(", ") : undefined,
     address: {
       "@type": "PostalAddress",
       streetAddress: h.addressLine1 ?? undefined,
@@ -137,12 +140,14 @@ export function buildMetadata(input: {
   title: string;
   description: string;
   path?: string;
+  keywords?: string[];
 }): Metadata {
   const canonicalPath = input.path ?? "/";
 
   return {
     title: input.title,
     description: input.description,
+    ...(input.keywords?.length ? { keywords: input.keywords } : {}),
     alternates: {
       canonical: canonicalPath,
     },

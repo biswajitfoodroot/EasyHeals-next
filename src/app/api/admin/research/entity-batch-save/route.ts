@@ -7,7 +7,7 @@ import { doctorHospitalAffiliations, doctors, hospitals } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
-import { slugify } from "@/lib/strings";
+import { slugify, normalizeCityName } from "@/lib/strings";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function cleanStr(v: unknown): string | undefined {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
   for (const entity of hospitalEntities) {
     const name = entity.name.trim();
-    const city = cleanStr(entity.city) ?? "";
+    const city = normalizeCityName(cleanStr(entity.city) ?? "");
 
     try {
       const resolved = await resolveHospital(auth.userId, req, entity, name, city);
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
 
   for (const entity of doctorEntities) {
     const fullName = entity.name.trim();
-    const city = cleanStr(entity.city) ?? "";
+    const city = normalizeCityName(cleanStr(entity.city) ?? "");
 
     try {
       // Detect which hospital this doctor belongs to

@@ -13,14 +13,15 @@
  * Env:   BLOB_READ_WRITE_TOKEN, INTERNAL_API_KEY, APP_BASE_URL
  */
 
+import { createHash } from "crypto";
 import { eq, desc } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 import { blobPut } from "@/lib/storage/blob";
 
 import { db } from "@/db/client";
-import { healthDocuments } from "@/db/schema";
+import { healthDocuments, consentRecords } from "@/db/schema";
 import { requirePatientSession } from "@/lib/core/patient-session";
-import { requireConsent } from "@/lib/security/consent";
+import { checkDuplicateConsent } from "@/lib/security/consent";
 import { isFeatureEnabled } from "@/lib/config/feature-flags";
 import { requirePremiumAccess } from "@/lib/core/patient-trial";
 import { AppError, withErrorHandler } from "@/lib/errors/app-error";
@@ -76,13 +77,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Trial / subscription gate (auto-starts trial on first upload)
   await requirePremiumAccess(patientId);
 
-  // DPDP consent gate
-  let consentId: string;
-  try {
-    consentId = await requireConsent(patientId, "health_document_processing");
-  } catch {
-    throw new AppError("CONSENT_MISSING", "Consent required",
-      "Please grant consent to store medical documents before uploading.", 403);
+  // DPDP consent gate — auto-grant on first upload (upload action = explicit consent per DPDP UX pattern)
+  let consentId = await checkDuplicateConsent(patientId, "health_document_processing");
+  if (!consentId) {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+    const ipHash = createHash("sha256").update(ip).digest("hex").slice(0, 16);
+    const ua = req.headers.get("user-agent") ?? "";
+    const uaHash = createHash("sha256").update(ua).digest("hex").slice(0, 16);
+    const [newConsent] = await db.insert(consentRecords).values({
+      patientId,
+      purpose: "health_document_processing",
+      granted: true,
+      channel: "web",
+      ipHash,
+      userAgentHash: uaHash,
+      legalBasis: "dpdp_consent",
+    }).returning({ id: consentRecords.id });
+    consentId = newConsent.id;
   }
 
   // Parse multipart

@@ -33,6 +33,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
       ? hospital.description.slice(0, 155)
       : `${hospital.name} in ${hospital.city}${hospital.state ? `, ${hospital.state}` : ""}${specs ? `. Specialties: ${specs}` : ""}. Book appointment, view doctors and packages.`,
     path: `/hospitals/${hospital.slug}`,
+    keywords: Array.isArray(hospital.seoKeywords) && hospital.seoKeywords.length > 0
+      ? hospital.seoKeywords
+      : undefined,
   });
 }
 

@@ -15,10 +15,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { eq, and } from "drizzle-orm";
 import { requirePatientSession } from "@/lib/core/patient-session";
 import { requirePremiumAccess } from "@/lib/core/patient-trial";
 import { withErrorHandler } from "@/lib/errors/app-error";
 import { getGeminiClient, generateWithTimeout } from "@/lib/ai/client";
+import { db } from "@/db/client";
+import { healthDocuments } from "@/db/schema";
 import { env } from "@/lib/env";
 
 export const maxDuration = 30;
@@ -42,23 +45,48 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await requirePatientSession(req);
   await requirePremiumAccess(session.patientId);
 
-  // Parse multipart
-  let formData: FormData;
-  try { formData = await req.formData(); }
-  catch { return NextResponse.json({ error: "Please upload a valid image or PDF." }, { status: 400 }); }
+  let base64Data: string;
+  let mimeType: string;
 
-  const file = formData.get("file") as File | null;
-  if (!file) return NextResponse.json({ error: "Please upload a prescription image or PDF." }, { status: 400 });
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return NextResponse.json({ error: "Upload a JPG, PNG, WebP image or PDF." }, { status: 400 });
+  // Branch: documentId (re-scan an already-uploaded document) vs. file upload
+  const documentId = req.nextUrl.searchParams.get("documentId");
+  if (documentId) {
+    // Fetch blob from DB — verify ownership
+    const [doc] = await db
+      .select({ blobUrl: healthDocuments.blobUrl, fileType: healthDocuments.fileType })
+      .from(healthDocuments)
+      .where(and(eq(healthDocuments.id, documentId), eq(healthDocuments.patientId, session.patientId)))
+      .limit(1);
+    if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+
+    const blobRes = await fetch(doc.blobUrl);
+    if (!blobRes.ok) return NextResponse.json({ error: "Could not fetch document from storage." }, { status: 502 });
+    const buf = await blobRes.arrayBuffer();
+    if (buf.byteLength > MAX_BYTES) return NextResponse.json({ error: "Document too large to scan." }, { status: 413 });
+
+    const extToMime: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+    mimeType = extToMime[doc.fileType] ?? "image/jpeg";
+    base64Data = Buffer.from(buf).toString("base64");
+  } else {
+    // Parse multipart file upload
+    let formData: FormData;
+    try { formData = await req.formData(); }
+    catch { return NextResponse.json({ error: "Please upload a valid image or PDF." }, { status: 400 }); }
+
+    const file = formData.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "Please upload a prescription image or PDF." }, { status: 400 });
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return NextResponse.json({ error: "Upload a JPG, PNG, WebP image or PDF." }, { status: 400 });
+    }
+
+    const arrayBuf = await file.arrayBuffer();
+    if (arrayBuf.byteLength > MAX_BYTES) {
+      return NextResponse.json({ error: "Maximum file size is 10 MB." }, { status: 400 });
+    }
+
+    mimeType = file.type;
+    base64Data = Buffer.from(arrayBuf).toString("base64");
   }
-
-  const arrayBuf = await file.arrayBuffer();
-  if (arrayBuf.byteLength > MAX_BYTES) {
-    return NextResponse.json({ error: "Maximum file size is 10 MB." }, { status: 400 });
-  }
-
-  const base64Data = Buffer.from(arrayBuf).toString("base64");
 
   const prompt = `You are a medical data extraction assistant. Carefully read this prescription image and extract all medications.
 
@@ -83,7 +111,7 @@ Do not include any text before or after the JSON array.`;
   const result = await generateWithTimeout(
     () => model.generateContent([
       { text: prompt },
-      { inlineData: { mimeType: file.type as "image/jpeg" | "image/png" | "image/webp" | "application/pdf", data: base64Data } },
+      { inlineData: { mimeType: mimeType as "image/jpeg" | "image/png" | "image/webp" | "application/pdf", data: base64Data } },
     ]),
     25_000,
   );

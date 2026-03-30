@@ -84,12 +84,23 @@ type HospitalPayload = {
   };
 };
 
+type PatientReview = {
+  id: string;
+  patientName: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  visitDate: string | null;
+  createdAt: string | null;
+};
+
 type HospitalProfileClientProps = {
   data: {
     hospital: HospitalPayload;
     packages: HospitalPackage[];
     doctors: AffiliatedDoctor[];
     nearbyHospitals: NearbyHospital[];
+    reviews: PatientReview[];
     networkTierCode?: string | null;
   };
 };
@@ -115,6 +126,15 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   const [tab, setTab] = useState<TabKey>("overview");
   const [modalOpen, setModalOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState(false);
+
+  // Review submission form state
+  const [reviewName, setReviewName] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewBody, setReviewBody] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   // Auto-open booking modal when ?book=1 or ?contact=1 is in URL
   useEffect(() => {
@@ -477,10 +497,123 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         {tab === "reviews" ? (
           <section className={styles.panel}>
             <h2>{t("hospital.ratingsTitle")}</h2>
-            <p>
+            <p style={{ marginBottom: "0.5rem" }}>
               {t("common.currentScore")}: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
             </p>
-            <p>{t("hospital.ratingsReviewNote")}</p>
+
+            {/* Approved reviews list */}
+            {data.reviews.length > 0 ? (
+              <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {data.reviews.map((review) => (
+                  <div key={review.id} style={{ border: "1px solid #e2e8f0", borderRadius: "0.75rem", padding: "1rem", background: "#fff" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <span style={{ fontWeight: 700, color: "#1e293b" }}>{review.patientName}</span>
+                        {review.visitDate && (
+                          <span style={{ marginLeft: "0.75rem", fontSize: "0.75rem", color: "#94a3b8" }}>
+                            Visited {new Date(review.visitDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ color: "#f59e0b", fontWeight: 700, fontSize: "1rem" }}>
+                        {"★".repeat(Math.round(review.rating))}{"☆".repeat(5 - Math.round(review.rating))}
+                        <span style={{ color: "#64748b", fontWeight: 500, marginLeft: "0.25rem", fontSize: "0.85rem" }}>{review.rating.toFixed(1)}</span>
+                      </div>
+                    </div>
+                    {review.title && <p style={{ fontWeight: 600, marginTop: "0.5rem", color: "#334155" }}>{review.title}</p>}
+                    {review.body && <p style={{ marginTop: "0.25rem", color: "#475569", fontSize: "0.9rem", lineHeight: 1.6 }}>{review.body}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: "#64748b", marginTop: "1rem", fontStyle: "italic" }}>
+                No reviews yet. Be the first to share your experience!
+              </p>
+            )}
+
+            {/* Review submission form */}
+            <div style={{ marginTop: "2rem", padding: "1.25rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "0.75rem" }}>
+              <h3 style={{ fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>Write a Review</h3>
+              {reviewSubmitted ? (
+                <p style={{ color: "#16a34a", fontWeight: 600 }}>
+                  ✓ Thank you! Your review has been submitted and will appear after moderation.
+                </p>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!reviewBody.trim() || !reviewName.trim()) return;
+                    setReviewSubmitting(true);
+                    setReviewError(null);
+                    try {
+                      const res = await fetch("/api/reviews", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          entityType: "hospital",
+                          entityId: data.hospital.id,
+                          patientName: reviewName,
+                          rating: reviewRating,
+                          title: reviewTitle || undefined,
+                          body: reviewBody,
+                        }),
+                      });
+                      if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error ?? "Submission failed");
+                      }
+                      setReviewSubmitted(true);
+                    } catch (err: unknown) {
+                      setReviewError((err as Error).message);
+                    } finally {
+                      setReviewSubmitting(false);
+                    }
+                  }}
+                  style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+                >
+                  <div style={{ display: "flex", gap: "0.75rem" }}>
+                    <input
+                      required
+                      value={reviewName}
+                      onChange={(e) => setReviewName(e.target.value)}
+                      placeholder="Your name *"
+                      style={{ flex: 1, padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem" }}
+                    />
+                    <select
+                      value={reviewRating}
+                      onChange={(e) => setReviewRating(Number(e.target.value))}
+                      style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", background: "#fff" }}
+                    >
+                      {[5, 4, 3, 2, 1].map((r) => (
+                        <option key={r} value={r}>{"★".repeat(r)} {r}/5</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    value={reviewTitle}
+                    onChange={(e) => setReviewTitle(e.target.value)}
+                    placeholder="Review title (optional)"
+                    style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem" }}
+                  />
+                  <textarea
+                    required
+                    value={reviewBody}
+                    onChange={(e) => setReviewBody(e.target.value)}
+                    placeholder="Share your experience (min 10 characters) *"
+                    rows={4}
+                    style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem", resize: "vertical" }}
+                  />
+                  {reviewError && <p style={{ color: "#dc2626", fontSize: "0.85rem" }}>{reviewError}</p>}
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting}
+                    style={{ alignSelf: "flex-start", padding: "0.5rem 1.25rem", background: "#0d9488", color: "#fff", border: "none", borderRadius: "0.5rem", fontWeight: 600, cursor: "pointer", opacity: reviewSubmitting ? 0.7 : 1 }}
+                  >
+                    {reviewSubmitting ? "Submitting…" : "Submit Review"}
+                  </button>
+                </form>
+              )}
+            </div>
           </section>
         ) : null}
 
@@ -519,7 +652,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 <Link key={doc.id} href={doc.profileUrl} className={styles.relatedCard}>
                   <span className={styles.relatedCardName}>{doc.name}</span>
                   <span className={styles.relatedCardSub}>{doc.specialization ?? "Specialist"}</span>
-                  <span className={styles.relatedCardBadge}>★ {doc.rating.toFixed(1)}</span>
+                  <span className={styles.relatedCardBadge}>★ {doc.reviewCount === 0 ? "4.0" : doc.rating.toFixed(1)}</span>
                 </Link>
               ))}
             </div>
@@ -535,7 +668,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 <Link key={item.id} href={item.profileUrl} className={styles.relatedCard}>
                   <span className={styles.relatedCardName}>{item.name}</span>
                   <span className={styles.relatedCardSub}>{item.city}{item.state ? `, ${item.state}` : ""}</span>
-                  <span className={styles.relatedCardBadge}>★ {item.rating.toFixed(1)}</span>
+                  <span className={styles.relatedCardBadge}>★ {item.rating > 0 ? item.rating.toFixed(1) : "4.0"}</span>
                 </Link>
               ))}
             </div>

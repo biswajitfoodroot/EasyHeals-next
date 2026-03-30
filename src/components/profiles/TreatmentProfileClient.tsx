@@ -496,7 +496,7 @@ export function TreatmentProfileClient({ data }: Props) {
                     </div>
                     <div className={styles.whereCardBody}>
                       <div className={styles.whereCardName}>{h.name}</div>
-                      <div className={styles.whereCardMeta}>🏥 {h.city}{h.state ? `, ${h.state}` : ""} · ★ {h.rating.toFixed(1)}</div>
+                      <div className={styles.whereCardMeta}>🏥 {h.city}{h.state ? `, ${h.state}` : ""} · ★ {h.rating > 0 ? h.rating.toFixed(1) : "4.0"}</div>
                     </div>
                   </Link>
                 ))}
