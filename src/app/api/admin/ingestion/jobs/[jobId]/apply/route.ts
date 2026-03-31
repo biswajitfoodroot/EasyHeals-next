@@ -391,23 +391,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       // ── Upsert doctor ↔ hospital affiliation ────────────────────────────
       // This is the interlinking: doctor → hospital → branch
       if (hospitalId) {
+        // Check if AI explicitly classified this as a past affiliation
+        const rawPayload = (candidate.rawPayload ?? {}) as Record<string, unknown>;
+        const aiAffiliationStatus = String(rawPayload.affiliationWithThisHospital ?? "unknown");
+        const roleText = String(rawPayload.role ?? rawPayload.designation ?? "").toLowerCase();
+        const isPastAffiliation =
+          aiAffiliationStatus === "past" ||
+          /\b(former|formerly|ex-|previously|ex consultant|past|worked at|trained at|fellowship at)\b/.test(roleText);
+
         await db.insert(doctorHospitalAffiliations).values({
           doctorId: realDoctorId,
           hospitalId,
-          role: "Consultant",
-          schedule: candidate.schedule ?? null,
-          feeMin: candidate.feeMin ?? null,
-          feeMax: candidate.feeMax ?? null,
-          isPrimary: doctorIsNew, // only truly new doctors get primary affiliation
+          role: isPastAffiliation ? "Previously worked here" : "Consultant",
+          schedule: isPastAffiliation ? null : (candidate.schedule ?? null),
+          feeMin: isPastAffiliation ? null : (candidate.feeMin ?? null),
+          feeMax: isPastAffiliation ? null : (candidate.feeMax ?? null),
+          isPrimary: doctorIsNew && !isPastAffiliation,
           source: "admin_ingestion",
-          isActive: true,
+          isActive: !isPastAffiliation,
+          affiliationStatus: isPastAffiliation ? "removed" : "active",
           updatedAt: new Date(),
         }).onConflictDoUpdate({
           target: [doctorHospitalAffiliations.doctorId, doctorHospitalAffiliations.hospitalId],
           set: {
-            schedule: candidate.schedule ?? undefined,
-            feeMin: candidate.feeMin ?? undefined,
-            feeMax: candidate.feeMax ?? undefined,
+            // Only update non-affiliation-status fields — preserve any manually set isActive/affiliationStatus
+            // so admins who corrected the data don't get overridden
+            schedule: isPastAffiliation ? undefined : (candidate.schedule ?? undefined),
+            feeMin: isPastAffiliation ? undefined : (candidate.feeMin ?? undefined),
+            feeMax: isPastAffiliation ? undefined : (candidate.feeMax ?? undefined),
+            // If AI says past and current DB value is active, correct it
+            ...(isPastAffiliation ? { isActive: false, affiliationStatus: "removed" as const, role: "Previously worked here" } : {}),
             updatedAt: new Date(),
           },
         });

@@ -287,6 +287,19 @@ DOCTOR RULES:
   For each doctor, try to find: registration number, Practo/Google profile URL, affiliated hospitals,
   procedures they perform, education background, awards/recognitions.
 
+  AFFILIATION STATUS (CRITICAL — determines booking availability for patients):
+  For EACH doctor, you MUST set the field "affiliationWithThisHospital":
+    "current"  -> Doctor is ACTIVELY PRACTICING at this hospital RIGHT NOW.
+                 Evidence: listed on hospital's current website/Practo page with active OPD schedule,
+                 recent patient reviews mentioning them, active consultation fee listed.
+    "past"     -> Doctor PREVIOUSLY worked here but NO LONGER does.
+                 Evidence: role/bio says "formerly", "ex-", "previously", "ex-consultant",
+                 no current OPD listing, mentions in past tense, or only appears in older articles.
+    "unknown"  -> Cannot determine current vs past status from available sources.
+  DEFAULT: use "unknown" when in doubt. NEVER assume "current" without active evidence.
+  IMPORTANT: A doctor appearing in an old article or their bio mentioning "trained at" or "worked at"
+  does NOT make them current. Only mark "current" if they have an active, bookable presence there.
+
 REVIEW SYNOPSIS RULES — create a detailed positive and balanced summary:
   Focus on: doctor quality, nursing care, staff behaviour, cleanliness, infrastructure, trust,
   patient coordination, emergency responsiveness, parking, wait times, cost value.
@@ -343,8 +356,14 @@ Return JSON:
       "profileUrl": "string|null",
       "registrationNumber": "string|null",
       "practoProfileUrl": "string|null",
+      "affiliationWithThisHospital": "current|past|unknown",
       "affiliatedHospitals": [
-        { "name": "string", "city": "string|null", "role": "string|null" }
+        {
+          "name": "string",
+          "city": "string|null",
+          "role": "string|null",
+          "affiliationStatus": "current|past|unknown"
+        }
       ],
       "proceduresPerformed": [],
       "education": [
@@ -452,6 +471,14 @@ export async function saveDeepProfileToCandidates(
   const reviewSynopsis = (profile.reviewSynopsis ?? null) as Record<string, unknown> | null;
   const overallConfidence = toNum(profile.overallConfidence) ?? 0.6;
 
+  // Assess data quality for summary
+  const hasData = doctors.length > 0 || packages.length > 0 || procedureCosts.length > 0 || services.length > 0;
+  const dataWarnings: string[] = [];
+  if (!hasData) dataWarnings.push("No structured data extracted from AI response");
+  if (doctors.length === 0) dataWarnings.push("No doctors found");
+  if (packages.length + procedureCosts.length === 0) dataWarnings.push("No pricing data found");
+  if (overallConfidence < 0.4) dataWarnings.push(`Low confidence: ${(overallConfidence * 100).toFixed(0)}%`);
+
   // Create job record
   const [job] = await db.insert(ingestionJobs).values({
     requestedByUserId: userId,
@@ -462,7 +489,7 @@ export async function saveDeepProfileToCandidates(
     targetCity: city ?? null,
     runMode: "grounded_research",
     summary: {
-      currentTask: "Deep AI research completed",
+      currentTask: hasData ? "Deep AI research completed" : "Research completed with limited data",
       percent: 100,
       doctorsFound: doctors.length,
       servicesFound: services.length,
@@ -471,8 +498,9 @@ export async function saveDeepProfileToCandidates(
       confidence: overallConfidence,
       specialtiesAudited: specialtyAudit.length,
       specialtiesAvailable: (specialtyAudit as any[]).filter((s: any) => s.status === "available").length,
-      warnings: [],
+      warnings: dataWarnings,
       researchMode: "deep_ai_research",
+      dataQuality: hasData ? "good" : "no_data",
     },
     startedAt: new Date(),
     completedAt: new Date(),
@@ -481,13 +509,13 @@ export async function saveDeepProfileToCandidates(
 
   const jobId = job.id;
 
-  // Source record
+  // Source record — store longer snippet for review (increased from 400 to 2000)
   await db.insert(ingestionSources).values({
     jobId,
     sourceType: "grounded_research",
     sourceUrl,
     title: String(h.name ?? entityName),
-    snippet: groundedSummary.slice(0, 400),
+    snippet: groundedSummary.slice(0, 2000),
     rawContent: null,
     structuredPayload: profile,
     confidence: overallConfidence,

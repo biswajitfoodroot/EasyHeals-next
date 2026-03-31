@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AdminPatientsTab } from "./AdminPatientsTab";
 import { AdminProvidersTab } from "./AdminProvidersTab";
 import { AdminAffiliationsTab } from "./AdminAffiliationsTab";
+import { AdminDoctorsTab } from "./AdminDoctorsTab";
 import { AdminReviewsTab } from "./AdminReviewsTab";
 import KycReviewTabContent from "./KycReviewTabContent";
 
@@ -241,7 +242,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "providers" | "kyc" | "content" | "affiliations" | "reviews";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "providers" | "kyc" | "content" | "affiliations" | "reviews" | "doctors";
 
 type DoctorCandidate = { id: string; fullName: string; city: string | null; specialization: string | null };
 
@@ -273,7 +274,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -385,6 +386,13 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   // Batch mode bulk-save state
   const [batchSaveBusy, setBatchSaveBusy] = useState(false);
   const [batchSaveResult, setBatchSaveResult] = useState<{ applied: number; failed: number } | null>(null);
+  // Batch selection + inline review modal
+  const [selectedBatchJobs, setSelectedBatchJobs] = useState<Set<string>>(new Set());
+  const [batchReviewJob, setBatchReviewJob] = useState<{ jobId: string; name: string } | null>(null);
+  const [batchReviewData, setBatchReviewData] = useState<IngestionDetails | null>(null);
+  const [batchReviewLoading, setBatchReviewLoading] = useState(false);
+  const [batchReviewSaving, setBatchReviewSaving] = useState(false);
+  const [batchReviewSaved, setBatchReviewSaved] = useState(false);
   // AI research save
   const [agentBatchBusy, setAgentBatchBusy] = useState(false);
   const [agentBatchResult, setAgentBatchResult] = useState<{
@@ -1200,6 +1208,48 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     if (applied > 0) router.refresh();
   }
 
+  async function onSaveSelectedBatchJobs() {
+    const jobIds = Array.from(selectedBatchJobs);
+    if (jobIds.length === 0) return;
+    setBatchSaveBusy(true);
+    setBatchSaveResult(null);
+    let applied = 0, failed = 0;
+    for (const jobId of jobIds) {
+      try {
+        const res = await fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST" });
+        if (res.ok) applied++; else failed++;
+      } catch { failed++; }
+    }
+    setBatchSaveResult({ applied, failed });
+    setSelectedBatchJobs(new Set());
+    setBatchSaveBusy(false);
+    if (applied > 0) router.refresh();
+  }
+
+  async function openBatchReview(jobId: string, name: string) {
+    setBatchReviewJob({ jobId, name });
+    setBatchReviewData(null);
+    setBatchReviewLoading(true);
+    setBatchReviewSaved(false);
+    try {
+      const res = await fetch(`/api/admin/ingestion/jobs?jobId=${encodeURIComponent(jobId)}`);
+      const body = await res.json() as { data?: IngestionDetails };
+      if (res.ok && body.data) setBatchReviewData(body.data);
+    } catch { /* ignore */ }
+    setBatchReviewLoading(false);
+  }
+
+  async function onBatchReviewSave() {
+    if (!batchReviewJob) return;
+    setBatchReviewSaving(true);
+    try {
+      await fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(batchReviewJob.jobId)}/apply`, { method: "POST" });
+      setBatchReviewSaved(true);
+      router.refresh();
+    } catch { /* ignore */ }
+    setBatchReviewSaving(false);
+  }
+
   async function onResolveAmbiguous(name: string, city: string, targetHospitalId: string) {
     // User picked a hospital for an ambiguous entity — apply it now
     const entity = agentResult?.entities.find(
@@ -1630,7 +1680,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1645,6 +1695,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               patients: { label: "Patients", icon: "👤" },
               providers: { label: "Providers", icon: "🏥" },
               affiliations: { label: "Affiliations", icon: "🔗" },
+              doctors: { label: "Doctors", icon: "👨‍⚕️" },
             };
             const { label, icon, count } = labels[tab];
             return (
@@ -2790,18 +2841,264 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
             </form>
           </section>
 
+          {/* ── Batch Review Modal ─────────────────────────────────────────── */}
+          {batchReviewJob && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setBatchReviewJob(null); }}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+                {/* Modal header */}
+                <div className="flex items-start justify-between gap-4 p-5 border-b border-slate-100 bg-slate-50/60 shrink-0">
+                  <div>
+                    <h2 className="font-bold text-slate-800 text-lg">{batchReviewJob.name}</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Review extracted data before saving to database</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {batchReviewSaved ? (
+                      <span className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-sm font-semibold">✓ Saved to DB</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={batchReviewLoading || batchReviewSaving || !batchReviewData}
+                        onClick={onBatchReviewSave}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {batchReviewSaving
+                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                          : "💾 Save to DB"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setBatchReviewJob(null)}
+                      className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    >✕</button>
+                  </div>
+                </div>
+
+                {/* Modal body */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                  {batchReviewLoading && (
+                    <div className="flex items-center justify-center py-16 text-slate-400">
+                      <span className="w-6 h-6 border-2 border-teal-400 border-t-transparent rounded-full animate-spin mr-3" />
+                      Loading research data…
+                    </div>
+                  )}
+
+                  {!batchReviewLoading && !batchReviewData && (
+                    <p className="text-center text-slate-400 py-12">No data available for this job.</p>
+                  )}
+
+                  {batchReviewData && (() => {
+                    const hc = batchReviewData.hospitalCandidates[0];
+                    const dc = batchReviewData.doctorCandidates;
+                    const sc = batchReviewData.serviceCandidates;
+                    const pc = batchReviewData.packageCandidates;
+                    const fc = batchReviewData.fieldConfidences;
+                    const descField = fc.find(f => f.fieldKey === "description");
+                    const description = descField?.extractedValue ?? null;
+                    const ratingField = fc.find(f => f.fieldKey === "googleRating" || f.fieldKey === "rating");
+                    const phoneField = fc.find(f => f.fieldKey === "phone");
+                    const addressField = fc.find(f => f.fieldKey === "addressLine1" || f.fieldKey === "address");
+                    const bedsField = fc.find(f => f.fieldKey === "bedCount");
+                    const accredField = fc.find(f => f.fieldKey === "accreditations");
+
+                    return (
+                      <div className="space-y-5">
+                        {/* Hospital card */}
+                        {hc && (
+                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="font-bold text-slate-800 text-base">{hc.name}</h3>
+                                <p className="text-sm text-slate-500">{hc.city ?? ""} · <span className="capitalize">{batchReviewData.job.summary?.entityType as string ?? "hospital"}</span></p>
+                              </div>
+                              <div className="flex gap-2 flex-wrap justify-end">
+                                {hc.aiConfidence !== null && (
+                                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{Math.round(hc.aiConfidence * 100)}% conf</span>
+                                )}
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${hc.mergeAction === "create" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                  {hc.mergeAction === "create" ? "New hospital" : `Update: ${hc.matchHospitalName ?? hc.matchHospitalId}`}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                              {phoneField?.extractedValue && <div><span className="font-semibold text-slate-500">Phone:</span> {phoneField.extractedValue}</div>}
+                              {addressField?.extractedValue && <div><span className="font-semibold text-slate-500">Address:</span> {addressField.extractedValue}</div>}
+                              {ratingField?.extractedValue && <div><span className="font-semibold text-slate-500">Rating:</span> {ratingField.extractedValue}</div>}
+                              {bedsField?.extractedValue && <div><span className="font-semibold text-slate-500">Beds:</span> {bedsField.extractedValue}</div>}
+                              {accredField?.extractedValue && <div className="col-span-2"><span className="font-semibold text-slate-500">Accreditations:</span> {accredField.extractedValue}</div>}
+                            </div>
+                            {description && (
+                              <p className="text-xs text-slate-600 bg-white border border-slate-100 rounded-lg p-3 leading-relaxed">{description}</p>
+                            )}
+                            {hc.specialties.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Specialties ({hc.specialties.length})</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {hc.specialties.map((s, i) => <span key={i} className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-700 text-xs rounded-full">{s}</span>)}
+                                </div>
+                              </div>
+                            )}
+                            {hc.services.length > 0 && (
+                              <div>
+                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Key Services ({hc.services.length})</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {hc.services.map((s, i) => <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{s}</span>)}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Doctors */}
+                        {dc.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Doctors ({dc.length})</h4>
+                            <div className="space-y-2">
+                              {dc.map((d) => (
+                                <div key={d.id} className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-start gap-3 text-sm">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-slate-800">{d.fullName}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      {d.specialization ?? "–"}
+                                      {d.qualifications && d.qualifications.length > 0 && <> · {d.qualifications.join(", ")}</>}
+                                      {d.yearsOfExperience ? <> · {d.yearsOfExperience}y exp</> : ""}
+                                    </p>
+                                    {d.opdTiming && <p className="text-xs text-slate-400 mt-0.5">{d.opdTiming}</p>}
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    {d.consultationFee !== null && (
+                                      <p className="text-sm font-bold text-teal-700">₹{d.consultationFee.toLocaleString()}</p>
+                                    )}
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${d.mergeAction === "create" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                                      {d.mergeAction === "create" ? "New" : "Update"}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Services */}
+                        {sc.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Services / Procedures ({sc.length})</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {sc.map((s) => (
+                                <span key={s.id} className="px-2.5 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-xs rounded-full">
+                                  {s.serviceName}{s.category ? ` · ${s.category}` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Packages / Prices */}
+                        {pc.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Packages &amp; Prices ({pc.length})</h4>
+                            <div className="space-y-1.5">
+                              {pc.map((p) => (
+                                <div key={p.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm">
+                                  <div>
+                                    <p className="font-medium text-slate-800">{p.packageName}</p>
+                                    {p.department && <p className="text-xs text-slate-400">{p.department}</p>}
+                                  </div>
+                                  <p className="font-semibold text-teal-700 shrink-0">
+                                    {p.priceMin !== null && p.priceMax !== null
+                                      ? `₹${(p.priceMin/100000).toFixed(1)}L – ₹${(p.priceMax/100000).toFixed(1)}L`
+                                      : p.priceMin !== null
+                                        ? `₹${p.priceMin.toLocaleString()}`
+                                        : "–"}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sources */}
+                        {batchReviewData.sources.length > 0 && (
+                          <div>
+                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Sources ({batchReviewData.sources.length})</h4>
+                            <div className="space-y-1">
+                              {batchReviewData.sources.slice(0, 5).map((src) => (
+                                <a key={src.id} href={src.sourceUrl ?? "#"} target="_blank" rel="noopener noreferrer"
+                                  className="block text-xs text-teal-600 hover:text-teal-800 truncate">
+                                  {src.title ?? src.sourceUrl}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {hc?.outlierFlags && hc.outlierFlags.length > 0 && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                            <p className="text-xs font-semibold text-amber-700 mb-1">⚠ Outlier Flags</p>
+                            <ul className="list-disc list-inside text-xs text-amber-700 space-y-0.5">
+                              {hc.outlierFlags.map((f, i) => <li key={i}>{f}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Modal footer */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex justify-between items-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setBatchReviewJob(null)}
+                    className="px-4 py-2 text-sm text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-colors font-medium"
+                  >
+                    Close without saving
+                  </button>
+                  {!batchReviewSaved ? (
+                    <button
+                      type="button"
+                      disabled={batchReviewLoading || batchReviewSaving || !batchReviewData}
+                      onClick={onBatchReviewSave}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {batchReviewSaving
+                        ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                        : "💾 Save to DB"}
+                    </button>
+                  ) : (
+                    <span className="text-sm font-semibold text-emerald-700">✓ Saved successfully</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Batch Status UI */}
           {agentMode === "batch" && batchId && batchProgress && (
             <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-4">
               <div className="p-5 border-b border-slate-100 bg-slate-50/50">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="font-bold text-slate-800">Batch Process Results</h3>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex gap-4 text-sm font-medium">
+                  <div className="flex items-center gap-3">
+                    <h3 className="font-bold text-slate-800">Batch Process Results</h3>
+                    <div className="flex gap-3 text-sm font-medium">
                       <span className="text-slate-500">Total: {batchProgress.total}</span>
                       <span className="text-emerald-600">Done: {batchProgress.done}</span>
                       {batchProgress.failed > 0 && <span className="text-red-500">Failed: {batchProgress.failed}</span>}
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedBatchJobs.size > 0 && (
+                      <button
+                        type="button"
+                        disabled={batchSaveBusy}
+                        onClick={onSaveSelectedBatchJobs}
+                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
+                      >
+                        {batchSaveBusy
+                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                          : `💾 Save Selected (${selectedBatchJobs.size})`}
+                      </button>
+                    )}
                     {batchItems.some((it) => it.status === "done" && it.jobId) && (
                       <button
                         type="button"
@@ -2809,17 +3106,17 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                         onClick={onBatchApplyAllJobs}
                         className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-60 flex items-center gap-2"
                       >
-                        {batchSaveBusy
-                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Saving...</>
-                          : `💾 Save All to DB (${batchItems.filter((it) => it.status === "done" && it.jobId).length})`}
+                        {batchSaveBusy && selectedBatchJobs.size === 0
+                          ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+                          : `💾 Save All (${batchItems.filter((it) => it.status === "done" && it.jobId).length})`}
                       </button>
                     )}
                   </div>
                 </div>
                 {batchSaveResult && (
                   <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${batchSaveResult.failed > 0 ? "bg-amber-50 text-amber-800 border border-amber-200" : "bg-emerald-50 text-emerald-800 border border-emerald-200"}`}>
-                    {batchSaveResult.applied > 0 && <span>{batchSaveResult.applied} job(s) applied to DB. </span>}
-                    {batchSaveResult.failed > 0 && <span>{batchSaveResult.failed} failed — try opening them individually in Review.</span>}
+                    {batchSaveResult.applied > 0 && <span>✓ {batchSaveResult.applied} job(s) saved to DB. </span>}
+                    {batchSaveResult.failed > 0 && <span>{batchSaveResult.failed} failed — open them in Review to retry.</span>}
                   </div>
                 )}
                 {(batchProgress.done + batchProgress.failed < batchProgress.total) && (
@@ -2829,72 +3126,149 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                 )}
               </div>
               <div className="divide-y divide-slate-100 max-h-[600px] overflow-auto">
-                {batchItems.map((it, idx) => (
-                  <div key={idx} className="p-4 hover:bg-slate-50">
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-slate-800">{it.name} <span className="text-slate-400 font-normal text-xs">{it.city ? `(${it.city})` : ""}</span></p>
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                        it.status === "done" ? "bg-emerald-100 text-emerald-800" :
-                        it.status === "failed" ? "bg-red-100 text-red-800" :
-                        it.status === "processing" ? "bg-amber-100 text-amber-800 animate-pulse" :
-                        "bg-slate-100 text-slate-600"
-                      }`}>{it.status.toUpperCase()}</span>
+                {batchItems.map((it, idx) => {
+                  const isChecked = it.jobId ? selectedBatchJobs.has(it.jobId) : false;
+                  return (
+                    <div key={idx} className={`p-4 hover:bg-slate-50 transition-colors ${isChecked ? "bg-teal-50/40" : ""}`}>
+                      <div className="flex items-start gap-3">
+                        {/* Checkbox — only for done items with a jobId */}
+                        <div className="pt-0.5 shrink-0">
+                          {it.status === "done" && it.jobId ? (
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                setSelectedBatchJobs(prev => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(it.jobId!);
+                                  else next.delete(it.jobId!);
+                                  return next;
+                                });
+                              }}
+                              className="w-4 h-4 accent-teal-600 cursor-pointer mt-0.5"
+                            />
+                          ) : <div className="w-4" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="font-semibold text-slate-800">{it.name}
+                              {it.city && <span className="text-slate-400 font-normal text-xs ml-1">({it.city})</span>}
+                            </p>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${
+                              it.status === "done" ? "bg-emerald-100 text-emerald-800" :
+                              it.status === "failed" ? "bg-red-100 text-red-800" :
+                              it.status === "processing" ? "bg-amber-100 text-amber-800 animate-pulse" :
+                              "bg-slate-100 text-slate-600"
+                            }`}>{it.status.toUpperCase()}</span>
+                          </div>
+
+                          {it.error && <p className="text-xs text-red-500 mt-1">{it.error}</p>}
+
+                          {/* Direct entity result */}
+                          {it.status === "done" && it.discoveredCount === undefined && (
+                            <div className="mt-2">
+                              <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                                {(it.specialtyCount ?? 0) > 0 && <span className="text-teal-700 font-medium">✓ {it.specialtyCount} specialties</span>}
+                                {(it.doctorCount ?? 0) > 0 && <span className="text-teal-700 font-medium">✓ {it.doctorCount} doctors</span>}
+                                {(it.priceCount ?? 0) > 0 && <span className="text-teal-700 font-medium">✓ {it.priceCount} prices</span>}
+                                {it.specialtyCount === 0 && it.doctorCount === 0 && it.priceCount === 0 && (
+                                  <span className="text-amber-600">No structured data extracted — review raw data</span>
+                                )}
+                                {it.confidence !== undefined && <span>{(it.confidence * 100).toFixed(0)}% conf</span>}
+                              </div>
+                              {it.jobId && (
+                                <button
+                                  type="button"
+                                  onClick={() => openBatchReview(it.jobId!, it.name)}
+                                  className="mt-1.5 text-xs text-teal-600 hover:text-teal-800 font-semibold underline underline-offset-2"
+                                >
+                                  🔍 Review Details →
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Discovery results */}
+                          {it.status === "done" && it.discoveredCount !== undefined && (
+                            <div className="mt-3">
+                              <div className="flex flex-wrap gap-3 mb-2 text-xs text-slate-600">
+                                <span className="font-bold">{it.discoveredCount} hospitals discovered</span>
+                                {(it.specialtyCount ?? 0) > 0 && <span className="text-teal-700">✓ {it.specialtyCount} specialties</span>}
+                                {(it.doctorCount ?? 0) > 0 && <span className="text-teal-700">✓ {it.doctorCount} doctors</span>}
+                                {(it.priceCount ?? 0) > 0 && <span className="text-teal-700">✓ {it.priceCount} prices</span>}
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {it.discoveredEntities?.map((sub: any, sIdx: number) => (
+                                  <div key={sIdx} className="bg-white border border-slate-200 rounded-lg p-2.5 shadow-sm text-xs">
+                                    <div className="flex items-start gap-2">
+                                      {sub.jobId && (
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedBatchJobs.has(sub.jobId)}
+                                          onChange={(e) => {
+                                            setSelectedBatchJobs(prev => {
+                                              const next = new Set(prev);
+                                              if (e.target.checked) next.add(sub.jobId);
+                                              else next.delete(sub.jobId);
+                                              return next;
+                                            });
+                                          }}
+                                          className="w-3.5 h-3.5 accent-teal-600 cursor-pointer mt-0.5 shrink-0"
+                                        />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-slate-800">{sub.name}</p>
+                                        <p className="text-slate-500 mt-0.5">{sub.city}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
+                                      <span className="text-emerald-600 font-semibold">{Math.round(sub.confidence * 100)}% conf</span>
+                                      {sub.jobId && (
+                                        <button
+                                          type="button"
+                                          onClick={() => openBatchReview(sub.jobId, sub.name)}
+                                          className="text-teal-600 hover:text-teal-800 font-semibold underline underline-offset-2"
+                                        >
+                                          🔍 Review →
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {it.error && <p className="text-xs text-red-500 mt-1">{it.error}</p>}
-                    
-                    {it.status === "done" && !it.discoveredCount && (
-                      <div className="mt-2">
-                        <div className="flex gap-4 text-xs text-slate-500">
-                          {it.specialtyCount !== undefined && <span>{it.specialtyCount} specialties</span>}
-                          {it.doctorCount !== undefined && <span>{it.doctorCount} doctors</span>}
-                          {it.priceCount !== undefined && <span>{it.priceCount} prices</span>}
-                          {it.confidence !== undefined && <span>{(it.confidence * 100).toFixed(0)}% conf</span>}
-                        </div>
-                        {it.jobId && (
-                          <button
-                            type="button"
-                            onClick={() => { setActiveTab("ingestion"); loadJobDetails(it.jobId!, true); }}
-                            className="mt-1.5 text-xs text-teal-600 hover:text-teal-800 font-medium"
-                          >
-                            Open in Review →
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    
-                    {it.status === "done" && it.discoveredCount !== undefined && (
-                      <div className="mt-3">
-                        <div className="flex flex-wrap gap-3 mb-2 text-xs text-slate-600">
-                          <span className="font-bold">{it.discoveredCount} hospitals discovered</span>
-                          {it.specialtyCount !== undefined && it.specialtyCount > 0 && <span>{it.specialtyCount} specialties total</span>}
-                          {it.doctorCount !== undefined && it.doctorCount > 0 && <span>{it.doctorCount} doctors total</span>}
-                          {it.priceCount !== undefined && it.priceCount > 0 && <span>{it.priceCount} prices found</span>}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                          {it.discoveredEntities?.map((sub: any, sIdx: number) => (
-                             <div key={sIdx} className="bg-white border border-slate-200 rounded p-2 shadow-sm text-xs">
-                               <p className="font-bold text-slate-800">{sub.name}</p>
-                               <p className="text-slate-500 mt-0.5">{sub.city}</p>
-                               <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-100">
-                                 <span className="text-emerald-600 font-semibold">{Math.round(sub.confidence * 100)}% conf</span>
-                                 {sub.jobId && (
-                                   <button
-                                     type="button"
-                                     onClick={() => { setActiveTab("ingestion"); loadJobDetails(sub.jobId, true); }}
-                                     className="text-teal-600 hover:text-teal-800 font-medium"
-                                   >
-                                     Open in Review →
-                                   </button>
-                                 )}
-                               </div>
-                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+              {/* Select-all footer */}
+              {batchItems.some(it => it.status === "done" && it.jobId) && (
+                <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex items-center gap-3 text-xs text-slate-500">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allJobIds = batchItems
+                        .flatMap(it => it.discoveredCount !== undefined
+                          ? (it.discoveredEntities ?? []).map((s: any) => s.jobId).filter(Boolean)
+                          : it.jobId ? [it.jobId] : []
+                        );
+                      setSelectedBatchJobs(new Set(allJobIds));
+                    }}
+                    className="text-teal-600 hover:text-teal-800 font-semibold"
+                  >Select all</button>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBatchJobs(new Set())}
+                    className="text-slate-500 hover:text-slate-700 font-semibold"
+                  >Clear</button>
+                  {selectedBatchJobs.size > 0 && <span className="ml-1 text-teal-700 font-medium">{selectedBatchJobs.size} selected</span>}
+                </div>
+              )}
             </section>
           )}
 
@@ -3590,6 +3964,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         {/* ── REVIEWS TAB ──────────────────────────────────────────────── */}
         {activeTab === "reviews" && (
           <AdminReviewsTab />
+        )}
+
+        {/* ── DOCTORS TAB ──────────────────────────────────────────────── */}
+        {activeTab === "doctors" && (
+          <AdminDoctorsTab />
         )}
 
         {/* ── CONTENT TAB ──────────────────────────────────────────────── */}

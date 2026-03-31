@@ -262,10 +262,10 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
 
             <aside className={styles.panel}>
               <h3>{t("doctor.highlights")}</h3>
-              <p>{t("common.experience")}: {data.doctor.yearsOfExperience ? `${data.doctor.yearsOfExperience}+ years` : t("common.updating")}</p>
-              <p>{t("doctor.languages")}: {data.doctor.languages.length ? data.doctor.languages.join(", ") : t("common.updating")}</p>
+              <p>{t("common.experience")}: {data.doctor.yearsOfExperience ? `${data.doctor.yearsOfExperience}+ years` : <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontStyle: "italic" }}>⏳ {t("common.updating")}</span>}</p>
+              <p>{t("doctor.languages")}: {data.doctor.languages.length ? data.doctor.languages.join(", ") : <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontStyle: "italic" }}>⏳ {t("common.updating")}</span>}</p>
               <p>
-                {t("common.feeRange")}: {data.doctor.feeMin || data.doctor.feeMax ? `${data.doctor.feeMin ?? "-"} - ${data.doctor.feeMax ?? "-"}` : t("common.updating")}
+                {t("common.feeRange")}: {data.doctor.feeMin || data.doctor.feeMax ? `${data.doctor.feeMin ?? "-"} - ${data.doctor.feeMax ?? "-"}` : <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontStyle: "italic" }}>⏳ {t("common.updating")}</span>}
               </p>
               <div className={styles.tagRow}>
                 {data.doctor.specialties.map((item) => (
@@ -275,10 +275,10 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
             </aside>
           </section>
 
-          {/* ── Related: Current Practice Hospitals ── */}
+          {/* ── Current Hospitals: bookable, verified ── */}
           {data.affiliations.length > 0 && (
             <div className={styles.relatedSection}>
-              <h3 className={styles.relatedTitle}>🏥 Also Practices At</h3>
+              <h3 className={styles.relatedTitle}>🏥 Currently Practices At <span style={{ fontSize: "11px", fontWeight: 500, color: "#1B8A4A", background: "#e8f8ee", borderRadius: "6px", padding: "2px 8px", marginLeft: "6px" }}>BOOKABLE</span></h3>
               <div className={styles.relatedScroll}>
                 {data.affiliations.map((item) => (
                   <Link key={item.affiliationId} href={item.hospital.profileUrl} className={styles.relatedCard}>
@@ -291,19 +291,27 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
             </div>
           )}
 
-          {/* ── Past Affiliations — info only, no appointments or actions ── */}
+          {/* ── Past Affiliations — read-only historical record, NO booking ── */}
           {data.pastAffiliations.length > 0 && (
-            <div className={styles.relatedSection}>
-              <h3 className={styles.relatedTitle}>🕐 Previously Worked At</h3>
+            <div className={styles.relatedSection} style={{ opacity: 0.85 }}>
+              <h3 className={styles.relatedTitle} style={{ color: "#94a3b8" }}>
+                🕐 Previously Worked At
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", padding: "2px 8px", marginLeft: "8px" }}>
+                  NO APPOINTMENTS — Former workplace
+                </span>
+              </h3>
               <div className={styles.relatedScroll}>
                 {data.pastAffiliations.map((item) => (
-                  <div key={item.affiliationId} className={`${styles.relatedCard} ${styles.relatedCardPast}`}>
-                    <span className={styles.relatedCardName}>{item.hospital.name}</span>
-                    <span className={styles.relatedCardSub}>{item.role} · {item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}</span>
-                    <span className={styles.relatedCardBadge}>Past</span>
+                  <div key={item.affiliationId} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px 14px", minWidth: "200px", opacity: 0.75 }}>
+                    <span className={styles.relatedCardName} style={{ color: "#64748b" }}>{item.hospital.name}</span>
+                    <span className={styles.relatedCardSub}>{item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}</span>
+                    <span style={{ display: "inline-block", marginTop: "6px", fontSize: "10px", fontWeight: 700, color: "#94a3b8", background: "#f1f5f9", borderRadius: "4px", padding: "1px 6px", letterSpacing: "0.05em" }}>PAST</span>
                   </div>
                 ))}
               </div>
+              <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px", fontStyle: "italic" }}>
+                This doctor no longer practices at the above location(s). Book appointments only at current hospitals listed above.
+              </p>
             </div>
           )}
 
@@ -361,21 +369,27 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
               </>
             )}
 
-            {/* Past hospitals */}
+            {/* Past hospitals — historical record only, no booking actions */}
             {data.pastAffiliations.length > 0 && (
               <>
-                <h3 style={{ marginTop: "20px", fontSize: "14px", color: "#8FA39A" }}>🕐 Previously Worked At</h3>
+                <div style={{ marginTop: "24px", padding: "10px 14px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "16px" }}>⛔</span>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#b91c1c", fontWeight: 600 }}>
+                    Former workplaces — Appointments cannot be booked here
+                  </p>
+                </div>
+                <h3 style={{ marginTop: "16px", fontSize: "13px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>🕐 Previously Worked At</h3>
                 <div className={styles.cardGrid}>
                   {data.pastAffiliations.map((item) => (
-                    <article key={item.affiliationId} className={styles.profileCard} style={{ opacity: 0.65 }}>
-                      <h4>{item.hospital.name}</h4>
-                      <p>
-                        {item.hospital.city}
-                        {item.hospital.state ? `, ${item.hospital.state}` : ""}
-                      </p>
-                      <div className={styles.tagRow}>
-                        <span style={{ background: "#f1f5f9", color: "#94a3b8" }}>Previously worked at</span>
+                    <article key={item.affiliationId} className={styles.profileCard} style={{ opacity: 0.6, background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <h4 style={{ color: "#64748b", margin: 0 }}>{item.hospital.name}</h4>
+                        <span style={{ fontSize: "10px", fontWeight: 800, color: "#94a3b8", background: "#f1f5f9", borderRadius: "4px", padding: "2px 6px", letterSpacing: "0.08em" }}>PAST</span>
                       </div>
+                      <p style={{ color: "#94a3b8" }}>
+                        {item.hospital.city}{item.hospital.state ? `, ${item.hospital.state}` : ""}
+                      </p>
+                      <p style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic" }}>No appointments available</p>
                     </article>
                   ))}
                 </div>
