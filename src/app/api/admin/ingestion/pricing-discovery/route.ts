@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 
 const querySchema = z.object({
     hospitalName: z.string().min(2),
-    city: z.string().min(2),
+    city: z.string().nullable().optional().transform(v => v ?? "India"),
     candidateId: z.string().optional(),
     jobId: z.string().optional(),
 });
