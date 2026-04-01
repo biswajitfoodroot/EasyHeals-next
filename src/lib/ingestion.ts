@@ -104,6 +104,13 @@ export type IngestionFieldConfidence = {
   extractedValue?: string | null;
 };
 
+export type HospitalLocation = {
+  city: string;
+  address?: string | null;
+  phone?: string | null;
+  url?: string | null;
+};
+
 export type IngestionHospital = {
   name: string;
   type?: "hospital" | "clinic" | "diagnostic_center" | "nursing_home" | "specialty_center" | null;
@@ -135,6 +142,8 @@ export type IngestionHospital = {
   accreditations?: string[];
   bedCount?: number | null;
   establishedYear?: string | null;
+  isMultiLocation?: boolean | null;
+  locations?: HospitalLocation[];
 };
 
 export type IngestionStructuredPayload = {
@@ -426,6 +435,40 @@ function classifyPageUrl(url: string): PageCategory {
   if (/about|history|overview|mission|vision/i.test(p)) return "about";
   if (/contact|reach|location|address|map/i.test(p)) return "contact";
   return "general";
+}
+
+const INDIAN_CITY_NAMES = [
+  "kolkata", "calcutta", "delhi", "new-delhi", "newdelhi", "mumbai", "bombay",
+  "bangalore", "bengaluru", "chennai", "madras", "hyderabad", "pune", "ahmedabad",
+  "jaipur", "lucknow", "kanpur", "nagpur", "indore", "bhopal", "visakhapatnam",
+  "vizag", "patna", "vadodara", "ghaziabad", "ludhiana", "coimbatore", "kochi",
+  "cochin", "agra", "nashik", "faridabad", "meerut", "rajkot", "varanasi",
+  "amritsar", "aurangabad", "allahabad", "prayagraj", "noida", "gurgaon", "gurugram",
+  "chandigarh", "surat", "mysore", "mysuru", "jodhpur", "jabalpur", "madurai",
+  "ranchi", "raipur", "bhubaneswar", "thiruvananthapuram", "trivandrum", "dehradun",
+  "guwahati", "shimla", "manali", "udaipur", "kota", "ajmer", "bikaner",
+  "siliguri", "durgapur", "asansol", "howrah", "navi-mumbai", "thane",
+];
+
+const CITY_DISPLAY: Record<string, string> = {
+  calcutta: "Kolkata", bombay: "Mumbai", bengaluru: "Bangalore", madras: "Chennai",
+  cochin: "Kochi", prayagraj: "Allahabad", gurugram: "Gurgaon", mysuru: "Mysore",
+  trivandrum: "Thiruvananthapuram", vizag: "Visakhapatnam", "new-delhi": "Delhi",
+  newdelhi: "Delhi", "navi-mumbai": "Navi Mumbai",
+};
+
+function extractCityFromUrl(url: string): string | null {
+  try {
+    const path = new URL(url).pathname.toLowerCase().replace(/-/g, "-");
+    for (const city of INDIAN_CITY_NAMES) {
+      const re = new RegExp(`(^|/)${city}(/|$|-)`);
+      if (re.test(path)) {
+        const display = CITY_DISPLAY[city] ?? city.charAt(0).toUpperCase() + city.slice(1);
+        return display;
+      }
+    }
+  } catch { /* skip */ }
+  return null;
 }
 
 function extractValuableLinks(html: string, baseUrl: string): string[] {
@@ -1073,6 +1116,14 @@ PHONE rules: Capture ALL phones. Indian: +91XXXXXXXXXX, 0XX-XXXXXXXX, 1800-XXX-X
 ACCREDITATIONS: NABH, NABL, JCI, ISO 9001, AHPI, CRISIL, AAA.
 OPERATING HOURS: { "monday": "9am-6pm", "emergency": "24x7" } OR { "summary": "..." }.
 
+MULTI-LOCATION CHAINS (CRITICAL):
+  If this website serves multiple cities / branches (e.g. "Kolkata | Delhi | Pune" tabs, city selector,
+  or mentions multiple city addresses), set "isMultiLocation": true and list ALL detected branches in
+  "locations" array. Each location needs at least a city name.
+  If a CITY HINT is provided in the context, set "city" to THAT CITY ONLY — do not set city to the
+  chain brand name. If no city hint and it is multi-location, set "city": null.
+  If it is a single-location hospital, set "isMultiLocation": false and "locations": [].
+
 Return JSON:
 {
   "name": "string",
@@ -1099,6 +1150,8 @@ Return JSON:
   "uniqueOfferings": [],
   "rating": null,
   "reviewCount": null,
+  "isMultiLocation": false,
+  "locations": [],
   "confidence": 0.0
 }`;
 
@@ -1112,6 +1165,10 @@ RULES:
   • Include designation (Senior Consultant, HOD, Director of Cardiology, etc.)
   • Include qualifications exactly as written (MBBS, MD, MS (Ortho), DNB, etc.)
   • DEDUPLICATION: if same doctor appears multiple times, merge into one complete record
+  • CITY SCOPING (CRITICAL): If a "City hint" is provided in the context and this is a multi-location
+    chain (multiple cities mentioned on the site), extract ONLY doctors who practice at that specific
+    city branch. If a doctor is listed under a different city tab or address, EXCLUDE them.
+    If no city hint is given, extract all doctors but note their city/branch if mentioned.
 
 SPECIALIZATION: use standard terms:
   Cardiology | Orthopedics | Neurology | Oncology | Gynecology | Pediatrics |
@@ -1147,6 +1204,8 @@ Return JSON:
 
 const SYSTEM_C = `You are EasyHeals services, packages and cost extraction AI for India.
 Extract all medical services, treatment packages, procedures and cost data.
+CITY SCOPING: If a "City hint" is provided and this is a multi-location chain, extract packages and
+costs specific to that city branch where possible. Generic chain-wide services can be included.
 Return strict JSON. Use null for missing fields.
 
 SERVICE CATEGORIES (pick one): "Diagnostics" | "Surgery" | "OPD Consultation" | "Emergency" |
@@ -1325,14 +1384,27 @@ export async function extractStructuredFromSources(params: {
 
   const allText = [params.websiteText, ...crawledPages.map(p => p.text)].join("\n\n").slice(0, 80_000);
 
-  const fallback = heuristicExtract(params.websiteUrl, allText, params.hints, params.googleProfile ?? null);
+  // ── URL-based city extraction (runs before AI passes) ──────────────────────
+  const urlCity = extractCityFromUrl(params.websiteUrl);
+  const effectiveCityHint = params.hints.city ?? urlCity ?? null;
+
+  const fallback = heuristicExtract(params.websiteUrl, allText, { ...params.hints, city: effectiveCityHint ?? undefined }, params.googleProfile ?? null);
   if (!env.GOOGLE_AI_API_KEY) return fallback;
 
   try {
+    const isCityScoped = Boolean(effectiveCityHint);
     const ctx = [
       `Hospital name hint: ${params.hints.hospitalName ?? "unknown"}`,
-      `City hint: ${params.hints.city ?? "unknown"}`,
+      effectiveCityHint
+        ? `City hint: ${effectiveCityHint} — IMPORTANT: This is a city-scoped extraction. Extract data ONLY for the ${effectiveCityHint} branch/location.`
+        : `City hint: unknown — extract all available data`,
+      urlCity && !params.hints.city
+        ? `Note: City "${urlCity}" was detected from the URL path — treat this as the target branch.`
+        : null,
       `Website URL: ${params.websiteUrl}`,
+      isCityScoped
+        ? `MULTI-LOCATION CHAIN SCOPING: If this website covers multiple cities, restrict all extraction to the ${effectiveCityHint} branch only.`
+        : null,
       params.hints.specialtyHints
         ? `Focus specialties/departments (extract these specifically): ${params.hints.specialtyHints}`
         : null,
@@ -1431,7 +1503,7 @@ export async function extractStructuredFromSources(params: {
       hospital: {
         name: String(passA.name ?? fallback.hospital.name).trim(),
         type: passA.type ?? null,
-        city: passA.city ?? params.hints.city ?? null,
+        city: passA.city ?? effectiveCityHint ?? null,
         state: passA.state ?? null,
         country: passA.country ?? "India",
         addressLine1: passA.addressLine1 ?? null,
@@ -1459,6 +1531,8 @@ export async function extractStructuredFromSources(params: {
         longitude: toNumber(passA.longitude) ?? params.googleProfile?.longitude ?? null,
         sourceLinks: dedupeStrings([params.websiteUrl, params.googleProfile?.mapsUrl ?? null, ...crawledPages.map(p => p.url)], 20),
         googlePlaceId: (typeof passA.googlePlaceId === "string" ? passA.googlePlaceId : null) ?? params.googleProfile?.placeId ?? null,
+        isMultiLocation: typeof passA.isMultiLocation === "boolean" ? passA.isMultiLocation : null,
+        locations: Array.isArray(passA.locations) ? (passA.locations as HospitalLocation[]).filter(l => l?.city) : [],
       },
       doctors: mergedDoctors,
       services: mergedServices,
@@ -1473,7 +1547,9 @@ export async function extractStructuredFromSources(params: {
         `Services extracted: ${mergedServices.length}.`,
         `Packages extracted: ${mergedPackages.length}.`,
         `Procedure costs extracted: ${allProcedureCosts.length}.`,
-      ],
+        effectiveCityHint ? `City scoped to: ${effectiveCityHint}${urlCity && !params.hints.city ? " (detected from URL)" : ""}.` : "No city hint — chain-wide extraction.",
+        passA.isMultiLocation ? `Multi-location chain detected. Branches: ${(passA.locations as HospitalLocation[] | undefined)?.map(l => l.city).join(", ") ?? "unknown"}.` : "",
+      ].filter(Boolean),
     };
 
     output.fieldConfidences = buildAiFieldConfidences(output, params.websiteUrl);
@@ -1680,79 +1756,106 @@ export async function fetchGoogleProfileData(params: { sourceUrl: string; hospit
 }
 
 /**
- * P2.2 — Google Pricing Discovery
- * Searches specifically for pricing/cost pages for a hospital and extracts them using AI.
+ * P2.2 — Hospital Pricing Discovery
+ * Uses Gemini Google Search Grounding to find real pricing pages, then extracts
+ * structured cost/package data with a second AI pass.
+ * Does NOT require Google Custom Search API — uses Gemini's built-in grounding.
  */
-export async function discoverHospitalPricing(hostname: string, city: string): Promise<{ packages: IngestionPackage[], costs: IngestionProcedureCost[], sources: SearchSnippet[] }> {
-  const query = `${hostname} ${city} hospital package price list cost treatment India`;
-  const snippets = await googleSearchSnippets(query);
+export async function discoverHospitalPricing(hospitalName: string, city: string): Promise<{ packages: IngestionPackage[], costs: IngestionProcedureCost[], sources: SearchSnippet[] }> {
+  if (!env.GOOGLE_AI_API_KEY) return { packages: [], costs: [], sources: [] };
 
-  if (snippets.length === 0) return { packages: [], costs: [], sources: [] };
+  // ── Step 1: Gemini with Google Search Grounding ──────────────────────────
+  const searchModel = getGeminiClient().getGenerativeModel({
+    model: env.GEMINI_MODEL,
+    // @ts-expect-error — googleSearch tool is valid at runtime but not in TS types
+    tools: [{ googleSearch: {} }],
+  });
 
-  // Step 1: Use AI to decide which 2 links look most like pricing data
-  const model = getGeminiClient().getGenerativeModel({ model: env.GEMINI_MODEL });
-  const rankPrompt = `I have a list of search results for a hospital's pricing.
-Which 2 links are MOST likely to contain a structured table of medical procedure costs or package prices?
-Return ONLY a JSON array of indices (0-7).
+  const searchPrompt = `Search for medical treatment package prices and procedure costs at ${hospitalName} hospital in ${city}, India.
 
-Results:
-${snippets.map((s, i) => `[${i}] ${s.title}: ${s.snippet}`).join("\n")}
-`;
+Find and report:
+1. Any official pricing or packages page on their website
+2. Specific procedure costs: knee replacement, hip replacement, bypass surgery, angioplasty, IVF, cataract surgery, appendectomy, hernia, dialysis, normal delivery, C-section, MRI, CT scan
+3. Named packages: health checkup packages, surgery packages with price ranges in INR
+4. Any pricing data from Practo, JustDial, GoMedii, Credihealth for this hospital
 
-  const rankResult = await model.generateContent(rankPrompt);
-  let topIndices: number[] = [0, 1];
+Report all pricing you find with exact INR amounts or ranges. Include procedure names and their costs.`;
+
+  let groundedText = "";
+  let sources: SearchSnippet[] = [];
+
   try {
-    const text = rankResult.response.text();
-    const match = text.match(/\[.*\]/);
-    if (match) topIndices = JSON.parse(match[0]);
-  } catch (e) {
-    console.error("AI ranking failed, using defaults", e);
+    const searchResult = await searchModel.generateContent(searchPrompt);
+    const candidate = searchResult.response.candidates?.[0];
+    groundedText = candidate?.content?.parts?.map((p: unknown) => (p as { text?: string }).text ?? "").join("\n") ?? "";
+    const groundingChunks: Array<{ web?: { uri?: string; title?: string } }> =
+      (candidate as { groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> } })?.groundingMetadata?.groundingChunks ?? [];
+    sources = groundingChunks
+      .filter(c => c.web?.uri)
+      .slice(0, 8)
+      .map(c => ({ title: c.web!.title ?? c.web!.uri!, link: c.web!.uri!, snippet: "" }));
+  } catch (err) {
+    console.warn("[pricing] Gemini grounding search failed:", err instanceof Error ? err.message : String(err));
   }
 
-  const selectedLinks = topIndices.slice(0, 2).map(i => snippets[i]).filter(Boolean);
-  const scrapedSources: string[] = [];
-
-  // Step 2: Scrape the selected links
-  for (const source of selectedLinks) {
-    try {
-      const content = await fetchWebsiteSource(source.link);
-      if (content.text) scrapedSources.push(`Source: ${source.link}\n${content.text}`);
-    } catch (e) {
-      console.error(`Failed to scrape pricing source ${source.link}`, e);
+  // Fallback: try Custom Search if Gemini grounding returned nothing and keys are configured
+  if (!groundedText && env.GOOGLE_SEARCH_API_KEY && env.GOOGLE_SEARCH_CX) {
+    const snippets = await googleSearchSnippets(`${hospitalName} ${city} hospital package price list cost India`);
+    sources = snippets;
+    if (snippets.length > 0) {
+      for (const source of snippets.slice(0, 2)) {
+        try {
+          const content = await fetchWebsiteSource(source.link);
+          if (content.text) groundedText += `\nSource: ${source.link}\n${content.text.slice(0, 15_000)}`;
+        } catch { /* skip */ }
+      }
     }
   }
 
-  if (scrapedSources.length === 0) return { packages: [], costs: [], sources: selectedLinks };
+  if (!groundedText) return { packages: [], costs: [], sources };
 
-  // Step 3: Extract pricing data from the scraped results
-  const extractPrompt = `Extract medical pricing information from the following text snippets.
-Found for hospital: ${hostname} in ${city}.
+  // ── Step 2: Extract structured pricing from grounded text ────────────────
+  const extractModel = getGeminiClient().getGenerativeModel({
+    model: env.GEMINI_MODEL,
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.05,
+      maxOutputTokens: 4096,
+    },
+  });
 
-Focus on:
-1. "packages" - bundled offerings with name and price range.
-2. "costs" - specific procedure names and their expected costs.
+  const extractPrompt = `Extract ALL medical pricing data found for: ${hospitalName}, ${city}.
 
-Return ONLY JSON:
+From the research below, extract every price mentioned. Convert lakhs to numbers (1 lakh = 100000).
+Only extract REAL prices that appear in the text — do not invent prices.
+
+Return JSON:
 {
-  "packages": [{ "packageName": string, "priceMin": number, "priceMax": number, "currency": "INR", "inclusions": string[] }],
-  "costs": [{ "procedureName": string, "priceMin": number, "priceMax": number, "currency": "INR", "notes": string }]
+  "packages": [
+    { "packageName": "string", "priceMin": number|null, "priceMax": number|null, "currency": "INR", "department": "string|null", "inclusions": null }
+  ],
+  "costs": [
+    { "procedureName": "string", "priceMin": number|null, "priceMax": number|null, "currency": "INR", "notes": "string|null" }
+  ]
 }
 
-Text:
-${scrapedSources.join("\n\n---\n\n").slice(0, 30000)}
-`;
+Research text:
+${groundedText.slice(0, 40_000)}`;
 
-  const extraction = await model.generateContent(extractPrompt);
   try {
-    const cleanText = extraction.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-    const data = JSON.parse(cleanText);
-    return {
-      packages: data.packages || [],
-      costs: data.costs || [],
-      sources: selectedLinks
+    const extraction = await extractModel.generateContent(extractPrompt);
+    const raw = extraction.response.text();
+    const data = JSON.parse(raw.replace(/```json|```/g, "").trim()) as {
+      packages?: unknown[];
+      costs?: unknown[];
     };
-  } catch (e) {
-    console.error("Pricing extraction failed", e);
-    return { packages: [], costs: [], sources: selectedLinks };
+    return {
+      packages: ((data.packages ?? []) as IngestionPackage[]).filter(p => p?.packageName),
+      costs: ((data.costs ?? []) as IngestionProcedureCost[]).filter(c => c?.procedureName),
+      sources,
+    };
+  } catch (err) {
+    console.warn("[pricing] Extraction parse failed:", err instanceof Error ? err.message : String(err));
+    return { packages: [], costs: [], sources };
   }
 }

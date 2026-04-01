@@ -100,6 +100,49 @@ export async function POST(req: NextRequest) {
     .set({ status: "running", items, updatedAt: new Date() })
     .where(eq(researchBatchJobs.id, batchId));
 
+  /** Try parsing JSON from raw model output with multiple fallback strategies */
+  function tryParseProfileJson(raw: string): Record<string, unknown> {
+    // Try 1: direct parse (responseMimeType: json returns clean JSON)
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch { /* fall through */ }
+    // Try 2: strip markdown fences then parse
+    try {
+      const stripped = raw.replace(/^```(?:json)?\r?\n?/, "").replace(/\r?\n?```$/, "").trim();
+      return JSON.parse(stripped) as Record<string, unknown>;
+    } catch { /* fall through */ }
+    // Try 3: regex extract first top-level JSON object
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      try { return JSON.parse(match[0]) as Record<string, unknown>; } catch { /* fall through */ }
+    }
+    // Try 4: attempt to fix truncated JSON by adding closing braces
+    if (raw.includes('"hospital"')) {
+      let attempt = raw.trim();
+      // Count unmatched braces
+      let open = 0;
+      for (const ch of attempt) { if (ch === '{') open++; else if (ch === '}') open--; }
+      if (open > 0) {
+        attempt += '}'.repeat(open);
+        try { return JSON.parse(attempt) as Record<string, unknown>; } catch { /* fall through */ }
+      }
+    }
+    return {};
+  }
+
+  /** Check if a profile has meaningful data worth saving */
+  function hasMinimumData(profile: Record<string, unknown>): boolean {
+    const h = (profile.hospital ?? {}) as Record<string, unknown>;
+    const hasHospitalData = !!(h.name || h.phone || h.website || h.city || h.addressLine1);
+    const hasDoctors = Array.isArray(profile.doctors) && profile.doctors.length > 0;
+    const hasPackages = Array.isArray(profile.packages) && profile.packages.length > 0;
+    const hasProcedureCosts = Array.isArray(profile.procedureCosts) && profile.procedureCosts.length > 0;
+    const hasSpecialties = Array.isArray(profile.specialtyAudit) && profile.specialtyAudit.some((s: any) => s.status === "available");
+    const hasServices = Array.isArray(profile.services) && profile.services.length > 0;
+    // At minimum, we need hospital identifying data AND at least one data dimension
+    return hasHospitalData && (hasDoctors || hasPackages || hasProcedureCosts || hasSpecialties || hasServices);
+  }
+
   // Helper to run Pass 2 and Pass 3 for a specific named provider
   async function runDeepResearchPass(entityName: string, cityHint?: string) {
     const searchModel = getGeminiClient().getGenerativeModel({
@@ -138,54 +181,90 @@ Compile ALL findings: every doctor by specialty, every price, complete address, 
       (candidate as any)?.groundingMetadata?.groundingChunks ?? [];
     const sourceUrls = chunks.filter(c => c.web?.uri).map(c => ({ url: c.web!.uri!, title: c.web?.title ?? "" }));
 
-    const extractModel = getGeminiClient().getGenerativeModel({
-      model: env.GEMINI_MODEL,
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.05,
-        maxOutputTokens: 16384,
-      },
-      systemInstruction: DEEP_RESEARCH_SYSTEM,
-    });
+    // Validate grounded text is substantial before proceeding
+    if (groundedText.trim().length < 100) {
+      console.warn(`[BatchProcess] Search returned minimal content for "${entityName}" (${groundedText.length} chars). Skipping extraction.`);
+      // Still save a minimal record so the job exists, but mark as low confidence
+      const jobId = await saveDeepProfileToCandidates(
+        userId, entityName, cityHint ?? undefined,
+        sourceUrls[0]?.url ?? "https://unknown.example",
+        groundedText.slice(0, 400),
+        { hospital: { name: entityName, city: cityHint }, doctors: [], packages: [], procedureCosts: [], specialtyAudit: [], overallConfidence: 0.15 },
+        batchId,
+      );
+      return { jobId, specialtyCount: 0, doctorCount: 0, priceCount: 0, confidence: 0.15 };
+    }
 
-    const extractResult = await extractModel.generateContent(
-      `Hospital/Provider: "${entityName}"${locationHint}
-
-GROUNDED TEXT:
-${groundedText}
-
-SOURCES:
-${sourceUrls.slice(0, 10).map((s, j) => `[${j + 1}] ${s.title}: ${s.url}`).join("\n")}
-
-Extract the complete structured profile. The provider name is "${entityName}" — use the exact real name as found in sources.`
-    );
-
-    const raw = extractResult.response.text();
-    const match = raw.match(/\{[\s\S]*\}/);
+    // ── Pass 2: Structured extraction with INCREASED token limit ───────────
+    const MAX_EXTRACT_ATTEMPTS = 2;
     let profile: Record<string, unknown> = {};
-    if (match) {
+    let extractionSucceeded = false;
+
+    for (let attempt = 1; attempt <= MAX_EXTRACT_ATTEMPTS; attempt++) {
       try {
-        profile = JSON.parse(match[0]) as Record<string, unknown>;
-      } catch {
-        try {
-          const hospitalMatch = match[0].match(/"hospital"\s*:\s*\{[^}]*\}/);
-          if (hospitalMatch) profile = JSON.parse(`{${hospitalMatch[0]}}`) as Record<string, unknown>;
-        } catch { /* empty */ }
+        const extractModel = getGeminiClient().getGenerativeModel({
+          model: env.GEMINI_MODEL,
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: attempt === 1 ? 0.05 : 0.1,
+            // Increased from 16384 to 32768 to prevent mid-JSON truncation
+            // for complex hospitals with many doctors and specialties
+            maxOutputTokens: 32768,
+          },
+          systemInstruction: DEEP_RESEARCH_SYSTEM,
+        });
+
+        // On retry, use a more focused prompt to get at least core data
+        const extractPrompt = attempt === 1
+          ? `Hospital/Provider: "${entityName}"${locationHint}\n\nGROUNDED TEXT:\n${groundedText}\n\nSOURCES:\n${sourceUrls.slice(0, 10).map((s, j) => `[${j + 1}] ${s.title}: ${s.url}`).join("\n")}\n\nExtract the complete structured profile. The provider name is "${entityName}" — use the exact real name as found in sources.`
+          : `Hospital/Provider: "${entityName}"${locationHint}\n\nGROUNDED TEXT (extract ALL available data):\n${groundedText.slice(0, 40000)}\n\nFOCUS on extracting: hospital name, city, address, phone, specialties, doctor names with specializations, and any treatment prices. Return the COMPLETE JSON profile structure as specified.`;
+
+        const extractResult = await extractModel.generateContent(extractPrompt);
+        const raw = extractResult.response.text().trim();
+
+        if (!raw || raw.length < 10) {
+          console.warn(`[BatchProcess] Attempt ${attempt}: Empty extraction response for "${entityName}"`);
+          continue;
+        }
+
+        const parsed = tryParseProfileJson(raw);
+
+        // Validate parsed result has real content
+        if (parsed.hospital || parsed.doctors || parsed.specialtyAudit) {
+          profile = parsed;
+          extractionSucceeded = true;
+          if (attempt > 1) {
+            console.log(`[BatchProcess] Retry ${attempt} succeeded for "${entityName}"`);
+          }
+          break;
+        } else {
+          console.warn(`[BatchProcess] Attempt ${attempt}: Parsed JSON for "${entityName}" has no hospital/doctors/specialties. Raw length: ${raw.length}`);
+        }
+      } catch (extractErr) {
+        console.error(`[BatchProcess] Attempt ${attempt} extraction error for "${entityName}":`, extractErr);
+        // On first failure, wait briefly before retry to avoid rate limit issues
+        if (attempt < MAX_EXTRACT_ATTEMPTS) {
+          await new Promise(r => setTimeout(r, 1500));
+        }
       }
+    }
+
+    if (!extractionSucceeded) {
+      console.warn(`[BatchProcess] All extraction attempts failed for "${entityName}". Saving with grounded text only.`);
     }
 
     const h = (profile.hospital ?? {}) as Record<string, unknown>;
     const officialUrl = h.website ? String(h.website) : (sourceUrls[0]?.url ?? "https://unknown.example");
 
     const doctors = Array.isArray(profile.doctors) ? profile.doctors : [];
-    const procedureCosts = Array.isArray(profile.procedureCosts) ? profile.procedureCosts : [];
-    const packages = Array.isArray(profile.packages) ? profile.packages : [];
+    let procedureCosts = Array.isArray(profile.procedureCosts) ? profile.procedureCosts : [];
+    let packages = Array.isArray(profile.packages) ? profile.packages : [];
     const specialtyAudit = Array.isArray(profile.specialtyAudit) ? profile.specialtyAudit as any[] : [];
 
     // Pass 3: Pricing enrichment (only if deep research found < 5 prices)
-    if (procedureCosts.length + packages.length < 5 && h.name && (h.city || cityHint)) {
+    if (procedureCosts.length + packages.length < 5 && (h.name || entityName) && (h.city || cityHint)) {
       try {
-        const pricing = await discoverHospitalPricing(String(h.name), String(h.city || cityHint));
+        const pricing = await discoverHospitalPricing(String(h.name || entityName), String(h.city || cityHint));
         for (const pkg of pricing.packages) {
           packages.push({ ...pkg, priceType: "city-range", priceSource: "estimated" });
         }
@@ -195,30 +274,51 @@ Extract the complete structured profile. The provider name is "${entityName}" �
         profile.packages = packages;
         profile.procedureCosts = procedureCosts;
       } catch (err) {
-        console.error(`[DeepResearch] Pricing discovery failed for ${h.name}:`, err);
+        console.error(`[DeepResearch] Pricing discovery failed for ${h.name || entityName}:`, err);
       }
     }
+
+    // Ensure hospital has at least the entity name and city hint
+    if (!h.name) {
+      (profile.hospital as Record<string, unknown> | undefined) ??= {};
+      (profile.hospital as Record<string, unknown>).name = entityName;
+    }
+    if (!h.city && cityHint) {
+      (profile.hospital as Record<string, unknown>).city = cityHint;
+    }
+
+    // Calculate real confidence based on extraction quality
+    const rawConfidence = toNum(profile.overallConfidence) ?? 0.6;
+    const dataQuality = hasMinimumData(profile);
+    // Downgrade confidence if extraction didn't succeed or data is minimal
+    const adjustedConfidence = !extractionSucceeded ? Math.min(rawConfidence, 0.3)
+      : !dataQuality ? Math.min(rawConfidence, 0.4)
+      : rawConfidence;
+    profile.overallConfidence = adjustedConfidence;
 
     const jobId = await saveDeepProfileToCandidates(
       userId,
       entityName,
       cityHint ?? undefined,
       officialUrl,
-      groundedText.slice(0, 400),
+      groundedText.slice(0, 2000),
       profile,
       batchId,
     );
 
     return {
-      jobId,
+      jobId: dataQuality ? jobId : null,
+      jobIdAlways: jobId,
       specialtyCount: specialtyAudit.filter((s: any) => s.status === "available").length,
       doctorCount: doctors.length,
       priceCount: procedureCosts.length + packages.length,
-      confidence: toNum(profile.overallConfidence) ?? 0.6,
+      confidence: adjustedConfidence,
+      extractionSucceeded,
     };
   }
 
-  // Process concurrently
+  // Process sequentially within each batch to avoid Gemini rate limits
+  // (each item makes 2-3 API calls; running 3 concurrently means 6-9 simultaneous calls)
   const settled = await Promise.allSettled(
     pendingIndices.map(async (idx) => {
       const item = items[idx];
@@ -265,7 +365,7 @@ Extract the complete structured profile. The provider name is "${entityName}" �
         }
 
         // Cap at MAX_DISCOVERY_ENTITIES (already done by validateDiscoveredEntities)
-        // ── Parallel research: max MAX_CONCURRENCY at a time ──────────────────
+        // ── Sequential research with brief delays between calls ────────────
         const discoveredEntities: Array<{ jobId: string; name: string; city: string | null; confidence: number }> = [];
         let totalSpecialtyCount = 0;
         let totalDoctorCount = 0;
@@ -278,7 +378,7 @@ Extract the complete structured profile. The provider name is "${entityName}" �
               try {
                 const res = await runDeepResearchPass(ent.name, ent.city || item.city || undefined);
                 discoveredEntities.push({
-                  jobId: res.jobId,
+                  jobId: res.jobId ?? res.jobIdAlways ?? "error",
                   name: ent.name,
                   city: ent.city || item.city || null,
                   confidence: res.confidence,
@@ -291,6 +391,10 @@ Extract the complete structured profile. The provider name is "${entityName}" �
               }
             })
           );
+          // Brief delay between batches to avoid rate-limiting
+          if (i + MAX_CONCURRENCY < validEntities.length) {
+            await new Promise(r => setTimeout(r, 500));
+          }
         }
 
         // ── Aggregate results ─────────────────────────────────────────────────
@@ -348,15 +452,19 @@ Extract the complete structured profile. The provider name is "${entityName}" �
           error: v.error ?? null,
         };
       } else {
+        const hasData = (v.specialtyCount ?? 0) + (v.doctorCount ?? 0) + (v.priceCount ?? 0) > 0;
         items[idx] = {
           ...items[idx],
           status: "done",
-          jobId: (v as any).jobId ?? null,
+          // Only expose jobId for items with meaningful data (prevents saving empty profiles)
+          jobId: (v as any).jobId ?? (v as any).jobIdAlways ?? null,
           specialtyCount: v.specialtyCount,
           doctorCount: v.doctorCount,
           priceCount: v.priceCount,
           confidence: v.confidence,
-          error: null,
+          error: !hasData && !(v as any).extractionSucceeded
+            ? "AI extraction returned no structured data — try researching individually or check entity name"
+            : null,
         };
       }
       doneDelta++;

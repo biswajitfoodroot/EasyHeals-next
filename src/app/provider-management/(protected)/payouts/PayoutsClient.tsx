@@ -80,7 +80,7 @@ export default function PayoutsClient({ entries }: { entries: CommissionRow[] })
         setRows((prev) =>
           prev.map((r) =>
             r.id === id
-              ? { ...r, status, paidAt: status === "paid" ? new Date() : r.paidAt }
+              ? { ...r, status, paidAt: status === "paid" ? new Date().toISOString() : r.paidAt }
               : r,
           ),
         );
@@ -106,7 +106,7 @@ export default function PayoutsClient({ entries }: { entries: CommissionRow[] })
       );
       setRows((prev) =>
         prev.map((r) =>
-          ids.includes(r.id) ? { ...r, status: "paid", paidAt: new Date() } : r,
+          ids.includes(r.id) ? { ...r, status: "paid", paidAt: new Date().toISOString() } : r,
         ),
       );
       setSelected(new Set());

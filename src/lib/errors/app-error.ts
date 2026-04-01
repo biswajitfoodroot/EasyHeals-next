@@ -67,6 +67,8 @@ export type ErrorCode =
   | "RATE_SEARCH_EXCEEDED"
   | "RATE_OTP_FLOOD"
   | "RATE_LEAD_FLOOD"
+  // INPUT_ — Request validation (400/422)
+  | "VALIDATION_ERROR"
   // DB_ — Database (404/500)
   | "DB_UNIQUE_VIOLATION"
   | "DB_NOT_FOUND"

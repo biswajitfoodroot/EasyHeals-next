@@ -1894,7 +1894,7 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", o
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="text-sm font-bold text-slate-700">Health Profile</p>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saved on device · used by Diet Plan</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Used by Diet Plan</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {([
@@ -1917,6 +1917,14 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", o
           <label className="text-xs font-semibold text-slate-600 block mb-1">Allergies / Intolerances</label>
           <input type="text" value={hp.allergies} onChange={(e) => saveHp({ allergies: e.target.value })}
             placeholder="e.g. Peanuts, Shellfish, Penicillin" className={inputCls} />
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <button onClick={saveProfile} disabled={saving}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl disabled:opacity-60"
+            style={{ background: "#1B8A4A" }}>
+            {saving ? "Saving…" : "Save Health Profile"}
+          </button>
+          {saveMsg && <p className={`text-xs font-medium ${saveMsg.includes("updated") ? "text-emerald-600" : "text-red-600"}`}>{saveMsg}</p>}
         </div>
       </section>
 
@@ -2085,7 +2093,275 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", o
         <MedicalDisclaimer lang={lang} />
       </section>
 
+      {/* ── ABHA Integration (stub — P5) ── */}
+      <AbhaCard />
+
+      {/* ── Smart Reminders (P6) ── */}
+      <SmartRemindersSection />
+
     </div>
+  );
+}
+
+// ── Smart Reminders section (P6) — shown in ProfileTab when smart_reminders flag is ON ──
+
+interface ReminderItem {
+  id: string;
+  reminderType: string;
+  title: string;
+  body?: string;
+  scheduleCron: string | null;
+  channel: string;
+  isActive: boolean;
+  isAiGenerated: boolean;
+}
+
+function SmartRemindersSection() {
+  const [reminders, setReminders] = useState<ReminderItem[]>([]);
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ title: "", reminderType: "medication", channel: "whatsapp", scheduleCron: "0 8 * * *" });
+
+  useEffect(() => {
+    // Only fetch if flag is on (will get 423 if off — treat as hidden)
+    fetch("/api/v1/patients/reminders", { credentials: "include" })
+      .then((r) => {
+        if (r.status === 423) return null; // flag off — hide section
+        setVisible(true);
+        return r.json() as Promise<{ reminders: ReminderItem[] }>;
+      })
+      .then((d) => { if (d?.reminders) setReminders(d.reminders); })
+      .catch(() => null)
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function addReminder() {
+    if (!form.title.trim()) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/v1/patients/reminders", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        const refetch = await fetch("/api/v1/patients/reminders", { credentials: "include" });
+        const d = await refetch.json() as { reminders: ReminderItem[] };
+        setReminders(d.reminders ?? []);
+        setForm((prev) => ({ ...prev, title: "" }));
+      }
+    } catch { /* non-fatal */ } finally { setAdding(false); }
+  }
+
+  async function toggleReminder(id: string, isActive: boolean) {
+    await fetch("/api/v1/patients/reminders", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isActive: !isActive }),
+    }).catch(() => null);
+    setReminders((prev) => prev.map((r) => r.id === id ? { ...r, isActive: !isActive } : r));
+  }
+
+  if (!visible || loading) return null;
+
+  return (
+    <section style={{ borderTop: "1px solid #E8F0EB", paddingTop: 20, marginTop: 8 }}>
+      <div style={{ fontWeight: 700, fontSize: 15, color: "#1A2B23", marginBottom: 12 }}>
+        🔔 Smart Reminders
+      </div>
+
+      {/* Add new reminder */}
+      <div style={{ background: "#F4FAF6", borderRadius: 12, padding: 14, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <input
+            value={form.title}
+            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            placeholder="Reminder title (e.g. Take Metformin)"
+            style={{ flex: 1, minWidth: 180, border: "1.5px solid #D0E4D8", borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit", outline: "none" }}
+          />
+          <select
+            value={form.reminderType}
+            onChange={(e) => setForm((f) => ({ ...f, reminderType: e.target.value }))}
+            style={{ border: "1.5px solid #D0E4D8", borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+          >
+            <option value="medication">Medication</option>
+            <option value="appointment">Appointment</option>
+            <option value="checkin">Check-in</option>
+            <option value="lab_followup">Lab Follow-up</option>
+          </select>
+          <select
+            value={form.channel}
+            onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
+            style={{ border: "1.5px solid #D0E4D8", borderRadius: 8, padding: "7px 10px", fontSize: 13, fontFamily: "inherit", background: "#fff" }}
+          >
+            <option value="whatsapp">WhatsApp</option>
+            <option value="push">Push</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          disabled={adding || !form.title.trim()}
+          onClick={() => void addReminder()}
+          style={{ background: "#1B8A4A", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: adding ? "wait" : "pointer", fontFamily: "inherit" }}
+        >
+          {adding ? "Adding…" : "+ Add Reminder"}
+        </button>
+      </div>
+
+      {/* Reminder list */}
+      {reminders.length === 0 ? (
+        <div style={{ fontSize: 13, color: "#8FA39A", textAlign: "center", padding: "12px 0" }}>
+          No reminders yet. Add one above or let AI suggest based on your health records.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {reminders.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                background: "#fff",
+                border: "1px solid #E8F0EB",
+                borderRadius: 10,
+                padding: "10px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                opacity: r.isActive ? 1 : 0.5,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>
+                {r.reminderType === "medication" ? "💊" : r.reminderType === "appointment" ? "📅" : r.reminderType === "lab_followup" ? "🧪" : "🔔"}
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#1A2B23" }}>{r.title}</div>
+                <div style={{ fontSize: 11, color: "#8FA39A" }}>
+                  via {r.channel}{r.isAiGenerated ? " · AI suggested" : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void toggleReminder(r.id, r.isActive)}
+                style={{
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  background: r.isActive ? "#E6F5EC" : "#F1F5F9",
+                  color: r.isActive ? "#1B8A4A" : "#94a3b8",
+                }}
+              >
+                {r.isActive ? "On" : "Off"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── ABHA Card (P5 stub — full linking in P6) ──────────────────────────────────
+
+function AbhaCard() {
+  const [abhaId, setAbhaId] = useState<string | null>(null);
+  const [input, setInput]   = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]  = useState(false);
+  const [msg, setMsg]        = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/v1/patients/me", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d: { patient?: { abhaId?: string | null } }) => {
+        setAbhaId(d.patient?.abhaId ?? null);
+        setInput(d.patient?.abhaId ?? "");
+      })
+      .catch(() => null)
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function saveAbha() {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch("/api/v1/patients/me", {
+        method: "PATCH", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ abhaId: trimmed }),
+      });
+      if (res.ok) { setAbhaId(trimmed); setMsg("ABHA ID saved!"); }
+      else { const d = await res.json() as { error?: string }; setMsg(d.error ?? "Failed to save."); }
+    } catch { setMsg("Network error."); }
+    finally { setSaving(false); setTimeout(() => setMsg(null), 3000); }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-slate-700">ABHA Health ID</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Link your Ayushman Bharat Health Account to share records with government hospitals and insurance providers.
+          </p>
+        </div>
+        <span className="flex-shrink-0 text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full">
+          Beta
+        </span>
+      </div>
+
+      {loading ? (
+        <div className="h-10 animate-pulse bg-slate-100 rounded-xl" />
+      ) : abhaId ? (
+        <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+          <span className="text-green-600 text-lg">✓</span>
+          <div>
+            <p className="text-xs text-green-700 font-semibold">Linked</p>
+            <p className="text-sm font-mono text-slate-800">{abhaId}</p>
+          </div>
+          <button
+            onClick={() => { setAbhaId(null); setInput(""); }}
+            className="ml-auto text-xs text-red-400 hover:text-red-600 transition"
+          >
+            Change
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="14-digit ABHA number (e.g. 1234-5678-9012-34)"
+            className="flex-1 text-sm px-3 py-2.5 border border-slate-200 rounded-xl outline-none focus:border-emerald-400 transition"
+          />
+          <button
+            onClick={() => void saveAbha()}
+            disabled={!input.trim() || saving}
+            className="px-4 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
+            style={{ background: "#1B8A4A" }}
+          >
+            {saving ? "Saving…" : "Link"}
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <p className={`text-xs font-medium ${msg.includes("saved") ? "text-green-700" : "text-red-600"}`}>
+          {msg}
+        </p>
+      )}
+
+      <p className="text-xs text-slate-400">
+        Full ABHA integration with NHA Health Locker coming in a future update.
+      </p>
+    </section>
   );
 }
 

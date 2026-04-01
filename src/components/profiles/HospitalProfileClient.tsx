@@ -402,7 +402,15 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                     ))}
                   </div>
                   <div className={styles.profileCardFooter}>
-                    <small>{doctor.yearsOfExperience ? `${doctor.yearsOfExperience}+ yrs` : t("common.updating")}</small>
+                    <small>
+                      {doctor.yearsOfExperience ? (
+                        `${doctor.yearsOfExperience}+ yrs`
+                      ) : (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontStyle: "italic" }}>
+                          ⏳ {t("common.updating")}
+                        </span>
+                      )}
+                    </small>
                     <Link href={doctor.profileUrl}>{t("common.viewProfile")}</Link>
                   </div>
                 </article>

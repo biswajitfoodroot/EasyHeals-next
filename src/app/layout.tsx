@@ -17,6 +17,7 @@ import { cookies } from "next/headers";
 import { LocaleProvider } from "@/i18n/LocaleContext";
 import type { Locale } from "@/i18n/translations";
 import { SiteNav } from "@/components/SiteNav";
+import { SiteFooter } from "@/components/common/SiteFooter";
 import { MSG91HelloChat } from "@/components/MSG91HelloChat";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import "./globals.css";
@@ -162,8 +163,9 @@ export default async function RootLayout({
       <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable} ${notoSans.variable} ${notoBengali.variable} ${notoTamil.variable} ${notoMalayalam.variable} ${notoKannada.variable} ${notoTelugu.variable} ${notoArabic.variable} ${notoSinhala.variable}`}>
         <LocaleProvider initialLocale={initialLocale}>
           <SiteNav />
-          <div className="pb-[64px] md:pb-0">
-            {children}
+          <div className="pb-[64px] md:pb-0" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+            <main style={{ flex: 1 }}>{children}</main>
+            <SiteFooter />
           </div>
           <MobileBottomNav />
           <MSG91HelloChat />

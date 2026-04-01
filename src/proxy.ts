@@ -53,6 +53,22 @@ export function proxy(req: NextRequest) {
     }
   }
 
+  // ── Patient login redirect — already authenticated ──────────────────────
+  // If a patient visits /login while holding a valid session cookie, skip the
+  // login page entirely. Token validation happens in route handlers; this is
+  // a cookie-presence shortcut (same contract as the dashboard guard above).
+  if (pathname === "/login") {
+    const session = req.cookies.get(PATIENT_COOKIE)?.value;
+    if (session) {
+      const next = req.nextUrl.searchParams.get("next");
+      const destination = next?.startsWith("/") ? next : "/dashboard";
+      const redirectUrl = new URL(destination, req.url);
+      const response = NextResponse.redirect(redirectUrl);
+      response.headers.set("X-Request-Id", requestId);
+      return response;
+    }
+  }
+
   // ── Pass through all other routes ──────────────────────────────────────────
   const response = NextResponse.next();
 

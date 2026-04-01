@@ -16,7 +16,10 @@ import { redisGet, redisSet, redisDel, getRedisClient } from "@/lib/core/redis";
 import { AppError } from "@/lib/errors/app-error";
 
 export const PATIENT_COOKIE = "eh_patient_session";
-const SESSION_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+const SESSION_TTL_SECONDS = 24 * 60 * 60;  // 24h base window
+const SESSION_MAX_TTL_HOURS = 168;           // 7 days hard cap
+// How often to extend in Redis (extend if < 30 min remaining — avoids every-request writes)
+const EXTEND_THRESHOLD_SECONDS = 30 * 60;
 
 export interface PatientSession {
   patientId: string;
@@ -27,6 +30,7 @@ export interface PatientSession {
   consentPurposes?: string[];
   createdAt?: string;
   expiresAt?: string;
+  maxTtlExpiresAt?: string; // absolute hard cap (createdAt + 7 days)
 }
 
 function tokenHash(rawToken: string): string {
@@ -45,12 +49,15 @@ export async function createPatientSession(
 ): Promise<string> {
   const rawToken = randomUUID();
   const hash = tokenHash(rawToken);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000);
+  const now = Date.now();
+  const expiresAt = new Date(now + SESSION_TTL_SECONDS * 1000);
+  const maxTtlExpiresAt = new Date(now + SESSION_MAX_TTL_HOURS * 60 * 60 * 1000);
 
   const sessionData: PatientSession = {
     ...session,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(now).toISOString(),
     expiresAt: expiresAt.toISOString(),
+    maxTtlExpiresAt: maxTtlExpiresAt.toISOString(),
   };
 
   if (isRedisAvailable()) {
@@ -65,14 +72,17 @@ export async function createPatientSession(
       city: session.city ?? null,
       lang: session.lang ?? "en",
       expiresAt,
+      lastActiveAt: new Date(now),
+      maxTtlHours: SESSION_MAX_TTL_HOURS,
     }).onConflictDoNothing();
   }
 
+  // Cookie maxAge = full max TTL (sliding window handled server-side, cookie stays alive)
   res.cookies.set(PATIENT_COOKIE, rawToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: SESSION_TTL_SECONDS,
+    maxAge: SESSION_MAX_TTL_HOURS * 60 * 60,
     path: "/",
   });
 
@@ -88,12 +98,32 @@ export async function requirePatientSession(req: NextRequest): Promise<PatientSe
   }
 
   const hash = tokenHash(rawToken);
+  const now = Date.now();
 
   if (isRedisAvailable()) {
     const session = await redisGet<PatientSession>(`patient:session:${hash}`);
     if (!session) {
       throw new AppError("AUTH_SESSION_EXPIRED", "Patient session expired", "Your session has expired. Please verify your phone again.", 401);
     }
+
+    // Check absolute max TTL
+    if (session.maxTtlExpiresAt && now > new Date(session.maxTtlExpiresAt).getTime()) {
+      await redisDel(`patient:session:${hash}`);
+      throw new AppError("AUTH_SESSION_EXPIRED", "Patient session expired", "Your session has expired. Please verify your phone again.", 401);
+    }
+
+    // Sliding window: extend TTL if less than EXTEND_THRESHOLD remaining
+    const currentExpiry = session.expiresAt ? new Date(session.expiresAt).getTime() : 0;
+    const remainingSeconds = Math.floor((currentExpiry - now) / 1000);
+    if (remainingSeconds < EXTEND_THRESHOLD_SECONDS) {
+      const maxCap = session.maxTtlExpiresAt ? new Date(session.maxTtlExpiresAt).getTime() : (now + SESSION_MAX_TTL_HOURS * 3600 * 1000);
+      const newExpiry = Math.min(now + SESSION_TTL_SECONDS * 1000, maxCap);
+      const newTtlSeconds = Math.floor((newExpiry - now) / 1000);
+      const extended: PatientSession = { ...session, expiresAt: new Date(newExpiry).toISOString() };
+      // Non-blocking extend (fire-and-forget to not slow down API response)
+      void redisSet(`patient:session:${hash}`, extended, newTtlSeconds).catch(() => null);
+    }
+
     return session;
   }
 
@@ -105,8 +135,37 @@ export async function requirePatientSession(req: NextRequest): Promise<PatientSe
     .limit(1);
 
   const row = rows[0];
-  if (!row || row.expiresAt < new Date()) {
+  if (!row) {
     throw new AppError("AUTH_SESSION_EXPIRED", "Patient session expired", "Your session has expired. Please verify your phone again.", 401);
+  }
+
+  // Check both rolling TTL and absolute max TTL cap
+  const createdAt = row.createdAt?.getTime() ?? (now - SESSION_TTL_SECONDS * 1000);
+  const absoluteExpiry = createdAt + row.maxTtlHours * 60 * 60 * 1000;
+  if (row.expiresAt < new Date() || now > absoluteExpiry) {
+    // Clean up expired session
+    void db.delete(patientSessions).where(eq(patientSessions.tokenHash, hash)).catch(() => null);
+    throw new AppError("AUTH_SESSION_EXPIRED", "Patient session expired", "Your session has expired. Please verify your phone again.", 401);
+  }
+
+  // Sliding window: extend if less than EXTEND_THRESHOLD remaining
+  const remainingMs = row.expiresAt.getTime() - now;
+  if (remainingMs < EXTEND_THRESHOLD_SECONDS * 1000) {
+    const newExpiry = new Date(Math.min(now + SESSION_TTL_SECONDS * 1000, absoluteExpiry));
+    void db.update(patientSessions)
+      .set({
+        expiresAt: newExpiry,
+        lastActiveAt: new Date(now),
+        extendedCount: row.extendedCount + 1,
+      })
+      .where(eq(patientSessions.tokenHash, hash))
+      .catch(() => null);
+  } else {
+    // Still update lastActiveAt (non-blocking)
+    void db.update(patientSessions)
+      .set({ lastActiveAt: new Date(now) })
+      .where(eq(patientSessions.tokenHash, hash))
+      .catch(() => null);
   }
 
   return {
@@ -116,6 +175,8 @@ export async function requirePatientSession(req: NextRequest): Promise<PatientSe
     city: row.city,
     lang: row.lang,
     consentPurposes: [],
+    expiresAt: row.expiresAt.toISOString(),
+    maxTtlExpiresAt: new Date(absoluteExpiry).toISOString(),
   };
 }
 

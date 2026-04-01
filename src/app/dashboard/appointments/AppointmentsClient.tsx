@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BottomSheet } from "@/components/BottomSheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,113 @@ function Skeleton() {
   );
 }
 
+// ── Pre-Visit Brief Sheet ─────────────────────────────────────────────────────
+
+interface BriefData {
+  summary?: string;
+  activeConditions?: string[];
+  currentMedications?: string[];
+  recentLabsHighlights?: string[];
+  vitalsHighlights?: string[];
+  reasonForVisit?: string;
+  questionsForDoctor?: string[];
+  redFlags?: string[];
+}
+
+function PreVisitBriefSheet({ appointmentId, open, onClose }: { appointmentId: string; open: boolean; onClose: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [brief, setBrief] = useState<BriefData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || brief || loading) return;
+    setLoading(true);
+    fetch(`/api/v1/patients/previsit-briefs?appointmentId=${appointmentId}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d: { data?: Array<{ brief: BriefData }> }) => {
+        const b = d.data?.[0]?.brief;
+        if (b) setBrief(b);
+        else setError("Pre-visit brief not ready yet. It will be generated 24h before your appointment.");
+      })
+      .catch(() => setError("Failed to load brief. Please try again."))
+      .finally(() => setLoading(false));
+  }, [open, appointmentId, brief, loading]);
+
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Pre-Visit Brief" subtitle="AI-generated health summary for your doctor">
+      <div style={{ padding: "0 20px 24px" }}>
+        {loading && (
+          <div style={{ textAlign: "center", padding: 40, color: "#94a3b8", fontSize: 14 }}>
+            Loading your health brief...
+          </div>
+        )}
+        {error && !loading && (
+          <div style={{ padding: "12px 16px", background: "#fef3c7", borderRadius: 10, color: "#92400e", fontSize: 13, lineHeight: 1.5 }}>
+            {error}
+          </div>
+        )}
+        {brief && !loading && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {brief.summary && (
+              <BriefSection title="Health Summary" emoji="📋" content={[brief.summary]} isSummary />
+            )}
+            {(brief.redFlags?.length ?? 0) > 0 && (
+              <BriefSection title="Important Flags" emoji="🚨" content={brief.redFlags!} urgent />
+            )}
+            {(brief.activeConditions?.length ?? 0) > 0 && (
+              <BriefSection title="Active Conditions" emoji="🏥" content={brief.activeConditions!} />
+            )}
+            {(brief.currentMedications?.length ?? 0) > 0 && (
+              <BriefSection title="Current Medications" emoji="💊" content={brief.currentMedications!} />
+            )}
+            {(brief.recentLabsHighlights?.length ?? 0) > 0 && (
+              <BriefSection title="Recent Lab Highlights" emoji="🧪" content={brief.recentLabsHighlights!} />
+            )}
+            {(brief.vitalsHighlights?.length ?? 0) > 0 && (
+              <BriefSection title="Recent Vitals" emoji="💗" content={brief.vitalsHighlights!} />
+            )}
+            {brief.reasonForVisit && (
+              <BriefSection title="Reason for Visit" emoji="📝" content={[brief.reasonForVisit]} isSummary />
+            )}
+            {(brief.questionsForDoctor?.length ?? 0) > 0 && (
+              <BriefSection title="Questions to Ask" emoji="❓" content={brief.questionsForDoctor!} />
+            )}
+            <div style={{ padding: "10px 14px", background: "#f0fdf4", borderRadius: 10, fontSize: 12, color: "#15803d" }}>
+              ✓ This brief is shared with your doctor automatically before your visit.
+            </div>
+          </div>
+        )}
+      </div>
+    </BottomSheet>
+  );
+}
+
+function BriefSection({ title, emoji, content, isSummary, urgent }: {
+  title: string; emoji: string; content: string[]; isSummary?: boolean; urgent?: boolean;
+}) {
+  return (
+    <div style={{
+      background: urgent ? "#fff1f2" : "#f8fafc",
+      borderRadius: 12,
+      padding: "12px 14px",
+      border: urgent ? "1px solid #fecdd3" : "1px solid #f1f5f9",
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: urgent ? "#be123c" : "#0f172a", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <span>{emoji}</span> {title}
+      </div>
+      {isSummary ? (
+        <p style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, margin: 0 }}>{content[0]}</p>
+      ) : (
+        <ul style={{ margin: 0, paddingLeft: 16 }}>
+          {content.map((item, i) => (
+            <li key={i} style={{ fontSize: 13, color: urgent ? "#9f1239" : "#374151", marginBottom: 3, lineHeight: 1.5 }}>{item}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Appointment card ──────────────────────────────────────────────────────────
 
 function AppointmentCard({
@@ -98,6 +206,7 @@ function AppointmentCard({
   cancelling: string | null;
   paying: string | null;
 }) {
+  const [showBrief, setShowBrief] = useState(false);
   const isRemote = appt.type === "audio_consultation" || appt.type === "video_consultation" || appt.type === "online_consultation";
   const isConfirmed = appt.status === "confirmed";
   const isUpcoming = ["requested", "confirmed", "in_progress"].includes(appt.status);
@@ -200,6 +309,28 @@ function AppointmentCard({
         <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 font-medium">
           Free consultation. Use the Join Session button to connect.
         </div>
+      )}
+
+      {/* Pre-Visit Brief — only for confirmed upcoming appointments */}
+      {isConfirmed && isUpcoming && (
+        <button
+          onClick={() => setShowBrief(true)}
+          className="w-full flex items-center gap-2 px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-sm font-medium text-teal-800 transition hover:bg-teal-100"
+        >
+          <span>📋</span>
+          <span className="flex-1 text-left">View Pre-Visit Brief</span>
+          <svg className="w-4 h-4 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
+      {showBrief && (
+        <PreVisitBriefSheet
+          appointmentId={appt.id}
+          open={showBrief}
+          onClose={() => setShowBrief(false)}
+        />
       )}
     </div>
   );

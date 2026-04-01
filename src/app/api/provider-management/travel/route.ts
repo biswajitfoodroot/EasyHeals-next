@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       budgetPaise: body.budgetPaise ?? null,
       requirements: body.requirements ?? null,
       referralCaseId: body.referralCaseId ?? null,
-      createdByUserId: auth.id,
+      createdByUserId: auth.userId,
     })
     .returning({ id: travelCases.id });
 

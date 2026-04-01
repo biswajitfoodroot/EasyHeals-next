@@ -10,7 +10,7 @@ const OPS_ROLES = ["owner", "admin", "operator"];
 // GET — list disputes (ops: all; provider: their own entry disputes)
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   try {
     if (OPS_ROLES.includes(auth.role)) {
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 // POST — provider raises a dispute on a commission entry
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   try {
     const body = await req.json() as { entryId: string; reason: string };

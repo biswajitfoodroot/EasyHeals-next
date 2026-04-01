@@ -8,7 +8,8 @@ const PROVIDER_ROLES = ["hospital_admin", "doctor"];
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth || !PROVIDER_ROLES.includes(auth.role) || !auth.entityId) {
+  if (auth instanceof Response) return auth;
+  if (!PROVIDER_ROLES.includes(auth.role) || !auth.entityId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth || !PROVIDER_ROLES.includes(auth.role) || !auth.entityId) {
+  if (auth instanceof Response) return auth;
+  if (!PROVIDER_ROLES.includes(auth.role) || !auth.entityId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

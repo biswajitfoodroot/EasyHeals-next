@@ -20,7 +20,7 @@ function canViewCase(auth: { role: string; entityId?: string | null }, c: typeof
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
   const { id } = await params;
 
   const [caseRow] = await db.select().from(referralCases).where(eq(referralCases.id, id)).limit(1);

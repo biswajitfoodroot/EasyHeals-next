@@ -1,6 +1,6 @@
 import { desc, eq, and, gte, lte, like } from "drizzle-orm";
 import { db } from "@/db/client";
-import { auditLogs, users } from "@/db/schema";
+import { auditLogs, users, userRoleMap, roles } from "@/db/schema";
 import { getAuthFromCookies } from "@/lib/auth";
 import PMauditLogClient from "./PMauditLogClient";
 
@@ -32,7 +32,7 @@ export default async function PMAuditLogPage({
       actorUserId: auditLogs.actorUserId,
       actorName: users.fullName,
       actorEmail: users.email,
-      actorRole: users.role,
+      actorRole: roles.code,
       action: auditLogs.action,
       entityType: auditLogs.entityType,
       entityId: auditLogs.entityId,
@@ -42,6 +42,8 @@ export default async function PMAuditLogPage({
     })
     .from(auditLogs)
     .leftJoin(users, eq(users.id, auditLogs.actorUserId))
+    .leftJoin(userRoleMap, eq(userRoleMap.userId, auditLogs.actorUserId))
+    .leftJoin(roles, eq(roles.id, userRoleMap.roleId))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);

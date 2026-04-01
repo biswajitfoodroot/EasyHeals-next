@@ -10,6 +10,7 @@
  * Cache is bypassed if Redis is available (Task 1.6 will wire that up).
  */
 
+import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { featureFlags } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -44,10 +45,35 @@ export const P3_FLAGS = [
   "video_consultation",       // full multi-participant video room
 ] as const;
 
+/** P5 flags — OFF by default; enable per capsule as ready */
+export const P5_FLAGS = [
+  "health_memory",            // document upload + health events timeline
+  "ai_health_coach",          // AI Health Coach chat (SSE streaming)
+  "ai_learning",              // RAG embeddings + profile synthesis
+  "previsit_brief",           // pre-visit brief for doctors
+  "document_sharing",         // time-limited patient→provider doc shares
+  "abha_integration",         // ABHA Health ID (OFF until ABDM credentials ready)
+  "booking_v2",               // full 4-step booking wizard (/book/[id])
+  "gamification_ui",          // rewards page + leaderboard
+  "session_sliding",          // sliding window session TTL (extends on activity)
+  "care_nav",                 // AI care navigation / triage
+] as const;
+
+/** P6 flags — OFF by default; Care Nav + Wearables + Conversion + Reminders + Referrals + Provider Insights */
+export const P6_FLAGS = [
+  "wearable_sync",            // wearable data import (Phase A: file upload; Phase B: native SDK)
+  "conversion_analytics",     // funnel analytics dashboard for admins
+  "smart_reminders",          // AI-generated medication + appointment reminders
+  "referral_engine",          // refer-a-friend with tracked attribution
+  "provider_insights",        // hospital/doctor analytics portal (own stats only)
+] as const;
+
 export type P1Flag = (typeof P1_FLAGS)[number];
 export type P2Flag = (typeof P2_FLAGS)[number];
 export type P3Flag = (typeof P3_FLAGS)[number];
-export type FeatureFlagKey = P1Flag | P2Flag | P3Flag;
+export type P5Flag = (typeof P5_FLAGS)[number];
+export type P6Flag = (typeof P6_FLAGS)[number];
+export type FeatureFlagKey = P1Flag | P2Flag | P3Flag | P5Flag | P6Flag;
 
 // ─── In-process cache (60s TTL) ───────────────────────────────────────────────
 
@@ -82,6 +108,25 @@ export function invalidateFlagCache(key?: string): void {
 
 function hardcodedDefault(key: string): boolean {
   return (P1_FLAGS as readonly string[]).includes(key);
+}
+
+/**
+ * Guard for API route handlers. Returns a 423 response if the feature is disabled,
+ * or null if enabled (caller should continue).
+ *
+ * Usage:
+ *   const flagCheck = await requireFeatureFlag('health_memory')
+ *   if (flagCheck) return flagCheck
+ */
+export async function requireFeatureFlag(key: string): Promise<NextResponse | null> {
+  const enabled = await isFeatureEnabled(key);
+  if (!enabled) {
+    return NextResponse.json(
+      { error: "Feature not available", code: "FEATURE_DISABLED", feature: key },
+      { status: 423 },
+    );
+  }
+  return null;
 }
 
 /**
@@ -136,7 +181,7 @@ export const getFeatureFlag = isFeatureEnabled;
  * Returns a record of key → boolean.
  */
 export async function getAllFlags(): Promise<Record<string, boolean>> {
-  const allKeys: string[] = [...P1_FLAGS, ...P2_FLAGS, ...P3_FLAGS];
+  const allKeys: string[] = [...P1_FLAGS, ...P2_FLAGS, ...P3_FLAGS, ...P5_FLAGS, ...P6_FLAGS];
   const entries = await Promise.all(
     allKeys.map(async (key) => [key, await isFeatureEnabled(key)] as const),
   );

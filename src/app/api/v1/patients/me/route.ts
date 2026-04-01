@@ -25,7 +25,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // Fetch patient details
   const patientRows = await db
-    .select({ id: patients.id, city: patients.city, createdAt: patients.createdAt, googleName: patients.googleName, displayAlias: patients.displayAlias, phoneEncrypted: patients.phoneEncrypted })
+    .select({ id: patients.id, city: patients.city, createdAt: patients.createdAt, googleName: patients.googleName, displayAlias: patients.displayAlias, phoneEncrypted: patients.phoneEncrypted, abhaId: patients.abhaId })
     .from(patients)
     .where(and(eq(patients.id, patientId), isNull(patients.deletedAt)))
     .limit(1);
@@ -71,6 +71,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       displayAlias: patientRows[0].displayAlias,
       name: patientRows[0].displayAlias ?? patientRows[0].googleName,
       phone,
+      abhaId: patientRows[0].abhaId ?? null,
     },
     consents: consents.map((c) => ({
       ...c,
@@ -88,12 +89,20 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const session = await requirePatientSession(req);
   const { patientId } = session;
 
-  const body = await req.json().catch(() => null) as { displayAlias?: string | null; city?: string | null } | null;
+  const body = await req.json().catch(() => null) as { displayAlias?: string | null; city?: string | null; abhaId?: string | null } | null;
   if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
 
   const updateSet: Record<string, unknown> = {};
   if ("displayAlias" in body) updateSet.displayAlias = body.displayAlias?.trim() || null;
   if ("city" in body) updateSet.city = body.city?.trim() || null;
+  if ("abhaId" in body) {
+    const trimmed = body.abhaId?.replace(/\s|-/g, "") ?? null;
+    // Basic format validation: 14 digits or null
+    if (trimmed !== null && !/^\d{14}$/.test(trimmed)) {
+      return NextResponse.json({ error: "Invalid ABHA ID. Must be 14 digits." }, { status: 400 });
+    }
+    updateSet.abhaId = trimmed;
+  }
 
   if (Object.keys(updateSet).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });

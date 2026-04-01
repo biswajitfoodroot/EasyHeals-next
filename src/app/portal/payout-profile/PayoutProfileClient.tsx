@@ -10,7 +10,9 @@ type Profile = {
   upiId: string | null;
   panNumber: string | null;
   status: string;
-  verifiedAt: string | null;
+  verifiedAt: Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 } | null;
 
 type Props = {

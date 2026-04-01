@@ -242,7 +242,7 @@ type ResearchQueueRow = {
   linkedJobId: string | null;
 };
 
-type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "providers" | "kyc" | "content" | "affiliations" | "reviews" | "doctors";
+type Tab = "ingestion" | "hospitals" | "taxonomy" | "ai_research" | "brochure" | "contributions" | "config" | "patients" | "providers" | "kyc" | "content" | "affiliations" | "reviews" | "doctors" | "analytics";
 
 type DoctorCandidate = { id: string; fullName: string; city: string | null; specialization: string | null };
 
@@ -274,7 +274,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab") as Tab | null;
-  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors"];
+  const validTabs: Tab[] = ["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors", "analytics"];
   // Feature flags state (Task 3.5)
   const [configFlags, setConfigFlags] = React.useState<Array<{ key: string; phase: string; enabled: boolean; description: string | null; complianceChecklist: string[] }>>([]);
   const [configLoading, setConfigLoading] = React.useState(false);
@@ -1680,7 +1680,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
         <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors"] as Tab[]).map((tab) => {
+          {(["ingestion", "hospitals", "taxonomy", "content", "ai_research", "brochure", "contributions", "reviews", "kyc", "config", "patients", "providers", "affiliations", "doctors", "analytics"] as Tab[]).map((tab) => {
             const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
               ingestion: { label: "Data Ingestion", icon: "🤖" },
               hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
@@ -1696,6 +1696,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               providers: { label: "Providers", icon: "🏥" },
               affiliations: { label: "Affiliations", icon: "🔗" },
               doctors: { label: "Doctors", icon: "👨‍⚕️" },
+              analytics: { label: "Analytics", icon: "📊" },
             };
             const { label, icon, count } = labels[tab];
             return (
@@ -2306,6 +2307,33 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                   <div className="bg-purple-50 p-2 rounded"><span className="font-bold text-purple-700">{details.serviceCandidates.length}</span> Services</div>
                   <div className="bg-amber-50 p-2 rounded"><span className="font-bold text-amber-700">{details.packageCandidates.length}</span> Packages</div>
                 </div>
+                {(details.job.summary as any)?.isMultiLocation && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-700 mb-1">🏢 Multi-Location Chain Detected</p>
+                      {!details.job.targetCity ? (
+                        <>
+                          <p className="text-xs text-blue-600 mb-2">
+                            One hospital entry has been created per detected city branch below.
+                            Doctors were <strong>not</strong> imported — they could not be city-scoped.
+                            To get doctors, re-scrape each branch URL separately with its city as a hint.
+                          </p>
+                          {Array.isArray((details.job.summary as any)?.detectedLocations) && (details.job.summary as any).detectedLocations.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {((details.job.summary as any).detectedLocations as Array<{city: string}>).map((loc, i) => (
+                                <span key={i} className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">{loc.city}</span>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs text-blue-600">
+                          Extraction scoped to <strong>{details.job.targetCity}</strong>. Doctors and services are city-specific.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {Array.isArray(details.job.summary?.warnings) && (details.job.summary?.warnings as string[]).length > 0 && (
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <p className="text-xs font-bold text-amber-600 uppercase mb-2">Warnings</p>
@@ -3971,6 +3999,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
           <AdminDoctorsTab />
         )}
 
+        {/* ── ANALYTICS TAB (P6 Conversion Analytics) ───────────────────── */}
+        {activeTab === "analytics" && (
+          <AnalyticsTab />
+        )}
+
         {/* ── CONTENT TAB ──────────────────────────────────────────────── */}
         {activeTab === "content" && (
           <div className="space-y-4">
@@ -5259,5 +5292,150 @@ function ConfigTab({
         )}
       </div>
     </section>
+  );
+}
+
+// ── P6 Analytics Tab ─────────────────────────────────────────────────────────
+
+interface FunnelStage { stage: string; count: number; dropOff: number }
+interface Performer { entityId: string | null; name: string; slug?: string; rating: number; views: number; bookings: number; conversionRate: number }
+
+function AnalyticsTab() {
+  const [range, setRange] = React.useState("30d");
+  const [funnel, setFunnel] = React.useState<FunnelStage[]>([]);
+  const [uniqueSessions, setUniqueSessions] = React.useState(0);
+  const [performers, setPerformers] = React.useState<Performer[]>([]);
+  const [view, setView] = React.useState<"funnel" | "top-performers">("funnel");
+  const [loading, setLoading] = React.useState(true);
+  const [flagOff, setFlagOff] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoading(true);
+    void fetch(`/api/admin/analytics?range=${range}&type=${view}`, { credentials: "include" })
+      .then(async (r) => {
+        if (r.status === 423) { setFlagOff(true); return; }
+        setFlagOff(false);
+        const d = await r.json() as {
+          funnel?: FunnelStage[];
+          uniqueSessions?: number;
+          performers?: Performer[];
+        };
+        if (d.funnel) setFunnel(d.funnel);
+        if (d.uniqueSessions !== undefined) setUniqueSessions(d.uniqueSessions);
+        if (d.performers) setPerformers(d.performers);
+      })
+      .catch(() => null)
+      .finally(() => setLoading(false));
+  }, [range, view]);
+
+  const STAGE_LABELS: Record<string, string> = {
+    search: "Search",
+    profile_view: "Profile View",
+    cta_click: "CTA Click",
+    booking_start: "Booking Start",
+    booking_complete: "Booking Complete",
+    review_submitted: "Review",
+  };
+
+  const maxCount = funnel.length > 0 ? Math.max(...funnel.map((s) => s.count), 1) : 1;
+
+  if (flagOff) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
+        <div className="text-4xl mb-3">📊</div>
+        <div className="text-lg font-bold text-slate-800 mb-2">Conversion Analytics</div>
+        <div className="text-sm text-slate-500 max-w-xs mx-auto">
+          Enable the <code className="bg-slate-100 px-1 rounded">conversion_analytics</code> feature flag in Config &amp; Flags to activate this dashboard.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header + controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Conversion Analytics</h2>
+          <p className="text-sm text-slate-500 mt-0.5">Full funnel: search → profile view → booking → completion</p>
+        </div>
+        <div className="flex gap-2 ml-auto">
+          {(["funnel", "top-performers"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${view === v ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {v === "funnel" ? "Funnel" : "Top Performers"}
+            </button>
+          ))}
+          {(["7d", "30d", "90d"] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${range === r ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && <div className="h-40 bg-slate-100 rounded-2xl animate-pulse" />}
+
+      {!loading && view === "funnel" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <div className="text-sm text-slate-500 mb-4">{uniqueSessions.toLocaleString()} unique sessions</div>
+          <div className="space-y-3">
+            {funnel.map((stage) => (
+              <div key={stage.stage} className="flex items-center gap-3">
+                <div className="w-28 text-xs text-slate-600 font-medium text-right shrink-0">{STAGE_LABELS[stage.stage] ?? stage.stage}</div>
+                <div className="flex-1 bg-slate-100 rounded-full h-7 overflow-hidden">
+                  <div
+                    className="h-full bg-teal-500 rounded-full flex items-center px-3 text-xs font-bold text-white transition-all duration-500"
+                    style={{ width: `${Math.max(2, Math.round((stage.count / maxCount) * 100))}%` }}
+                  >
+                    {stage.count.toLocaleString()}
+                  </div>
+                </div>
+                {stage.dropOff > 0 && (
+                  <div className="text-xs text-red-500 font-semibold w-16 shrink-0">−{stage.dropOff}%</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && view === "top-performers" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500">Hospital</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Views</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Bookings</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Conv %</th>
+                <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500">Rating</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {performers.map((p, i) => (
+                <tr key={p.entityId ?? i} className="hover:bg-slate-50 transition">
+                  <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{p.views.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-slate-600">{p.bookings.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-teal-700">{p.conversionRate}%</td>
+                  <td className="px-4 py-3 text-right text-amber-500">★ {p.rating.toFixed(1)}</td>
+                </tr>
+              ))}
+              {performers.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400 text-sm">No data yet. Events are recorded as patients interact with hospital profiles.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

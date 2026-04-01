@@ -27,7 +27,7 @@ const OPS_ROLES = ["owner", "admin", "operator"];
  */
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   const { searchParams } = new URL(req.url);
 

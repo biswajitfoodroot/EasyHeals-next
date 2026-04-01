@@ -45,7 +45,9 @@ export type PhaseAEventType =
   | "NEWS_READ_5"
   | "DAILY_CHECKIN"
   | "PROFILE_PHOTO_ADDED"
-  | "SHARE_PROFILE";
+  | "SHARE_PROFILE"
+  | "WEARABLE_SYNC"      // P6: 20pts, once per week
+  | "REFERRAL_CONVERTED"; // P6: 200pts per friend who books
 
 export interface AwardPointsInput {
   actorId: string;
@@ -82,12 +84,15 @@ const DEFAULT_POINTS: Record<PhaseAEventType, number> = {
   DAILY_CHECKIN: 10,
   PROFILE_PHOTO_ADDED: 20,
   SHARE_PROFILE: 10,
+  WEARABLE_SYNC: 20,
+  REFERRAL_CONVERTED: 200,
 };
 
 // Per-event daily caps (0 = no cap / one-time events handled by proofId uniqueness)
 const DAILY_CAPS: Partial<Record<PhaseAEventType, number>> = {
   SHARE_PROFILE: 3,   // max 3 share events per day
   DAILY_CHECKIN: 1,   // proofId already encodes date, but belt+suspenders
+  WEARABLE_SYNC: 1,   // once per week (proofId encodes ISO week)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -56,7 +56,7 @@ export default function AgreementsClient({ agreements: initial }: Props) {
       credentials: "include",
     });
     if (res.ok) {
-      setAgreements(prev => prev.map(a => a.id === id ? { ...a, status: "published", publishedAt: new Date() } : a));
+      setAgreements(prev => prev.map(a => a.id === id ? { ...a, status: "published", publishedAt: new Date().toISOString() } : a));
     }
     setActionLoading(null);
   }
@@ -214,7 +214,7 @@ export default function AgreementsClient({ agreements: initial }: Props) {
         <CreateAgreementModal
           onClose={() => setShowCreate(false)}
           onCreated={(a) => {
-            setAgreements(prev => [{ ...a, publishedAt: null, acceptedAt: null, rejectedAt: null, expiresAt: null, createdAt: new Date() }, ...prev]);
+            setAgreements(prev => [{ ...a, publishedAt: null, acceptedAt: null, rejectedAt: null, expiresAt: null, createdAt: new Date().toISOString() }, ...prev]);
             setShowCreate(false);
           }}
         />

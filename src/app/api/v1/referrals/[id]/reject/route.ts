@@ -7,7 +7,8 @@ import { requireAuth } from "@/lib/auth";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(req);
-  if (!auth || !["hospital_admin", "doctor", "owner", "admin", "operator"].includes(auth.role)) {
+  if (auth instanceof Response) return auth;
+  if (!["hospital_admin", "doctor", "owner", "admin", "operator"].includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

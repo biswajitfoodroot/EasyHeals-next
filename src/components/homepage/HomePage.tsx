@@ -611,36 +611,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          ⑨ FOOTER — Enhanced
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <footer className={styles.footer} role="contentinfo">
-        <div className={styles.footerInner}>
-          <div className={styles.footerBrand}>
-            <strong>EasyHeals Technologies Pvt. Ltd.</strong>
-            <p>
-              {easyHealsPublicData.contact.phone} · {easyHealsPublicData.contact.email}<br />
-              {easyHealsPublicData.contact.address}
-            </p>
-          </div>
 
-          <nav className={styles.footerLinks} aria-label="Footer links">
-            <Link href="/hospitals">Hospitals</Link>
-            <Link href="/doctors">Doctors</Link>
-            <Link href="/treatments">Treatments</Link>
-            <Link href="/diagnostics">Diagnostics</Link>
-            <Link href="/privacy">Privacy Policy</Link>
-            <Link href="/register">Register Hospital</Link>
-          </nav>
-        </div>
-
-        <div className={styles.footerBottom}>
-          <p>© {new Date().getFullYear()} EasyHeals Technologies Pvt. Ltd. All rights reserved.</p>
-          <p className={styles.footerInstitutions}>
-            Supported by IIM Lucknow, IIT Mandi &amp; IIHMR · Incubated at Deshpande Foundation &amp; MSMF
-          </p>
-        </div>
-      </footer>
 
       {/* ── Modals ────────────────────────────────────────────────────────── */}
       <RegistrationModal isOpen={registrationOpen} onClose={() => setRegistrationOpen(false)} />

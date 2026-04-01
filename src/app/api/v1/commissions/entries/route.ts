@@ -10,7 +10,7 @@ const OPS_ROLES = ["owner", "admin", "operator"];
 // GET — list commission entries. Provider gets their own; ops get all.
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   const { searchParams } = new URL(req.url);
   const referralCaseId = searchParams.get("caseId");
@@ -56,7 +56,8 @@ export async function GET(req: NextRequest) {
 // POST — operator creates a commission entry for a closed case
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth || !OPS_ROLES.includes(auth.role)) {
+  if (auth instanceof Response) return auth;
+  if (!OPS_ROLES.includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

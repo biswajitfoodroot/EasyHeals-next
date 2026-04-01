@@ -96,6 +96,19 @@ const envSchema = z.object({
 
   // ── P5: Internal API security (fire-and-forget routes) ────────────────────
   INTERNAL_API_KEY: z.string().optional().default(""),
+
+  // ── P5: AI Learning (embedding pipeline) ─────────────────────────────────
+  // Gemini text-embedding-004 — 768-dim vectors for semantic search
+  GEMINI_EMBEDDING_MODEL: z.string().optional().default("text-embedding-004"),
+  // Master switch for embedding pipeline (set false to skip async embedding on low-cost plans)
+  AI_LEARNING_ENABLED: z.enum(["true", "false"]).optional().default("true"),
+
+  // ── P5: Pre-visit brief cron auth ─────────────────────────────────────────
+  // Set to a random secret, match in Vercel cron job Authorization header
+  PREVISIT_BRIEF_CRON_SECRET: z.string().optional().default(""),
+
+  // ── P5: Profile synthesis cron auth ──────────────────────────────────────
+  SYNTHESIS_CRON_SECRET: z.string().optional().default(""),
 });
 
 const parsed = envSchema.parse({
@@ -153,6 +166,12 @@ const parsed = envSchema.parse({
   ABDM_CLIENT_SECRET: process.env.ABDM_CLIENT_SECRET,
   ABDM_BASE_URL: process.env.ABDM_BASE_URL,
   INTERNAL_API_KEY: process.env.INTERNAL_API_KEY,
+  // P5: AI Learning
+  GEMINI_EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL,
+  AI_LEARNING_ENABLED: process.env.AI_LEARNING_ENABLED,
+  // P5: Cron secrets
+  PREVISIT_BRIEF_CRON_SECRET: process.env.PREVISIT_BRIEF_CRON_SECRET,
+  SYNTHESIS_CRON_SECRET: process.env.SYNTHESIS_CRON_SECRET,
 });
 
 export const env = {

@@ -3,6 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 
+interface ProviderMatch {
+  hospitalId: string;
+  hospitalName: string;
+  hospitalSlug: string;
+  specialties: string[];
+  matchReason: string;
+  score: number;
+  rating: number;
+  city: string;
+  estimatedFee?: string;
+  verified: boolean;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type UrgencyLevel = "emergency" | "urgent" | "routine" | "self_care";
@@ -68,6 +81,8 @@ export default function CareNavClient() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TriageResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<ProviderMatch[] | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,7 +122,27 @@ export default function CareNavClient() {
   function handleReset() {
     setResult(null);
     setError(null);
+    setMatches(null);
     setSymptoms("");
+  }
+
+  async function handleFindProviders() {
+    if (!symptoms.trim()) return;
+    setMatchLoading(true);
+    try {
+      const res = await fetch("/api/v1/care-nav/match", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symptoms: symptoms.trim() }),
+      });
+      if (res.ok) {
+        const j = await res.json() as { matches: ProviderMatch[] };
+        setMatches(j.matches ?? []);
+      }
+    } catch { /* non-fatal */ } finally {
+      setMatchLoading(false);
+    }
   }
 
   const styles = result ? URGENCY_STYLES[result.urgency] : null;
@@ -354,6 +389,72 @@ export default function CareNavClient() {
                 Ask AI Coach
               </Link>
             </div>
+
+            {/* Find Providers button */}
+            {result.urgency !== "emergency" && (
+              <button
+                onClick={() => void handleFindProviders()}
+                disabled={matchLoading}
+                className="w-full py-3 rounded-xl text-sm font-semibold transition"
+                style={{ background: "#1e40af", color: "#fff", opacity: matchLoading ? 0.7 : 1 }}
+              >
+                {matchLoading ? "Finding providers…" : "🏥 Find Matching Providers"}
+              </button>
+            )}
+
+            {/* Provider match results */}
+            {matches !== null && (
+              <div style={{ marginTop: 4 }}>
+                <div className="text-sm font-semibold text-slate-700 mb-2">
+                  {matches.length > 0 ? `${matches.length} matching providers found` : "No providers found. Try a different city or broaden your search."}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {matches.slice(0, 5).map((m) => (
+                    <div
+                      key={m.hospitalId}
+                      style={{
+                        background: "#f8fafc",
+                        borderRadius: 10,
+                        padding: "12px 14px",
+                        border: "1px solid #e2e8f0",
+                        display: "flex",
+                        gap: 10,
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: "#1e293b", marginBottom: 2 }}>
+                          {m.hospitalName}
+                          {m.verified && <span style={{ marginLeft: 6, fontSize: 11, color: "#1B8A4A", background: "#E6F5EC", borderRadius: 4, padding: "1px 5px" }}>✓ Verified</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 4 }}>
+                          {m.matchReason} · {m.city}
+                        </div>
+                        <div style={{ display: "flex", gap: 8, fontSize: 12 }}>
+                          {m.rating > 0 && <span style={{ color: "#f59e0b" }}>★ {m.rating.toFixed(1)}</span>}
+                          {m.estimatedFee && <span style={{ color: "#64748b" }}>{m.estimatedFee}</span>}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/hospitals/${m.hospitalSlug}`}
+                        style={{
+                          flexShrink: 0,
+                          background: "#1B8A4A",
+                          color: "#fff",
+                          borderRadius: 8,
+                          padding: "7px 12px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          textDecoration: "none",
+                        }}
+                      >
+                        Book
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

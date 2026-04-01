@@ -5,6 +5,8 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { ingestionResearchQueue } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
+import { getGeminiClient } from "@/lib/ai/client";
+import { env } from "@/lib/env";
 import { isGoogleProfileUrl } from "@/lib/ingestion";
 import { ensureRole } from "@/lib/rbac";
 
@@ -32,48 +34,83 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: { query: null, results: [], queue } });
   }
 
-  // Call Google Custom Search directly so we can surface the actual error
-  if (!process.env.GOOGLE_SEARCH_API_KEY || !process.env.GOOGLE_SEARCH_CX) {
+  type SearchResult = { title: string; link: string; snippet: string; suggestedAction: string };
+  let results: SearchResult[] = [];
+
+  // ── Try Google Custom Search first ────────────────────────────────────────
+  const hasCustomSearch = Boolean(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_CX);
+  if (hasCustomSearch) {
+    const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
+    searchUrl.searchParams.set("key", process.env.GOOGLE_SEARCH_API_KEY!);
+    searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX!);
+    searchUrl.searchParams.set("q", query);
+    searchUrl.searchParams.set("num", "8");
+    searchUrl.searchParams.set("gl", "in");
+    searchUrl.searchParams.set("hl", "en");
+
+    const googleRes = await fetch(searchUrl.toString(), { cache: "no-store" });
+    if (googleRes.ok) {
+      const payload = (await googleRes.json()) as { items?: Array<{ title?: string; link?: string; snippet?: string }> };
+      results = (payload.items ?? [])
+        .map(item => ({ title: item.title?.trim() ?? "", link: item.link?.trim() ?? "", snippet: item.snippet?.trim() ?? "" }))
+        .filter(item => item.title && item.link)
+        .slice(0, 8)
+        .map(item => ({ ...item, suggestedAction: isGoogleProfileUrl(item.link) ? "import_google_profile" : "scrape_website" }));
+    }
+  }
+
+  // ── Fallback: Gemini Google Search Grounding ──────────────────────────────
+  if (results.length === 0 && env.GOOGLE_AI_API_KEY) {
+    try {
+      const searchModel = getGeminiClient().getGenerativeModel({
+        model: env.GEMINI_MODEL,
+        // @ts-expect-error — googleSearch tool is valid at runtime
+        tools: [{ googleSearch: {} }],
+      });
+
+      const groundResult = await searchModel.generateContent(
+        `Search India healthcare: ${query}. Find hospital/clinic websites, Google Maps listings, Practo pages. List official website URLs with brief descriptions.`
+      );
+
+      const candidate = groundResult.response.candidates?.[0];
+      const groundingChunks: Array<{ web?: { uri?: string; title?: string } }> =
+        (candidate as { groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string; title?: string } }> } })
+          ?.groundingMetadata?.groundingChunks ?? [];
+      const groundedText = candidate?.content?.parts?.map((p: unknown) => (p as { text?: string }).text ?? "").join("\n") ?? "";
+
+      results = groundingChunks
+        .filter(c => c.web?.uri && c.web?.title)
+        .slice(0, 10)
+        .map(c => {
+          const link = c.web!.uri!;
+          // Extract a snippet from grounded text near the URL if possible
+          const snippet = groundedText.length > 0
+            ? groundedText.slice(0, 600).replace(/\n+/g, " ").trim()
+            : "";
+          return {
+            title: c.web!.title!,
+            link,
+            snippet,
+            suggestedAction: isGoogleProfileUrl(link) ? "import_google_profile" : "scrape_website",
+          };
+        });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: `Search failed: ${msg}` }, { status: 502 });
+    }
+  }
+
+  if (results.length === 0 && !hasCustomSearch && !env.GOOGLE_AI_API_KEY) {
     return NextResponse.json(
-      { error: "Google Search is not configured. Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_CX in your environment." },
+      { error: "No search backend configured. Set GOOGLE_AI_API_KEY (recommended) or GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_CX." },
       { status: 503 },
     );
   }
 
-  const searchUrl = new URL("https://www.googleapis.com/customsearch/v1");
-  searchUrl.searchParams.set("key", process.env.GOOGLE_SEARCH_API_KEY);
-  searchUrl.searchParams.set("cx", process.env.GOOGLE_SEARCH_CX);
-  searchUrl.searchParams.set("q", query);
-  searchUrl.searchParams.set("num", "8");
-  searchUrl.searchParams.set("gl", "in");
-  searchUrl.searchParams.set("hl", "en");
-
-  const googleRes = await fetch(searchUrl.toString(), { cache: "no-store" });
-
-  if (!googleRes.ok) {
-    const errBody = await googleRes.json().catch(() => ({})) as { error?: { message?: string; status?: string } };
-    const message = errBody?.error?.message ?? `Google API error ${googleRes.status}`;
-    return NextResponse.json(
-      { error: `Google Search failed: ${message}` },
-      { status: 502 },
-    );
-  }
-
-  const payload = (await googleRes.json()) as { items?: Array<{ title?: string; link?: string; snippet?: string }> };
-  const results = (payload.items ?? [])
-    .map((item) => ({ title: item.title?.trim() ?? "", link: item.link?.trim() ?? "", snippet: item.snippet?.trim() ?? "" }))
-    .filter((item) => item.title && item.link)
-    .slice(0, 8);
-
   return NextResponse.json({
     data: {
       query,
-      results: results.map((item) => ({
-        title: item.title,
-        link: item.link,
-        snippet: item.snippet,
-        suggestedAction: isGoogleProfileUrl(item.link) ? "import_google_profile" : "scrape_website",
-      })),
+      results,
     },
   });
 }

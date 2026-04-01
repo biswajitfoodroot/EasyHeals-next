@@ -331,6 +331,9 @@ async function saveJobAndCandidates(
       procedureCostsFound: extracted.procedureCosts.length,
       confidence: extracted.confidence,
       notes: extracted.notes,
+      isMultiLocation: extracted.hospital.isMultiLocation ?? false,
+      detectedLocations: extracted.hospital.locations ?? [],
+      doctorsSuppressed: (extracted.hospital.isMultiLocation && !hints.city) ? extracted.doctors.length : 0,
     },
     startedAt: new Date(),
     completedAt: new Date(),
@@ -362,17 +365,31 @@ async function saveJobAndCandidates(
     confidence: extracted.confidence,
   }).catch(() => null);
 
-  // ── Hospital candidate ─────────────────────────────────────────────────────
-  const [hospitalCandidate] = await db.insert(ingestionHospitalCandidates).values({
+  // ── Hospital candidate(s) ──────────────────────────────────────────────────
+  // Multi-location chain without city hint → create one candidate per detected branch.
+  // Single-location or city-scoped chain → create one candidate as normal.
+  const isMultiLocationUnscroped =
+    h.isMultiLocation === true &&
+    Array.isArray(h.locations) &&
+    h.locations.length > 0 &&
+    !hints.city;
+
+  const hospitalLocations: Array<{ city: string | null; address: string | null; phone: string | null }> =
+    isMultiLocationUnscroped
+      ? (h.locations as Array<{ city: string; address?: string | null; phone?: string | null }>).map(loc => ({
+          city: loc.city,
+          address: loc.address ?? null,
+          phone: loc.phone ?? null,
+        }))
+      : [{ city: h.city ?? hints.city ?? null, address: h.addressLine1 ?? null, phone: h.phone ?? null }];
+
+  const baseHospitalRow = {
     jobId: jobId!,
     name: h.name,
     normalizedName: h.name.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim(),
-    city: h.city ?? hints.city ?? null,
     state: h.state ?? null,
     country: h.country ?? "India",
-    addressLine1: h.addressLine1 ?? null,
     addressData: h.addressData ?? null,
-    phone: h.phone ?? null,
     contactNumbers: h.contactNumbers ?? [],
     whatsapp: h.whatsapp ?? null,
     email: h.email ?? null,
@@ -391,26 +408,41 @@ async function saveJobAndCandidates(
     latitude: h.latitude ?? null,
     longitude: h.longitude ?? null,
     sourceLinks: h.sourceLinks ?? [],
-    outlierFlags: [] as string[],
     rawPayload: null,
     aiConfidence: extracted.confidence,
-    // KEY: if targeted, immediately set matchHospitalId + mergeAction = "update"
     matchHospitalId: hints.targetHospitalId ?? null,
     mergeAction: isTargeted ? "update" : "review",
     applyStatus: "draft" as const,
     reviewStatus: "draft" as const,
     updatedAt: new Date(),
-  }).returning().catch((e: Error) => {
+  };
+
+  const insertedHospitals = await db.insert(ingestionHospitalCandidates).values(
+    hospitalLocations.map((loc, idx) => ({
+      ...baseHospitalRow,
+      city: loc.city,
+      addressLine1: loc.address ?? (idx === 0 ? h.addressLine1 ?? null : null),
+      phone: loc.phone ?? (idx === 0 ? h.phone ?? null : null),
+      outlierFlags: isMultiLocationUnscroped
+        ? ["multi_location_branch" as string]
+        : [] as string[],
+    })),
+  ).returning().catch((e: Error) => {
     console.warn("[ingestion] hospitalCandidates insert:", e.message);
     return [];
   });
 
-  const hospitalCandidateId = (hospitalCandidate as { id: string } | undefined)?.id ?? null;
+  // Primary candidate ID — doctors/services always link to the first candidate.
+  // For multi-location chains without a city hint, doctors are NOT linked (unknown branch).
+  const hospitalCandidateId = (insertedHospitals[0] as { id: string } | undefined)?.id ?? null;
 
   // ── Doctor candidates — with DB match resolution ───────────────────────────
   // ROOT CAUSE FIX: existing code set matchDoctorId = null always.
   // Now: in targeted mode, look up existing doctors at that hospital branch.
-  if (extracted.doctors.length > 0) {
+  // MULTI-LOCATION NOTE: when chain detected without city hint, skip doctor candidates —
+  // doctors were extracted from the chain website and can't be assigned to a specific branch.
+  // Admin should re-scrape each city branch separately to get city-scoped doctors.
+  if (extracted.doctors.length > 0 && !isMultiLocationUnscroped) {
     const doctorRows = extracted.doctors.map(doc => {
       const matchResult = existingDoctors.length > 0
         ? chooseBestDoctorMatch({
@@ -454,6 +486,7 @@ async function saveJobAndCandidates(
   }
 
   // ── Service candidates ─────────────────────────────────────────────────────
+  // For multi-location chains: services are chain-wide (same across branches), link to first candidate.
   if (extracted.services.length > 0) {
     await db.insert(ingestionServiceCandidates).values(
       extracted.services.map(svc => ({

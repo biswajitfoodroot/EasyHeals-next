@@ -13,7 +13,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
   const { id } = await params;
 
   const [entry] = await db.select().from(commissionEntries)
@@ -39,7 +39,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAuth(req);
-  if (!auth || !OPS_ROLES.includes(auth.role)) {
+  if (auth instanceof Response) return auth;
+  if (!OPS_ROLES.includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
@@ -83,7 +84,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
   const { id } = await params;
 
   const [entry] = await db.select().from(commissionEntries)

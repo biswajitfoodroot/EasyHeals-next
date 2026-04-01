@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
 // POST — create referral case
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth || !["hospital_admin", "doctor", "receptionist", "owner", "admin", "operator"].includes(auth.role)) {
+  if (auth instanceof Response) return auth;
+  if (!["hospital_admin", "doctor", "receptionist", "owner", "admin", "operator"].includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

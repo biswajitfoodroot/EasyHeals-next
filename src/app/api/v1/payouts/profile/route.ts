@@ -11,7 +11,7 @@ const PROVIDER_ROLES = ["hospital_admin", "doctor"];
 // GET — fetch payout profile for the authenticated provider (or ?entityId= for ops)
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   let entityId: string;
 
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 // POST — create or update payout profile
 export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (auth instanceof Response) return auth;
 
   let entityId: string;
   let entityType: string;

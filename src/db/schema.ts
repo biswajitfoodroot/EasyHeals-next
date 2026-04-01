@@ -348,6 +348,7 @@ export const patientMedications = sqliteTable(
 );
 
 // Patient sessions — DB fallback when Upstash Redis is not configured (local dev)
+// P5 update: sliding window TTL — last_active_at and max_ttl_hours added for session_sliding flag.
 export const patientSessions = sqliteTable(
   "patient_sessions",
   {
@@ -359,6 +360,10 @@ export const patientSessions = sqliteTable(
     city: text("city"),
     lang: text("lang").notNull().default("en"),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    // P5: sliding window session fields
+    lastActiveAt: integer("last_active_at", { mode: "timestamp_ms" }),  // updated on every activity
+    maxTtlHours: integer("max_ttl_hours").notNull().default(168),        // 7 days absolute cap
+    extendedCount: integer("extended_count").notNull().default(0),       // how many times TTL was extended
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(
       sql`(unixepoch() * 1000)`,
     ),
@@ -2121,6 +2126,247 @@ export const patientReviews = sqliteTable(
     index("pr_entity_idx").on(table.entityType, table.entityId),
     index("pr_status_idx").on(table.status),
     index("pr_patient_idx").on(table.patientId),
+  ],
+);
+
+// ── P5 AI LEARNING TABLES ─────────────────────────────────────────────────────
+
+// P5 TABLE: ai_embeddings — core vector store (Turso native F32_BLOB)
+// Turso supports native vector similarity search via vector_top_k() + vector_distance_cos().
+// Vectors are NOT encrypted — 768-dim floats are not interpretable text.
+// content_text_enc: the original text that was embedded (AES encrypted, for context retrieval).
+export const aiEmbeddings = sqliteTable(
+  "ai_embeddings",
+  {
+    id: id(),
+    patientId: text("patient_id").references(() => patients.id, { onDelete: "cascade" }),
+    // NULL for system knowledge base entries (accessible to all patients)
+    sourceType: text("source_type").notNull(),
+    // 'health_event' | 'conversation_turn' | 'document_summary' | 'knowledge_article' | 'patient_profile'
+    sourceId: text("source_id"),                   // FK to originating row (health event id, conversation turn id, etc.)
+    contentTextEnc: text("content_text_enc").notNull(), // AES encrypted: the text that was embedded
+    embedding: text("embedding"),                  // JSON array of 768 floats (Turso F32_BLOB stored as text fallback)
+    specialtyTags: text("specialty_tags", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    languageCode: text("language_code").notNull().default("en"),
+    // Usage tracking for learning signals
+    retrievalCount: integer("retrieval_count").notNull().default(0),
+    lastRetrievedAt: integer("last_retrieved_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ai_emb_patient_type_idx").on(table.patientId, table.sourceType),
+    index("ai_emb_system_idx").on(table.sourceType),
+    index("ai_emb_source_idx").on(table.sourceId),
+  ],
+);
+
+// P5 TABLE: ai_patient_profiles — synthesized patient model (updated by nightly background job)
+// Confidence grows from 0.0 (no history) to 1.0 (highly personalized).
+// All health content fields are AES-256-GCM encrypted.
+export const aiPatientProfiles = sqliteTable(
+  "ai_patient_profiles",
+  {
+    patientId: text("patient_id").primaryKey().references(() => patients.id, { onDelete: "cascade" }),
+
+    // Learned communication preferences (no PHI — safe to store plain)
+    communicationStyle: text("communication_style"),
+    // 'detailed' | 'brief' | 'technical' | 'simple' | null (not yet learned)
+    preferredResponseFormat: text("preferred_response_format").notNull().default("conversational"),
+    // 'bullet' | 'paragraph' | 'conversational'
+    preferredLanguage: text("preferred_language").notNull().default("en"),
+
+    // Synthesized health model — all AES encrypted JSON arrays/objects
+    healthGoalsEnc: text("health_goals_enc"),          // ["manage diabetes", "lose weight"]
+    knownConcernsEnc: text("known_concerns_enc"),      // recurring topics across sessions
+    activeConditionsEnc: text("active_conditions_enc"), // synthesized from health events
+    currentMedicationsEnc: text("current_medications_enc"), // synthesized from documents
+    riskFactorsEnc: text("risk_factors_enc"),          // AI-inferred
+
+    // Learning metrics
+    interactionCount: integer("interaction_count").notNull().default(0),
+    conversationCount: integer("conversation_count").notNull().default(0),
+    documentCount: integer("document_count").notNull().default(0),
+    profileConfidence: real("profile_confidence").notNull().default(0.0),
+    // 0.0→1.0: <0.3 barely known, 0.3-0.6 learning, 0.6-0.8 good, >0.8 highly personalized
+
+    lastSynthesizedAt: integer("last_synthesized_at", { mode: "timestamp_ms" }),
+    synthesisVersion: integer("synthesis_version").notNull().default(0),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+);
+
+// P5 TABLE: ai_response_feedback — learning signal store
+// Implicit behavioral signals are far more valuable than explicit thumbs up/down.
+// led_to_action = 1 means this AI response triggered a measurable patient action.
+export const aiResponseFeedback = sqliteTable(
+  "ai_response_feedback",
+  {
+    id: id(),
+    conversationId: text("conversation_id").notNull().references(() => aiConversations.id, { onDelete: "cascade" }),
+    patientId: text("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    turnIndex: integer("turn_index").notNull().default(0), // which assistant turn in the conversation
+
+    // Explicit feedback (optional)
+    explicitRating: text("explicit_rating"),
+    // 'thumbs_up' | 'thumbs_down' | null
+
+    // Implicit behavioral signals (most valuable for learning)
+    implicitSignal: text("implicit_signal"),
+    // 'appointment_booked'   ← booked after this AI turn (strong positive)
+    // 'document_uploaded'    ← uploaded doc after AI suggestion (positive)
+    // 'dismissed_quickly'    ← closed within 5 seconds (negative signal)
+    // 'reread'               ← scrolled back to this response (positive)
+    // 'shared'               ← shared this response (positive)
+    // 'question_followup'    ← asked clarifying question (engaged/neutral)
+
+    // Context for learning (no PHI)
+    responseLengthChars: integer("response_length_chars"),
+    responseFormat: text("response_format"),            // 'bullet' | 'paragraph' | 'conversational'
+    topicTags: text("topic_tags", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    ledToAction: integer("led_to_action", { mode: "boolean" }).notNull().default(false),
+
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ai_feedback_patient_idx").on(table.patientId, table.createdAt),
+    index("ai_feedback_positive_idx").on(table.ledToAction),
+  ],
+);
+
+// P5 TABLE: ai_knowledge_base — seeded medical knowledge + learned patterns
+// Pre-seeded with ~200 Indian health topic articles.
+// 'learned' entries are written by the weekly system-level learning job (anonymized).
+// relevance_score increases with usage and positive feedback signals.
+export const aiKnowledgeBase = sqliteTable(
+  "ai_knowledge_base",
+  {
+    id: id(),
+    topic: text("topic").notNull(),                     // "HbA1c interpretation", "Metformin side effects"
+    contentEnc: text("content_enc").notNull(),          // AES encrypted article content
+    sourceType: text("source_type").notNull().default("seeded"),
+    // 'seeded' | 'learned' | 'guideline' | 'drug_info'
+    sourceUrl: text("source_url"),
+    specialtyTags: text("specialty_tags", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    languageCode: text("language_code").notNull().default("en"),
+    embedding: text("embedding"),                       // JSON array of 768 floats (same as ai_embeddings)
+
+    // Learning metrics
+    usageCount: integer("usage_count").notNull().default(0),
+    positiveFeedbackCount: integer("positive_feedback_count").notNull().default(0),
+    negativeFeedbackCount: integer("negative_feedback_count").notNull().default(0),
+    relevanceScore: real("relevance_score").notNull().default(0.5),
+    // 0.0-1.0: updated by usage signals, higher = surface more often in RAG
+
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+    lastUpdated: integer("last_updated", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("ai_kb_source_type_idx").on(table.sourceType, table.isActive),
+    index("ai_kb_relevance_idx").on(table.relevanceScore, table.isActive),
+  ],
+);
+
+// ─── P6 TABLES ───────────────────────────────────────────────────────────────
+
+// P6 TABLE: care_nav_sessions — care navigation provider match history
+// Stores the encrypted symptom query and which provider the patient ultimately selected.
+export const careNavSessions = sqliteTable(
+  "care_nav_sessions",
+  {
+    id: id(),
+    patientId: text("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    symptomsEnc: text("symptoms_enc").notNull(),          // AES encrypted symptom text
+    matchedProviderIds: text("matched_provider_ids", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
+    selectedProviderId: text("selected_provider_id"),      // hospitalId/doctorId patient tapped "Book"
+    outcome: text("outcome"),                              // 'booked' | 'abandoned' | 'external'
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("care_nav_patient_idx").on(table.patientId, table.createdAt),
+  ],
+);
+
+// P6 TABLE: funnel_events — anonymous + authenticated conversion events
+// session_id bridges pre-auth and post-auth events.
+// patient_id is populated retroactively on login via UPDATE ... WHERE session_id = $1.
+export const funnelEvents = sqliteTable(
+  "funnel_events",
+  {
+    id: id(),
+    sessionId: text("session_id").notNull(),               // anonymous browser/app session UUID
+    patientId: text("patient_id"),                         // nullable — populated after login
+    eventType: text("event_type").notNull(),
+    // 'search' | 'profile_view' | 'cta_click' | 'booking_start' | 'booking_complete' | 'review_submitted'
+    entityType: text("entity_type"),                       // 'hospital' | 'doctor' | 'treatment'
+    entityId: text("entity_id"),
+    metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    // UTM params, search query, page URL etc.
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("funnel_session_idx").on(table.sessionId, table.createdAt),
+    index("funnel_entity_idx").on(table.entityType, table.entityId),
+    index("funnel_patient_idx").on(table.patientId, table.createdAt),
+    index("funnel_event_type_idx").on(table.eventType, table.createdAt),
+  ],
+);
+
+// P6 TABLE: patient_reminders — smart reminder schedules
+// AI synthesizes reminders from health memory events (active medications etc.).
+// Manual reminders can also be created by the patient directly.
+export const patientReminders = sqliteTable(
+  "patient_reminders",
+  {
+    id: id(),
+    patientId: text("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    reminderType: text("reminder_type").notNull(),
+    // 'medication' | 'appointment' | 'checkin' | 'lab_followup'
+    title: text("title").notNull(),
+    bodyEnc: text("body_enc"),                             // AES encrypted reminder body
+    scheduleCron: text("schedule_cron"),                   // cron expression e.g. "0 8 * * *"
+    channel: text("channel").notNull().default("whatsapp"),// 'whatsapp' | 'push' | 'both'
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    isAiGenerated: integer("is_ai_generated", { mode: "boolean" }).notNull().default(false),
+    sourceEventId: text("source_event_id"),                // health_memory_event that triggered this
+    lastSentAt: integer("last_sent_at", { mode: "timestamp_ms" }),
+    nextFireAt: integer("next_fire_at", { mode: "timestamp_ms" }), // pre-computed for cron query
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("reminders_patient_idx").on(table.patientId, table.isActive),
+    index("reminders_next_fire_idx").on(table.nextFireAt, table.isActive),
+  ],
+);
+
+// P6 TABLE: referral_codes — one unique code per patient
+export const referralCodes = sqliteTable(
+  "referral_codes",
+  {
+    id: id(),
+    patientId: text("patient_id").notNull().unique().references(() => patients.id, { onDelete: "cascade" }),
+    code: text("code").notNull().unique(),                 // 8-char alphanumeric e.g. "RJWX4P2K"
+    totalClicks: integer("total_clicks").notNull().default(0),
+    totalConversions: integer("total_conversions").notNull().default(0),
+    pointsAwarded: integer("points_awarded").notNull().default(0),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("referral_code_idx").on(table.code),
+  ],
+);
+
+// P6 TABLE: referral_conversions — one row per referred patient who completed first appointment
+export const referralConversions = sqliteTable(
+  "referral_conversions",
+  {
+    id: id(),
+    codeId: text("code_id").notNull().references(() => referralCodes.id, { onDelete: "cascade" }),
+    referredPatientId: text("referred_patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+    convertedAt: integer("converted_at", { mode: "timestamp_ms" }).default(sql`(unixepoch() * 1000)`),
+  },
+  (table) => [
+    index("referral_conv_code_idx").on(table.codeId),
   ],
 );
 

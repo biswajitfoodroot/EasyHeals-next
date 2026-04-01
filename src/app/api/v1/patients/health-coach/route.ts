@@ -172,19 +172,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
           }
         }
 
-        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        controller.close();
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "AI unavailable";
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
-        controller.close();
-      } finally {
-        // Increment monthly message counter for health_plus (fail-open if Redis unavailable)
-        if (fullResponse.length > 0 && tierStatus.tier === "health_plus") {
-          await redisIncr(coachMsgKey(patientId), secondsUntilMonthEnd()).catch(() => null);
-        }
-
-        // Persist conversation (encrypted)
+        // Persist conversation (encrypted) before sending [DONE] so we can include conversationId
         try {
           const now = new Date().toISOString();
           const updatedHistory: ChatMessage[] = [
@@ -200,6 +188,8 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
             await db.update(aiConversations)
               .set({ messagesEncrypted, lastMessageAt: new Date() })
               .where(eq(aiConversations.id, convo.id));
+            // Stream the conversation ID so the client can thread follow-up messages
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ conversationId: convo.id })}\n\n`));
           } else {
             const [newConvo] = await db.insert(aiConversations)
               .values({
@@ -209,13 +199,25 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
                 lastMessageAt: new Date(),
               })
               .returning({ id: aiConversations.id });
-            // Send conversation ID to client for threading
             if (newConvo) {
-              // Already streamed — client should use the ID from the [DONE] event below
               convo = { ...newConvo, patientId, title: null, messagesEncrypted, lastMessageAt: null, createdAt: null };
+              // Stream conversation ID for client threading + feedback
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ conversationId: newConvo.id })}\n\n`));
             }
           }
-        } catch { /* non-fatal — chat still worked */ }
+        } catch { /* non-fatal — chat still worked, just won't have conversationId */ }
+
+        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        controller.close();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "AI unavailable";
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
+        controller.close();
+      } finally {
+        // Increment monthly message counter for health_plus (fail-open if Redis unavailable)
+        if (fullResponse.length > 0 && tierStatus.tier === "health_plus") {
+          await redisIncr(coachMsgKey(patientId), secondsUntilMonthEnd()).catch(() => null);
+        }
       }
     },
   });

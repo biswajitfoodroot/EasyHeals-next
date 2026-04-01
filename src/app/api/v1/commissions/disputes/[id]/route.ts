@@ -13,7 +13,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireAuth(req);
-  if (!auth || !OPS_ROLES.includes(auth.role)) {
+  if (auth instanceof Response) return auth;
+  if (!OPS_ROLES.includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;

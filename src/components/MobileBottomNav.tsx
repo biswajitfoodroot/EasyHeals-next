@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * MobileBottomNav — 5-tab P5 navigation bar
+ *
+ * Tabs: Home | Find | Health | Bookings | Profile
+ * - "Health" tab is the P5 hub (Timeline, Coach, Documents, Rewards)
+ * - All tab icons are inline SVG (no icon library dependency — RN-ready)
+ * - Active state: teal pill background behind icon
+ * - Safe area insets for iOS home bar
+ * - Hidden on admin, portal, provider-management routes
+ */
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -7,59 +18,68 @@ const NAV_ITEMS = [
   {
     href: "/",
     label: "Home",
+    exact: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" />
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
       </svg>
     ),
   },
   {
     href: "/hospitals",
-    label: "Hospitals",
+    label: "Find",
+    exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 21V7a2 2 0 012-2h14a2 2 0 012 2v14" /><path d="M3 21h18" /><path d="M9 21V12h6v9" /><path d="M12 7v3m-1.5-1.5h3" />
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
       </svg>
     ),
   },
   {
-    href: "/doctors",
-    label: "Doctors",
+    href: "/dashboard/health",
+    label: "Health",
+    exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="3" /><path d="M6.5 20a5.5 5.5 0 0111 0" /><path d="M14 15h2a2 2 0 012 2v1" />
+        {/* Heart with pulse line — health icon */}
+        <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
       </svg>
     ),
   },
   {
-    href: "/treatments",
-    label: "Treatments",
+    href: "/dashboard/appointments",
+    label: "Bookings",
+    exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19 7l-1 1-4-4 1-1a2 2 0 012.83 0l1.17 1.17A2 2 0 0119 7z" /><path d="M14 8L5 17l-2 4 4-2 9-9" />
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
     ),
   },
   {
     href: "/dashboard",
-    label: "My Health",
+    label: "Profile",
+    exact: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
       </svg>
     ),
   },
 ];
 
+const HIDDEN_PREFIXES = ["/admin", "/portal", "/provider-management", "/login", "/unauthorized"];
+
 export function MobileBottomNav() {
   const pathname = usePathname();
 
-  // Hide on admin, portal, and provider-management pages
-  if (
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/portal") ||
-    pathname.startsWith("/provider-management")
-  ) {
+  if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return null;
   }
 
@@ -76,13 +96,16 @@ export function MobileBottomNav() {
         borderTop: "1px solid #e2e8f0",
         display: "flex",
         alignItems: "stretch",
-        boxShadow: "0 -2px 16px rgba(0,0,0,0.08)",
-        paddingBottom: "env(safe-area-inset-bottom)",
+        boxShadow: "0 -2px 16px rgba(0,0,0,0.07)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
       className="md:hidden"
     >
       {NAV_ITEMS.map((item) => {
-        const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        const isActive = item.exact
+          ? pathname === item.href
+          : pathname.startsWith(item.href);
+
         return (
           <Link
             key={item.href}
@@ -93,13 +116,13 @@ export function MobileBottomNav() {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: "3px",
-              padding: "10px 4px 8px",
+              gap: "2px",
+              padding: "8px 2px 10px",
               textDecoration: "none",
-              color: isActive ? "#0f766e" : "#64748b",
+              color: isActive ? "#0f766e" : "#94a3b8",
               fontSize: "10px",
               fontWeight: isActive ? 700 : 500,
-              transition: "color 0.15s",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             <span
@@ -107,16 +130,16 @@ export function MobileBottomNav() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 36,
-                height: 36,
-                borderRadius: "10px",
+                width: 40,
+                height: 32,
+                borderRadius: 10,
                 background: isActive ? "rgba(15,118,110,0.1)" : "transparent",
                 transition: "background 0.15s",
               }}
             >
               {item.icon}
             </span>
-            <span>{item.label}</span>
+            <span style={{ lineHeight: 1 }}>{item.label}</span>
           </Link>
         );
       })}
