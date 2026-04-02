@@ -135,9 +135,16 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
     }
   }
 
-  const payload = await req.json().catch(() => null);
+  let payload: unknown = null;
+  try {
+    const bodyText = await req.text();
+    payload = JSON.parse(bodyText);
+  } catch (e) {
+    console.error("[health-coach] Body parse error:", e instanceof Error ? e.message : e);
+  }
   const parsed = messageSchema.safeParse(payload);
   if (!parsed.success) {
+    console.error("[health-coach] Validation failed:", JSON.stringify(parsed.error.flatten()), "payload:", JSON.stringify(payload));
     return NextResponse.json({ error: "message (string, max 2000 chars) required" }, { status: 400 });
   }
 

@@ -31,6 +31,8 @@ type Doctor = {
   affiliations: Affiliation[];
 };
 
+type AffAction = "mark_current" | "mark_past" | "set_primary" | "delete";
+
 export function AdminDoctorsTab() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -40,6 +42,9 @@ export function AdminDoctorsTab() {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Bulk selection: per-doctor map of selected affiliation IDs
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -59,7 +64,11 @@ export function AdminDoctorsTab() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function updateAffiliation(affiliationId: string, action: "mark_current" | "mark_past" | "set_primary", doctorId: string) {
+  // Clear selection when doctor list changes
+  useEffect(() => { setSelected(new Set()); }, [doctors]);
+
+  async function updateAffiliation(affiliationId: string, action: AffAction, doctorId: string) {
+    if (action === "delete" && !confirm("Delete this affiliation permanently? This cannot be undone.")) return;
     setBusy(prev => ({ ...prev, [affiliationId]: true }));
     setMsg(null);
     try {
@@ -70,7 +79,7 @@ export function AdminDoctorsTab() {
       });
       const body = await res.json() as { data?: { ok: boolean }; error?: string };
       if (res.ok) {
-        setMsg({ id: doctorId, text: "Affiliation updated", ok: true });
+        setMsg({ id: doctorId, text: action === "delete" ? "Affiliation deleted" : "Affiliation updated", ok: true });
         void load();
       } else {
         setMsg({ id: doctorId, text: body.error ?? "Failed", ok: false });
@@ -79,6 +88,54 @@ export function AdminDoctorsTab() {
       setMsg({ id: doctorId, text: "Network error", ok: false });
     }
     setBusy(prev => ({ ...prev, [affiliationId]: false }));
+  }
+
+  async function bulkAction(action: AffAction) {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (action === "delete" && !confirm(`Delete ${ids.length} affiliation(s) permanently? This cannot be undone.`)) return;
+    setBulkBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/doctors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ affiliationIds: ids, action }),
+      });
+      const body = await res.json() as { data?: { ok: boolean; affected: number }; error?: string };
+      if (res.ok) {
+        setMsg({ id: expandedId ?? "", text: `${action.replace("_", " ")} applied to ${body.data?.affected ?? ids.length} affiliation(s)`, ok: true });
+        setSelected(new Set());
+        void load();
+      } else {
+        setMsg({ id: expandedId ?? "", text: body.error ?? "Failed", ok: false });
+      }
+    } catch {
+      setMsg({ id: expandedId ?? "", text: "Bulk action failed", ok: false });
+    }
+    setBulkBusy(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllForDoctor(doctor: Doctor) {
+    const allIds = doctor.affiliations.map(a => a.id);
+    const allSelected = allIds.every(id => selected.has(id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        allIds.forEach(id => next.delete(id));
+      } else {
+        allIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
   }
 
   const currentAffiliations = (d: Doctor) => d.affiliations.filter(a => a.isActive && a.affiliationStatus === "active");
@@ -130,6 +187,42 @@ export function AdminDoctorsTab() {
         </div>
       </div>
 
+      {/* Bulk action bar (floating) */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-20 bg-teal-700 text-white rounded-2xl p-3 flex flex-wrap items-center gap-3 shadow-lg">
+          <span className="text-sm font-semibold">{selected.size} selected</span>
+          <div className="flex-1" />
+          <button
+            type="button" disabled={bulkBusy}
+            onClick={() => bulkAction("mark_current")}
+            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            Mark as Current
+          </button>
+          <button
+            type="button" disabled={bulkBusy}
+            onClick={() => bulkAction("mark_past")}
+            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            Mark as Past
+          </button>
+          <button
+            type="button" disabled={bulkBusy}
+            onClick={() => bulkAction("delete")}
+            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Doctor list */}
       {loading && (
         <div className="flex items-center justify-center py-16 text-slate-400">
@@ -150,6 +243,9 @@ export function AdminDoctorsTab() {
           const past = pastAffiliations(doctor);
           const isExpanded = expandedId === doctor.id;
           const hasProblem = past.length > 0 && current.length === 0;
+          const allDocAffs = doctor.affiliations.map(a => a.id);
+          const allSelected = allDocAffs.length > 0 && allDocAffs.every(id => selected.has(id));
+          const someSelected = allDocAffs.some(id => selected.has(id));
 
           return (
             <div
@@ -195,13 +291,38 @@ export function AdminDoctorsTab() {
                     </div>
                   )}
 
+                  {/* Select all toggle */}
+                  {doctor.affiliations.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => selectAllForDoctor(doctor)}
+                        className="flex items-center gap-2 text-xs text-slate-500 hover:text-teal-700 font-medium transition-colors"
+                      >
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${allSelected ? "bg-teal-600 border-teal-600 text-white" : someSelected ? "bg-teal-100 border-teal-400" : "border-slate-300"}`}>
+                          {allSelected && "✓"}
+                          {someSelected && !allSelected && "–"}
+                        </span>
+                        Select all affiliations
+                      </button>
+                    </div>
+                  )}
+
                   {/* Current affiliations */}
                   {current.length > 0 && (
                     <div>
                       <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">✅ Currently Practices At (Patients can book here)</p>
                       <div className="space-y-2">
                         {current.map((aff) => (
-                          <div key={aff.id} className="bg-white border border-emerald-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3">
+                          <div key={aff.id} className={`bg-white border rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 ${selected.has(aff.id) ? "border-teal-400 ring-1 ring-teal-200" : "border-emerald-200"}`}>
+                            {/* Checkbox */}
+                            <button
+                              type="button"
+                              onClick={() => toggleSelect(aff.id)}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selected.has(aff.id) ? "bg-teal-600 border-teal-600 text-white" : "border-slate-300 hover:border-teal-400"}`}
+                            >
+                              {selected.has(aff.id) && <span className="text-xs">✓</span>}
+                            </button>
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-slate-800 text-sm">{aff.hospitalName}</p>
                               <p className="text-xs text-slate-500">{aff.hospitalCity}{aff.hospitalState ? `, ${aff.hospitalState}` : ""} · {aff.role}</p>
@@ -229,9 +350,17 @@ export function AdminDoctorsTab() {
                                 type="button"
                                 disabled={busy[aff.id]}
                                 onClick={() => updateAffiliation(aff.id, "mark_past", doctor.id)}
+                                className="text-xs px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg transition-colors font-semibold"
+                              >
+                                {busy[aff.id] ? "…" : "Mark as Past"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy[aff.id]}
+                                onClick={() => updateAffiliation(aff.id, "delete", doctor.id)}
                                 className="text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg transition-colors font-semibold"
                               >
-                                {busy[aff.id] ? "…" : "Mark as Past →"}
+                                {busy[aff.id] ? "…" : "Delete"}
                               </button>
                             </div>
                           </div>
@@ -246,7 +375,15 @@ export function AdminDoctorsTab() {
                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">🕐 Past Affiliations (No booking)</p>
                       <div className="space-y-2">
                         {past.map((aff) => (
-                          <div key={aff.id} className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 opacity-75">
+                          <div key={aff.id} className={`bg-slate-100 border rounded-xl px-4 py-3 flex flex-wrap items-center gap-3 ${selected.has(aff.id) ? "border-teal-400 ring-1 ring-teal-200 opacity-100" : "border-slate-200 opacity-75"}`}>
+                            {/* Checkbox */}
+                            <button
+                              type="button"
+                              onClick={() => toggleSelect(aff.id)}
+                              className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${selected.has(aff.id) ? "bg-teal-600 border-teal-600 text-white" : "border-slate-300 hover:border-teal-400"}`}
+                            >
+                              {selected.has(aff.id) && <span className="text-xs">✓</span>}
+                            </button>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-slate-500 text-sm">{aff.hospitalName}</p>
                               <p className="text-xs text-slate-400">{aff.hospitalCity}{aff.hospitalState ? `, ${aff.hospitalState}` : ""} · {aff.role}</p>
@@ -259,7 +396,15 @@ export function AdminDoctorsTab() {
                                 onClick={() => updateAffiliation(aff.id, "mark_current", doctor.id)}
                                 className="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg transition-colors font-semibold"
                               >
-                                {busy[aff.id] ? "…" : "← Mark as Current"}
+                                {busy[aff.id] ? "…" : "← Current"}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy[aff.id]}
+                                onClick={() => updateAffiliation(aff.id, "delete", doctor.id)}
+                                className="text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg transition-colors font-semibold"
+                              >
+                                {busy[aff.id] ? "…" : "Delete"}
                               </button>
                             </div>
                           </div>

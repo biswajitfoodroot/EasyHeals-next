@@ -966,9 +966,9 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     }
   }
 
-  async function submitApply(extra: Record<string, unknown> = {}, explicitPayload?: Record<string, unknown> | null) {
+  async function submitApply(extra: Record<string, unknown> = {}, explicitPayload?: Record<string, unknown> | null): Promise<{ hospitalId?: string } | null> {
     const basePayload = explicitPayload ?? brochureResult;
-    if (!basePayload) return;
+    if (!basePayload) return null;
     setBrochureApplyBusy(true);
     setBrochureApplyError(null);
     setBrochureApplyResult(null);
@@ -987,11 +987,14 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       if (body.needsConfirmation) {
         setBrochureCandidates(body.candidates);
         setBrochureCandidateMeta({ extractedName: body.extractedName, extractedCity: body.extractedCity });
+        return null;
       } else {
         setBrochureApplyResult(body.data);
+        return { hospitalId: body.data?.hospitalId };
       }
     } catch (err: any) {
       setBrochureApplyError(err.message ?? "Unknown error");
+      return null;
     } finally {
       setBrochureApplyBusy(false);
     }
@@ -1270,12 +1273,46 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       services: [],
     };
     await submitApply({ targetHospitalId }, payload);
+
+    // Link all unaffiliated doctors from the same batch to this hospital
+    const unlinkedDoctorIds = agentBatchResult?.saved.doctors
+      .filter((d) => !d.linkedHospital)
+      .map((d) => d.id) ?? [];
+    if (unlinkedDoctorIds.length > 0) {
+      try {
+        const linkRes = await fetch("/api/admin/research/link-doctors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hospitalId: targetHospitalId, doctorIds: unlinkedDoctorIds }),
+        });
+        const linkBody = await linkRes.json().catch(() => ({}));
+        if (linkRes.ok && linkBody.data?.linked > 0) {
+          // Update batch result to reflect linked doctors
+          setAgentBatchResult((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              saved: {
+                ...prev.saved,
+                doctors: prev.saved.doctors.map((d) =>
+                  !d.linkedHospital && unlinkedDoctorIds.includes(d.id)
+                    ? { ...d, linkedHospital: name }
+                    : d,
+                ),
+              },
+            };
+          });
+        }
+      } catch { /* non-fatal — hospital was still resolved */ }
+    }
+
     // Remove from ambiguous list
     setAgentBatchResult((prev) =>
       prev
         ? { ...prev, ambiguous: prev.ambiguous.filter((a) => !(a.name === name && a.city === city)) }
         : prev,
     );
+    router.refresh();
   }
 
   async function onCreateAmbiguousAsNew(name: string, city: string) {
@@ -1297,12 +1334,44 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       services: [],
       forceCreate: true,
     };
-    await submitApply({}, payload);
+    const applyResult = await submitApply({}, payload);
+
+    // Link unaffiliated doctors from the same batch to the newly created hospital
+    const newHospitalId = applyResult?.hospitalId;
+    const unlinkedDoctorIds = agentBatchResult?.saved.doctors
+      .filter((d) => !d.linkedHospital)
+      .map((d) => d.id) ?? [];
+    if (newHospitalId && unlinkedDoctorIds.length > 0) {
+      try {
+        await fetch("/api/admin/research/link-doctors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hospitalId: newHospitalId, doctorIds: unlinkedDoctorIds }),
+        });
+        // Update batch result to reflect linked doctors
+        setAgentBatchResult((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            saved: {
+              ...prev.saved,
+              doctors: prev.saved.doctors.map((d) =>
+                !d.linkedHospital && unlinkedDoctorIds.includes(d.id)
+                  ? { ...d, linkedHospital: name }
+                  : d,
+              ),
+            },
+          };
+        });
+      } catch { /* non-fatal */ }
+    }
+
     setAgentBatchResult((prev) =>
       prev
         ? { ...prev, ambiguous: prev.ambiguous.filter((a) => !(a.name === name && a.city === city)) }
         : prev,
     );
+    router.refresh();
   }
 
   async function onSearchAmbiguousHospitals(key: string, query: string, itemCity?: string) {
@@ -3355,7 +3424,10 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                               <p key={`${d.id}-${i}`} className="text-xs text-emerald-800">
                                 <span className={`inline-block w-14 font-semibold ${d.action === "created" ? "text-emerald-600" : "text-blue-600"}`}>{d.action === "created" ? "+ Created" : "↺ Updated"}</span>
                                 {d.name}
-                                {d.linkedHospital && <span className="text-slate-500 ml-1">→ {d.linkedHospital}</span>}
+                                {d.linkedHospital
+                                  ? <span className="text-slate-500 ml-1">→ {d.linkedHospital}</span>
+                                  : <span className="text-amber-600 ml-1">(not linked — resolve hospital above)</span>
+                                }
                               </p>
                             ))}
                           </div>

@@ -108,40 +108,54 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json().catch(() => null) as {
     affiliationId?: string;
-    action?: "mark_current" | "mark_past" | "set_primary";
+    affiliationIds?: string[];
+    action?: "mark_current" | "mark_past" | "set_primary" | "delete";
   } | null;
 
-  if (!body?.affiliationId || !body?.action) {
-    return NextResponse.json({ error: "affiliationId and action required" }, { status: 400 });
+  // Support both single and bulk operations
+  const ids = body?.affiliationIds ?? (body?.affiliationId ? [body.affiliationId] : []);
+  const action = body?.action;
+
+  if (ids.length === 0 || !action) {
+    return NextResponse.json({ error: "affiliationId(s) and action required" }, { status: 400 });
   }
 
-  const { affiliationId, action } = body;
+  let affected = 0;
 
-  if (action === "mark_current") {
-    await db.update(doctorHospitalAffiliations)
-      .set({ isActive: true, affiliationStatus: "active", role: "Consultant", updatedAt: new Date() })
-      .where(eq(doctorHospitalAffiliations.id, affiliationId));
-  } else if (action === "mark_past") {
-    await db.update(doctorHospitalAffiliations)
-      .set({ isActive: false, affiliationStatus: "removed", isPrimary: false, role: "Previously worked here", updatedAt: new Date() })
-      .where(eq(doctorHospitalAffiliations.id, affiliationId));
-  } else if (action === "set_primary") {
-    // Get the doctorId and hospitalId for this affiliation
-    const [aff] = await db.select({ doctorId: doctorHospitalAffiliations.doctorId })
-      .from(doctorHospitalAffiliations)
-      .where(eq(doctorHospitalAffiliations.id, affiliationId))
-      .limit(1);
-    if (aff) {
-      // Unset primary on all other affiliations for this doctor
+  for (const affiliationId of ids) {
+    if (action === "mark_current") {
       await db.update(doctorHospitalAffiliations)
-        .set({ isPrimary: false, updatedAt: new Date() })
-        .where(eq(doctorHospitalAffiliations.doctorId, aff.doctorId));
-      // Set primary on this one + ensure active
-      await db.update(doctorHospitalAffiliations)
-        .set({ isPrimary: true, isActive: true, affiliationStatus: "active", updatedAt: new Date() })
+        .set({ isActive: true, affiliationStatus: "active", role: "Consultant", updatedAt: new Date() })
         .where(eq(doctorHospitalAffiliations.id, affiliationId));
+      affected++;
+    } else if (action === "mark_past") {
+      await db.update(doctorHospitalAffiliations)
+        .set({ isActive: false, affiliationStatus: "removed", isPrimary: false, role: "Previously worked here", updatedAt: new Date() })
+        .where(eq(doctorHospitalAffiliations.id, affiliationId));
+      affected++;
+    } else if (action === "delete") {
+      await db.delete(doctorHospitalAffiliations)
+        .where(eq(doctorHospitalAffiliations.id, affiliationId));
+      affected++;
+    } else if (action === "set_primary") {
+      // Get the doctorId for this affiliation
+      const [aff] = await db.select({ doctorId: doctorHospitalAffiliations.doctorId })
+        .from(doctorHospitalAffiliations)
+        .where(eq(doctorHospitalAffiliations.id, affiliationId))
+        .limit(1);
+      if (aff) {
+        // Unset primary on all other affiliations for this doctor
+        await db.update(doctorHospitalAffiliations)
+          .set({ isPrimary: false, updatedAt: new Date() })
+          .where(eq(doctorHospitalAffiliations.doctorId, aff.doctorId));
+        // Set primary on this one + ensure active
+        await db.update(doctorHospitalAffiliations)
+          .set({ isPrimary: true, isActive: true, affiliationStatus: "active", updatedAt: new Date() })
+          .where(eq(doctorHospitalAffiliations.id, affiliationId));
+        affected++;
+      }
     }
   }
 
-  return NextResponse.json({ data: { ok: true } });
+  return NextResponse.json({ data: { ok: true, affected } });
 }

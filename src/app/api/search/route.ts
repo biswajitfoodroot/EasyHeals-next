@@ -8,7 +8,7 @@ import { db } from "@/db/client";
 import { doctors, hospitals, leads, searchLogs } from "@/db/schema";
 import { env } from "@/lib/env";
 import { extractSearchIntent, heuristicIntent } from "@/lib/gemini";
-import { lookupBestMatch, buildGuidanceBlock, lookupFewShots } from "@/lib/chatbot-knowledge";
+import { lookupBestMatch, buildGuidanceBlock, lookupFewShots, type KnowledgeMatch } from "@/lib/chatbot-knowledge";
 
 const historySchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -234,6 +234,62 @@ function buildFallbackAssistant(
   };
 }
 
+/** Knowledge-aware fallback for symptom queries — provides diagnosis even without Gemini */
+function buildKnowledgeFallback(
+  query: string,
+  knowledgeMatch: KnowledgeMatch,
+  topResults: SearchResultItem[],
+): AssistantResponse {
+  if (knowledgeMatch.type === "symptom") {
+    const d = knowledgeMatch.data as import("@/db/schema").SymptomKnowledgeData;
+    const causes = d.commonCauses.slice(0, 3).join(", ");
+    const redFlag = d.redFlags[0] ?? "";
+    const specialist = d.likelySpecialty;
+
+    const answer = [
+      `I understand you're experiencing ${knowledgeMatch.key}. Let me help.`,
+      `Could be: ${causes}.`,
+      redFlag ? `Seek help if: ${redFlag}.` : "",
+      `Specialist: ${specialist}.`,
+      d.safeInitialAdvice ? d.safeInitialAdvice : "",
+    ].filter(Boolean).join(" ");
+
+    const firstQuestion = d.keyQuestions[0] ?? "How long have you had these symptoms?";
+
+    return {
+      answer,
+      followUps: [
+        d.keyQuestions[1] ?? "Yes, it is getting worse",
+        d.keyQuestions[2] ?? "No, it comes and goes",
+        `Find ${specialist} near me`,
+        "Request a callback",
+      ],
+      clarifyQuestion: firstQuestion,
+      confidenceHint: "medium",
+    };
+  }
+
+  if (knowledgeMatch.type === "report") {
+    const d = knowledgeMatch.data as import("@/db/schema").ReportKnowledgeData;
+    return {
+      answer: `${d.patientFriendlyMeaning} ${d.nextStep}`,
+      followUps: ["Find a specialist", "Tell me more about this", "Request a callback", "Is this urgent?"],
+      clarifyQuestion: "Do you have a recent report showing this?",
+      confidenceHint: "medium",
+    };
+  }
+
+  // intent type or unknown — use basic fallback
+  const hospitalCount = topResults.filter(r => r.type === "hospital").length;
+  const doctorCount = topResults.filter(r => r.type === "doctor").length;
+  return {
+    answer: `Found ${hospitalCount} hospitals and ${doctorCount} specialists that may help. Let me know your city for better matches.`,
+    followUps: ["Pune", "Mumbai", "Delhi", "Bangalore"],
+    clarifyQuestion: "Which city are you in?",
+    confidenceHint: "low",
+  };
+}
+
 function parseAssistantJson(text: string): AssistantResponse | null {
   const stripped = text.includes("```") ? text.replace(/```json|```/g, "").trim() : text.trim();
 
@@ -352,10 +408,13 @@ function detectChatbotState(
   if (detectBusiness(query)) return "BUSINESS";
   if (mode === "name") return "LOCATION_CAPTURED";
 
-  // P4.4: Direct specialist search — skip symptom flow entirely.
-  // "gastro in Pune", "cardiologist", "find ortho doctor" all go straight to SPECIALTY_SEARCH.
-  // BUT in "symptom" mode, always go through diagnostic rounds first (user explicitly chose symptoms tab).
-  if (mode !== "symptom") {
+  const userTurnCount = history.filter(h => h.role === "user").length;
+  const isSymptomQuery = intentSearchType === "symptom" || /\b(pain|fever|rash|cough|vomit|weak|breath|symptom|dard|bukhar|khansi|headache|cold|block|swelling|nausea|dizz)/i.test(query);
+
+  // P4.4: Direct specialist / hospital / doctor search — skip symptom flow entirely.
+  // "gastro in Pune", "cardiologist", "find ortho doctor" go straight to SPECIALTY_SEARCH.
+  // BUT: if the query describes symptoms (even with a specialty mention), do diagnosis first.
+  if (!isSymptomQuery) {
     const isDirectSearch = ["specialty", "doctor_name", "hospital_name"].includes(intentSearchType ?? "");
     if (isDirectSearch) return "SPECIALTY_SEARCH";
   }
@@ -363,22 +422,32 @@ function detectChatbotState(
   // Use city from patientContext OR from the query intent (e.g. "gastro in Pune")
   const hasCity = !!(ctx.city || intentCity);
   const hasPhone = !!ctx.phone;
-  const userTurnCount = history.filter(h => h.role === "user").length;
 
-  // Progressive lead capture: once city/phone are captured, stay in conversion flow
+  // Symptom queries MUST go through diagnostic rounds before routing to doctors/hospitals.
+  // Only allow city-based routing after enough diagnostic turns have been completed.
+  const maxDiagTurns = mode === "symptom" ? 5 : 4;
+  const diagDone = userTurnCount >= maxDiagTurns;
+
+  if (isSymptomQuery && !diagDone) {
+    // Intent-based routing for disease/procedure info on first 1-2 turns
+    if (userTurnCount <= 1) {
+      if (intentSearchType === "treatment" || intentSearchType === "lab_test") return "PROCEDURE_INFO";
+      if (intentSearchType === "general" && detectDiseaseQuery(query)) return "DISEASE_INFO";
+    }
+    return "SYMPTOM_GUIDANCE";
+  }
+
+  // Diagnostic rounds complete OR non-symptom query — now route by city/phone
   if (hasCity && hasPhone) return "LEAD_CAPTURE";
   if (hasCity) return "LOCATION_CAPTURED";
 
-  // Intent-based routing on first 1-2 turns before city is known
+  // Intent-based routing for non-symptom queries
   if (userTurnCount <= 1) {
     if (intentSearchType === "treatment" || intentSearchType === "lab_test") return "PROCEDURE_INFO";
     if (intentSearchType === "general" && detectDiseaseQuery(query)) return "DISEASE_INFO";
   }
 
-  // Allow 3 diagnostic turns before pushing to city/specialist routing
-  // In symptom mode, give one extra round for deeper analysis
-  const maxDiagTurns = mode === "symptom" ? 5 : 4;
-  if (userTurnCount >= maxDiagTurns) return "SPECIALTY_SUGGESTED";
+  if (diagDone) return "SPECIALTY_SUGGESTED";
   return "SYMPTOM_GUIDANCE";
 }
 
@@ -404,13 +473,10 @@ async function generateAssistant(params: {
 
   const fallback = buildFallbackAssistant(params.query, params.cityFilter, params.intent, params.topResults);
 
-  if (!env.GOOGLE_AI_API_KEY) {
-    return { assistant: fallback, model: "fallback", degraded: true, chatbotState: state };
-  }
-
-  // Knowledge base lookup + few-shot examples — both run before model call
+  // Knowledge base lookup — ALWAYS run for symptom/diagnosis states (even without Gemini)
+  const needsKnowledge = state === "SYMPTOM_GUIDANCE" || state === "EMERGENCY" || state === "DISEASE_INFO" || state === "PROCEDURE_INFO";
   const [knowledgeMatch, fewShots] = await Promise.all([
-    (state === "SYMPTOM_GUIDANCE" || state === "EMERGENCY" || state === "DISEASE_INFO" || state === "PROCEDURE_INFO")
+    needsKnowledge
       ? lookupBestMatch(params.query).catch(() => null)
       : Promise.resolve(null),
     (state === "SYMPTOM_GUIDANCE" || state === "DISEASE_INFO")
@@ -421,6 +487,14 @@ async function generateAssistant(params: {
         ).catch(() => [] as Array<{ input: string; output: string }>)
       : Promise.resolve([] as Array<{ input: string; output: string }>),
   ]);
+
+  if (!env.GOOGLE_AI_API_KEY) {
+    // Use knowledge-aware fallback for symptom queries, plain fallback otherwise
+    const assistant = knowledgeMatch
+      ? buildKnowledgeFallback(params.query, knowledgeMatch, params.topResults)
+      : fallback;
+    return { assistant, model: knowledgeMatch ? "knowledge-base" : "fallback", degraded: true, chatbotState: state };
+  }
 
   try {
     // Use faster chat model (gemini-2.0-flash) to reduce response latency
@@ -680,7 +754,11 @@ async function generateAssistant(params: {
       chatbotState: state,
     };
   } catch {
-    return { assistant: fallback, model: "fallback", degraded: true, chatbotState: state };
+    // Use knowledge-aware fallback when Gemini fails for symptom queries
+    const assistant = knowledgeMatch
+      ? buildKnowledgeFallback(params.query, knowledgeMatch, params.topResults)
+      : fallback;
+    return { assistant, model: knowledgeMatch ? "knowledge-base" : "fallback", degraded: true, chatbotState: state };
   }
 }
 
