@@ -675,19 +675,23 @@ function RecordsTab({ appointments }: { appointments: Appointment[] }) {
                         }`}>
                           {d.aiStatus === "done" ? "✓ AI Extracted" : d.aiStatus === "processing" ? "Processing…" : d.aiStatus === "failed" ? "Scan Failed" : "Pending"}
                         </span>
-                        {confirmDeleteDocId === d.id ? (
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => void deleteDoc(d.id)} disabled={deletingDocId === d.id}
-                              className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg disabled:opacity-50">
-                              {deletingDocId === d.id ? "…" : "Delete"}
-                            </button>
-                            <button onClick={() => setConfirmDeleteDocId(null)}
-                              className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 border border-slate-200 rounded-lg">Cancel</button>
-                          </div>
-                        ) : (
-                          <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteDocId(d.id); }}
-                            className="text-[10px] text-slate-400 hover:text-red-500 transition">🗑 Delete</button>
-                        )}
+                        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <a href={`/api/v1/patients/documents/${d.id}/download`} download
+                            className="text-[10px] text-emerald-600 hover:text-emerald-800 transition font-medium">📥 Download</a>
+                          {confirmDeleteDocId === d.id ? (
+                            <>
+                              <button onClick={() => void deleteDoc(d.id)} disabled={deletingDocId === d.id}
+                                className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg disabled:opacity-50">
+                                {deletingDocId === d.id ? "…" : "Delete"}
+                              </button>
+                              <button onClick={() => setConfirmDeleteDocId(null)}
+                                className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 border border-slate-200 rounded-lg">Cancel</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setConfirmDeleteDocId(d.id)}
+                              className="text-[10px] text-slate-400 hover:text-red-500 transition">🗑 Delete</button>
+                          )}
+                        </div>
                       </div>
                     </button>
 
@@ -931,16 +935,22 @@ const SYMPTOM_SUGGESTIONS = [
   "Mild cold and runny nose",
 ];
 
+interface ConversationMeta { id: string; title: string | null; lastMessageAt: string | null }
+
 function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang?: string }) {
-  const [mode, setMode] = useState<"chat" | "symptom">("chat");
+  const [mode, setMode] = useState<"chat" | "symptom" | "history">("chat");
 
   // ── Chat state ──
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([
-    { role: "assistant", text: "Hello! I'm your EasyHeals AI Care Navigator. I can help you understand your health reports, explain symptoms, find the right specialist, and give personalised wellness guidance based on your records.\n\nWhat would you like to discuss today?" },
+    { role: "assistant", text: "Hello! I'm your EasyHeals AI Health Coach. I can analyse your health records, explain symptoms, find the right specialist, and give personalised guidance.\n\nWhat would you like to discuss today?" },
   ]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationMeta[]>([]);
+  const [convoLoading, setConvoLoading] = useState(false);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   // ── Triage state ──
   const [symptoms, setSymptoms] = useState("");
@@ -965,7 +975,7 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
       const res = await fetch("/api/v1/patients/health-coach", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({ message: userMsg, conversationId }),
       });
       if (!res.ok || !res.body) {
         setMessages((p) => [...p, { role: "assistant", text: "Sorry, I couldn't process that. Please try again." }]);
@@ -982,13 +992,46 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
           if (line.startsWith("data: ")) {
             const d = line.slice(6);
             if (d === "[DONE]") continue;
-            try { partial += (JSON.parse(d) as { text: string }).text; } catch { partial += d; }
+            try {
+              const parsed = JSON.parse(d) as { text?: string; conversationId?: string };
+              if (parsed.conversationId) setConversationId(parsed.conversationId);
+              if (parsed.text) { partial += parsed.text; }
+            } catch { partial += d; }
             setMessages((p) => { const n = [...p]; n[n.length - 1] = { role: "assistant", text: partial }; return n; });
           }
         }
       }
     } catch { setMessages((p) => [...p, { role: "assistant", text: "Network error. Please try again." }]); }
     finally { setStreaming(false); }
+  }
+
+  function loadConversations() {
+    setConvoLoading(true);
+    fetch("/api/v1/patients/health-coach/conversations", { credentials: "include" })
+      .then(async (r) => { if (r.ok) { const j = await r.json() as { data?: ConversationMeta[] }; setConversations(j.data ?? []); } })
+      .catch(() => {})
+      .finally(() => setConvoLoading(false));
+  }
+
+  function startNewChat() {
+    setConversationId(null);
+    setMessages([{ role: "assistant", text: "Hello! I'm your EasyHeals AI Health Coach. Ask me anything about your health records, symptoms, or wellness.\n\nWhat would you like to discuss?" }]);
+    setMode("chat");
+  }
+
+  function saveAnalysis() {
+    const assistantMessages = messages.filter((m) => m.role === "assistant" && m.text.length > 50);
+    if (assistantMessages.length === 0) return;
+    const content = assistantMessages.map((m) => m.text).join("\n\n---\n\n");
+    const blob = new Blob([`EasyHeals AI Health Coach Analysis\nDate: ${new Date().toLocaleDateString("en-IN")}\n\n${content}`], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `health-coach-analysis-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setSavedMsg("Analysis saved!");
+    setTimeout(() => setSavedMsg(null), 2500);
   }
 
   async function runTriage(e: React.FormEvent) {
@@ -1039,11 +1082,11 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
 
       {/* Mode toggle */}
       <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
-        {(["chat", "symptom"] as const).map((m) => (
-          <button key={m} onClick={() => setMode(m)}
-            className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${mode === m ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+        {(["chat", "symptom", "history"] as const).map((m) => (
+          <button key={m} onClick={() => { setMode(m); if (m === "history") loadConversations(); }}
+            className={`flex-1 px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition ${mode === m ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             style={mode === m ? { background: "#1B8A4A" } : {}}>
-            {m === "chat" ? "💬 AI Health Coach" : "🧭 Symptom Triage"}
+            {m === "chat" ? "💬 Coach" : m === "symptom" ? "🧭 Triage" : "📜 History"}
           </button>
         ))}
       </div>
@@ -1051,12 +1094,22 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
       {/* ═══════ CHAT MODE ═══════ */}
       {mode === "chat" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
+          {/* Chat toolbar */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-slate-50">
+            <button onClick={startNewChat} className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 transition">+ New Chat</button>
+            <div className="flex items-center gap-2">
+              {savedMsg && <span className="text-xs text-emerald-600 font-medium">{savedMsg}</span>}
+              {messages.filter((m) => m.role === "assistant").length > 1 && (
+                <button onClick={saveAnalysis} className="text-xs font-semibold text-slate-500 hover:text-slate-700 border border-slate-200 px-2 py-1 rounded-lg transition">📥 Save Analysis</button>
+              )}
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] text-sm px-4 py-2.5 rounded-2xl whitespace-pre-wrap ${m.role === "user" ? "text-white rounded-br-md" : "bg-slate-100 text-slate-800 rounded-bl-md"}`}
+                <div className={`max-w-[80%] text-sm px-4 py-2.5 rounded-2xl ${m.role === "user" ? "text-white rounded-br-md whitespace-pre-wrap" : "bg-slate-100 text-slate-800 rounded-bl-md"}`}
                   style={m.role === "user" ? { background: "#1B8A4A" } : {}}>
-                  {m.text || (streaming ? <span className="inline-flex gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" /><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0.15s" }} /><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0.3s" }} /></span> : "")}
+                  {m.text ? (m.role === "assistant" ? <CoachMarkdown text={m.text} /> : m.text) : (streaming ? <span className="inline-flex gap-1"><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" /><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0.15s" }} /><span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: "0.3s" }} /></span> : "")}
                 </div>
               </div>
             ))}
@@ -1290,6 +1343,39 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ═══════ HISTORY MODE ═══════ */}
+      {mode === "history" && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <p className="text-sm font-bold text-slate-700">Conversation History</p>
+            <button onClick={startNewChat} className="text-xs font-semibold text-white px-3 py-1.5 rounded-lg" style={{ background: "#1B8A4A" }}>+ New Chat</button>
+          </div>
+          <div className="p-4">
+            {convoLoading ? (
+              <p className="text-sm text-slate-400 text-center py-8">Loading conversations...</p>
+            ) : conversations.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-3xl mb-2">💬</p>
+                <p className="text-sm text-slate-500 font-medium">No conversations yet</p>
+                <p className="text-xs text-slate-400 mt-1">Start chatting with your AI Health Coach to see your history here.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {conversations.map((c) => (
+                  <button key={c.id} onClick={() => { setConversationId(c.id); setMode("chat"); }}
+                    className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/30 transition">
+                    <p className="text-sm font-semibold text-slate-700 truncate">{c.title ?? "Untitled conversation"}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2164,7 +2250,10 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", o
 
       {/* Personal Information */}
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <p className="text-sm font-bold text-slate-700">Personal Information</p>
+        <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100">
+          <span className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-base">👤</span>
+          <p className="text-sm font-bold text-slate-700">Personal Information</p>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -2235,8 +2324,11 @@ function ProfileTab({ patientName, canUsePremium: _canUsePremium, lang = "en", o
 
       {/* Health Profile */}
       <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-bold text-slate-700">Health Profile</p>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-base">🩺</span>
+            <p className="text-sm font-bold text-slate-700">Health Profile</p>
+          </div>
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Used by Diet Plan</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -2766,6 +2858,38 @@ function renderInline(text: string) {
   });
 }
 
+// ── Coach Markdown Renderer (for AI chat bubbles) ───────────────────────────
+
+function CoachMarkdown({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-0.5">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-1.5" />;
+        if (trimmed.startsWith("### ")) {
+          return <p key={i} className="font-bold text-emerald-800 mt-2 mb-0.5 text-[13px]">{renderInline(trimmed.slice(4))}</p>;
+        }
+        if (trimmed.startsWith("## ")) {
+          return <p key={i} className="font-bold text-slate-900 mt-2 mb-0.5 text-[13px] border-b border-slate-200 pb-0.5">{renderInline(trimmed.slice(3))}</p>;
+        }
+        if (/^\*\*.+\*\*$/.test(trimmed)) {
+          return <p key={i} className="font-bold text-slate-800 mt-2 mb-0.5">{renderInline(trimmed)}</p>;
+        }
+        if (/^[-•*]\s/.test(trimmed)) {
+          return <div key={i} className="flex gap-1.5 pl-1 mb-0.5"><span className="text-emerald-600 shrink-0">•</span><span>{renderInline(trimmed.replace(/^[-•*]\s+/, ""))}</span></div>;
+        }
+        if (/^\d+[.)]\s/.test(trimmed)) {
+          const num = trimmed.match(/^(\d+)[.)]\s/)?.[1] ?? "";
+          const rest = trimmed.replace(/^\d+[.)]\s+/, "");
+          return <div key={i} className="flex gap-1.5 pl-1 mb-0.5"><span className="text-emerald-700 font-semibold shrink-0 w-4 text-right">{num}.</span><span>{renderInline(rest)}</span></div>;
+        }
+        return <p key={i}>{renderInline(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
 const LS_DIET_PLAN = "eh_diet_plan_v1";
 
 // ── Diet Plan Tab ─────────────────────────────────────────────────────────────
@@ -3262,7 +3386,7 @@ export default function DashboardClient() {
     { tab: "home",         icon: "🏠", label: "Home" },
     { tab: "appointments", icon: "📅", label: "My Appointments" },
     { tab: "records",      icon: "📋", label: "Health Records" },
-    { tab: "coach",        icon: "🧭", label: "AI Care Navigator", premium: true },
+    { tab: "coach",        icon: "🤖", label: "AI Health Coach",   premium: true },
     { tab: "wearable",     icon: "⌚", label: "Wearable Devices" },
     { tab: "rewards",      icon: "🏆", label: "Rewards" },
     { tab: "reminders",    icon: "💊", label: "Reminders",       premium: true },
@@ -3335,14 +3459,14 @@ export default function DashboardClient() {
       <main className="flex-1 min-w-0 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 pt-6 pb-28 md:pb-12 space-y-6">
 
-          {/* Page title */}
+          {/* Page title + language toggle */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-xl font-bold text-slate-800">
                 {activeTab === "home"         ? `${getGreeting()}, ${patientName.split(" ")[0]}` :
                  activeTab === "appointments" ? "My Appointments" :
                  activeTab === "records"      ? "Health Records" :
-                 activeTab === "coach"        ? "AI Care Navigator" :
+                 activeTab === "coach"        ? "AI Health Coach" :
                  activeTab === "wearable"     ? "Wearable Devices" :
                  activeTab === "rewards"      ? "Rewards" :
                  activeTab === "diet"         ? "Diet Plan" :
@@ -3352,6 +3476,19 @@ export default function DashboardClient() {
               <p className="text-sm text-slate-400">
                 {new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
               </p>
+            </div>
+            {/* Language toggle — always visible on mobile */}
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm">
+              {[
+                { code: "en", label: "EN" },
+                { code: "hi", label: "हि" },
+              ].map(({ code, label }) => (
+                <button key={code} onClick={() => changeLang(code)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold transition ${preferredLang === code ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                  style={preferredLang === code ? { background: "#1B8A4A" } : {}}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -3441,7 +3578,7 @@ export default function DashboardClient() {
                 {[
                   { tab: "appointments" as DashboardTab, icon: "📅", label: "My Appointments", desc: "Book & manage visits" },
                   { tab: "records"      as DashboardTab, icon: "📋", label: "Health Records",  desc: "Documents, labs & progress" },
-                  { tab: "coach"        as DashboardTab, icon: "🧭", label: "AI Care Navigator", desc: "Chat & symptom check" },
+                  { tab: "coach"        as DashboardTab, icon: "🤖", label: "AI Health Coach", desc: "Chat, analysis & triage" },
                   { tab: "wearable"     as DashboardTab, icon: "⌚", label: "Wearable Devices", desc: "Sync health data" },
                   { tab: "rewards"      as DashboardTab, icon: "🏆", label: "Rewards",          desc: "Points, streaks & referrals" },
                   { tab: "reminders"    as DashboardTab, icon: "💊", label: "Reminders",       desc: "Pills & appointments" },
