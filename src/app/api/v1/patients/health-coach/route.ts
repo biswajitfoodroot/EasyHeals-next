@@ -94,11 +94,18 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
     return NextResponse.json({ error: "AI Health Coach is not yet available." }, { status: 503 });
   }
 
+  // Gemini API key check
+  if (!env.GOOGLE_AI_API_KEY) {
+    console.error("[health-coach] GOOGLE_AI_API_KEY not configured");
+    return NextResponse.json({ error: "AI service is not configured. Please contact support." }, { status: 503 });
+  }
+
   let session: Awaited<ReturnType<typeof requirePatientSession>>;
   try {
     session = await requirePatientSession(req);
-  } catch {
-    return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  } catch (e) {
+    console.error("[health-coach] Auth failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "Authentication required. Please log in again." }, { status: 401 });
   }
 
   const { patientId } = session;
@@ -107,8 +114,9 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
   let tierStatus: Awaited<ReturnType<typeof requirePremiumAccess>>;
   try {
     tierStatus = await requirePremiumAccess(patientId);
-  } catch {
-    return NextResponse.json({ error: "Your 21-day free trial has ended. Upgrade to Health+ to continue." }, { status: 402 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Trial expired";
+    return NextResponse.json({ error: msg.includes("trial") ? msg : "Your 21-day free trial has ended. Upgrade to Health+ to continue." }, { status: 402 });
   }
 
   // Monthly message limit — health_plus: 50/month, health_pro: unlimited
@@ -230,6 +238,7 @@ export const POST = async (req: NextRequest): Promise<NextResponse | Response> =
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : "AI unavailable";
+        console.error("[health-coach] Gemini stream error:", msg);
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
         controller.close();
       } finally {

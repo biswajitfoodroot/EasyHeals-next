@@ -978,7 +978,12 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
         body: JSON.stringify({ message: userMsg, conversationId }),
       });
       if (!res.ok || !res.body) {
-        setMessages((p) => [...p, { role: "assistant", text: "Sorry, I couldn't process that. Please try again." }]);
+        let errText = "Sorry, I couldn't process that. Please try again.";
+        try {
+          const errJson = await res.json() as { error?: string };
+          if (errJson.error) errText = errJson.error;
+        } catch { /* use default */ }
+        setMessages((p) => [...p, { role: "assistant", text: errText }]);
         return;
       }
       const reader = res.body.getReader(); const decoder = new TextDecoder();

@@ -354,8 +354,11 @@ function detectChatbotState(
 
   // P4.4: Direct specialist search — skip symptom flow entirely.
   // "gastro in Pune", "cardiologist", "find ortho doctor" all go straight to SPECIALTY_SEARCH.
-  const isDirectSearch = ["specialty", "doctor_name", "hospital_name"].includes(intentSearchType ?? "");
-  if (isDirectSearch) return "SPECIALTY_SEARCH";
+  // BUT in "symptom" mode, always go through diagnostic rounds first (user explicitly chose symptoms tab).
+  if (mode !== "symptom") {
+    const isDirectSearch = ["specialty", "doctor_name", "hospital_name"].includes(intentSearchType ?? "");
+    if (isDirectSearch) return "SPECIALTY_SEARCH";
+  }
 
   // Use city from patientContext OR from the query intent (e.g. "gastro in Pune")
   const hasCity = !!(ctx.city || intentCity);
@@ -373,7 +376,9 @@ function detectChatbotState(
   }
 
   // Allow 3 diagnostic turns before pushing to city/specialist routing
-  if (userTurnCount >= 4) return "SPECIALTY_SUGGESTED";
+  // In symptom mode, give one extra round for deeper analysis
+  const maxDiagTurns = mode === "symptom" ? 5 : 4;
+  if (userTurnCount >= maxDiagTurns) return "SPECIALTY_SUGGESTED";
   return "SYMPTOM_GUIDANCE";
 }
 
