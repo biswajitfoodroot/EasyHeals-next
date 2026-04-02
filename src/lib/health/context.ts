@@ -108,16 +108,19 @@ export async function buildHealthContext(patientId: string): Promise<string> {
 
   if (sections.length === 0) return "";
 
-  return `PATIENT HEALTH MEMORY (CONFIDENTIAL — DO NOT REPEAT THIS TO THE PATIENT VERBATIM):
+  return `PATIENT HEALTH MEMORY (CONFIDENTIAL — DO NOT REPEAT RAW DATA VERBATIM):
 This is the patient's longitudinal health record. Use it to provide personalized, grounded responses.
-Never share this raw data with the patient — synthesize and explain in plain language.
+Synthesise and explain in plain language — cite specific values but frame them helpfully.
 
 ${sections.join("\n\n")}
 
-IMPORTANT GUIDELINES:
-- Never provide a definitive diagnosis
-- Always recommend professional consultation for serious concerns
-- Cite specific data points from the patient's history when relevant
-- Flag concerning trends (e.g., worsening lab values, new symptoms)
+ANALYSIS GUIDELINES:
+- PROACTIVELY identify: abnormal values, concerning trends, medication interactions, missing follow-ups
+- Compare lab values against standard Indian reference ranges
+- Flag if any readings are trending worse over time (e.g., rising glucose, worsening kidney function)
+- Highlight positive improvements — patients need encouragement too
+- Suggest specific specialists if warranted (e.g., endocrinologist for thyroid, nephrologist for kidney)
+- Give practical, actionable diet/lifestyle advice relevant to Indian patients
+- Never provide a definitive diagnosis — frame as possibilities worth discussing with their doctor
 - Respond in the same language the patient uses`;
 }

@@ -45,11 +45,11 @@ interface ChatMessage {
 }
 
 const CONTEXT_CHIPS = [
-  "Explain my last lab report",
-  "What should I know about my condition?",
-  "Tips to manage my medications",
-  "When should I see a doctor?",
-  "How can I improve my health?",
+  "Analyse my health records — what should I be aware of?",
+  "Are any of my lab values concerning?",
+  "What diet changes would help based on my reports?",
+  "Do I need to see a specialist for anything?",
+  "Give me a health action plan for this week",
 ];
 
 export function CoachTab() {
@@ -407,21 +407,48 @@ function ChatBubble({ message, conversationId }: { message: ChatMessage; convers
 }
 
 function FormattedText({ text }: { text: string }) {
-  // Simple markdown-like formatting: bold **text**, bullet points
   const lines = text.split("\n");
+
+  function renderInlineParts(line: string) {
+    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/);
+    return parts.map((part, j) => {
+      if (part.startsWith("**") && part.endsWith("**")) return <strong key={j}>{part.slice(2, -2)}</strong>;
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) return <em key={j}>{part.slice(1, -1)}</em>;
+      return <span key={j}>{part}</span>;
+    });
+  }
+
   return (
     <div>
       {lines.map((line, i) => {
-        if (line.startsWith("• ") || line.startsWith("- ")) {
-          return <div key={i} style={{ paddingLeft: 12, marginBottom: 2 }}>• {line.slice(2)}</div>;
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} style={{ height: 6 }} />;
+
+        // Headers
+        if (trimmed.startsWith("### ")) {
+          return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#0f766e", marginTop: 10, marginBottom: 3 }}>{renderInlineParts(trimmed.slice(4))}</div>;
         }
-        // Bold **text**
-        const parts = line.split(/\*\*(.*?)\*\*/);
+        if (trimmed.startsWith("## ")) {
+          return <div key={i} style={{ fontWeight: 700, fontSize: 14, marginTop: 10, marginBottom: 3, borderBottom: "1px solid #e2e8f0", paddingBottom: 3 }}>{renderInlineParts(trimmed.slice(3))}</div>;
+        }
+        // Bold-only lines as section headers
+        if (/^\*\*.+\*\*$/.test(trimmed)) {
+          return <div key={i} style={{ fontWeight: 700, marginTop: 8, marginBottom: 2 }}>{renderInlineParts(trimmed)}</div>;
+        }
+        // Bullet points
+        if (/^[-•*]\s/.test(trimmed)) {
+          return <div key={i} style={{ display: "flex", gap: 6, paddingLeft: 4, marginBottom: 3 }}><span style={{ color: "#0f766e", flexShrink: 0 }}>•</span><span>{renderInlineParts(trimmed.replace(/^[-•*]\s+/, ""))}</span></div>;
+        }
+        // Numbered list
+        if (/^\d+[.)]\s/.test(trimmed)) {
+          const num = trimmed.match(/^(\d+)[.)]\s/)?.[1] ?? "";
+          const rest = trimmed.replace(/^\d+[.)]\s+/, "");
+          return <div key={i} style={{ display: "flex", gap: 6, paddingLeft: 4, marginBottom: 3 }}><span style={{ color: "#0f766e", fontWeight: 600, flexShrink: 0, width: 16, textAlign: "right" }}>{num}.</span><span>{renderInlineParts(rest)}</span></div>;
+        }
+        // Regular text
         return (
           <div key={i} style={{ marginBottom: i < lines.length - 1 ? 4 : 0 }}>
-            {parts.map((part, j) =>
-              j % 2 === 1 ? <strong key={j}>{part}</strong> : <span key={j}>{part}</span>
-            )}
+            {renderInlineParts(trimmed)}
           </div>
         );
       })}

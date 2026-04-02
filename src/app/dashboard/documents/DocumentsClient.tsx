@@ -381,6 +381,13 @@ export default function DocumentsClient() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <a
+                    href={`/api/v1/patients/documents/${doc.id}/download`}
+                    download
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-emerald-100 text-emerald-600 hover:bg-emerald-50"
+                  >
+                    Download
+                  </a>
                   {doc.aiStatus === "done" && (
                     <Link
                       href={`/dashboard/health-timeline?source=${doc.id}`}

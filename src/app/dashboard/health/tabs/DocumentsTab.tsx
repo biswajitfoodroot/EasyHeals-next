@@ -39,6 +39,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+const ALLOWED_EXT = ["pdf", "jpg", "jpeg", "png", "webp"];
+
+/** Check file type by MIME or extension (mobile cameras often send empty MIME) */
+function isAllowedFile(file: File): boolean {
+  if (file.type && ALLOWED_MIME.includes(file.type.toLowerCase())) return true;
+  const ext = file.name?.split(".").pop()?.toLowerCase() ?? "";
+  return ALLOWED_EXT.includes(ext);
+}
 
 function DocCard({ doc, onTap }: { doc: HealthDoc; onTap: () => void }) {
   const statusCfg = STATUS_CONFIG[doc.aiStatus] ?? STATUS_CONFIG.pending;
@@ -122,7 +130,7 @@ function UploadSheet({ onSuccess }: { onSuccess: () => void }) {
 
   function handleFileSelect(file: File | null) {
     if (!file) return;
-    if (!ALLOWED_MIME.includes(file.type)) {
+    if (!isAllowedFile(file)) {
       setError("Only PDF, JPEG, PNG, and WebP files are supported");
       return;
     }
@@ -430,20 +438,44 @@ export function DocumentsTab() {
               {selectedDoc.uploadedAt && <InfoItem label="Uploaded" value={new Date(selectedDoc.uploadedAt).toLocaleDateString("en-IN")} />}
             </div>
             {selectedDoc.aiStatus === "done" && (
-              <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 10, fontSize: 13, color: "#15803d" }}>
+              <div style={{ padding: 12, background: "#f0fdf4", borderRadius: 10, fontSize: 13, color: "#15803d", marginBottom: 12 }}>
                 ✓ AI extraction complete. Health events have been added to your timeline.
               </div>
             )}
             {selectedDoc.aiStatus === "failed" && (
-              <div style={{ padding: 12, background: "#fef2f2", borderRadius: 10, fontSize: 13, color: "#ef4444" }}>
+              <div style={{ padding: 12, background: "#fef2f2", borderRadius: 10, fontSize: 13, color: "#ef4444", marginBottom: 12 }}>
                 ⚠ AI extraction failed. The document is saved but events were not extracted.
               </div>
             )}
             {selectedDoc.aiStatus === "processing" && (
-              <div style={{ padding: 12, background: "#dbeafe", borderRadius: 10, fontSize: 13, color: "#1d4ed8" }}>
+              <div style={{ padding: 12, background: "#dbeafe", borderRadius: 10, fontSize: 13, color: "#1d4ed8", marginBottom: 12 }}>
                 🔄 AI is reading your document...
               </div>
             )}
+
+            {/* Download button */}
+            <a
+              href={`/api/v1/patients/documents/${selectedDoc.id}/download`}
+              download
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                width: "100%",
+                padding: "12px",
+                background: "#0f766e",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+            >
+              📥 Download Document
+            </a>
           </div>
         )}
       </BottomSheet>

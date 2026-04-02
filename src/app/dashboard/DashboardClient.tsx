@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { WearableTab } from "./health/tabs/WearableTab";
+import { RewardsTab } from "./health/tabs/RewardsTab";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type DashboardTab = "home" | "appointments" | "records" | "timeline" | "coach" | "reminders" | "profile" | "diet";
+type DashboardTab = "home" | "appointments" | "records" | "coach" | "reminders" | "wearable" | "rewards" | "profile" | "diet";
 
 interface Appointment {
   id: string;
@@ -44,6 +46,8 @@ interface HealthEvent {
   id: string;
   eventType: string;
   eventDate: string | null;
+  source?: string;
+  sourceRefId?: string | null;
   data: Record<string, unknown>;
 }
 
@@ -361,10 +365,11 @@ function AppointmentsTab({ appointments, loading }: { appointments: Appointment[
   );
 }
 
-// ── Records Tab ───────────────────────────────────────────────────────────────
+// ── Health Records Tab (combined Documents + Progress) ───────────────────────
 
-function RecordsTab() {
+function RecordsTab({ appointments }: { appointments: Appointment[] }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [subTab, setSubTab] = useState<"documents" | "progress">("documents");
   const [docs, setDocs] = useState<HealthDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -377,6 +382,27 @@ function RecordsTab() {
   const [dragOver, setDragOver] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null);
+  // Expandable document AI extractions
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
+  const [docEvents, setDocEvents] = useState<Record<string, HealthEvent[]>>({});
+  const [docEventsLoading, setDocEventsLoading] = useState<string | null>(null);
+  // Timeline (Progress sub-tab)
+  const [events, setEvents] = useState<HealthEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [timelineFilter, setTimelineFilter] = useState("all");
+
+  const EVENT_ICONS: Record<string, string> = {
+    vital: "💓", lab_result: "🧪", diagnosis: "🩺", medication: "💊",
+    procedure: "🔬", device_reading: "📡",
+  };
+  const EVENT_COLORS: Record<string, string> = {
+    vital: "text-pink-700 bg-pink-50 border-pink-200",
+    lab_result: "text-purple-700 bg-purple-50 border-purple-200",
+    diagnosis: "text-blue-700 bg-blue-50 border-blue-200",
+    medication: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    procedure: "text-orange-700 bg-orange-50 border-orange-200",
+    device_reading: "text-teal-700 bg-teal-50 border-teal-200",
+  };
 
   const loadDocs = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -388,6 +414,15 @@ function RecordsTab() {
 
   useEffect(() => { void loadDocs(); }, [loadDocs]);
 
+  // Load timeline events
+  useEffect(() => {
+    fetch("/api/v1/patients/health-timeline?limit=200", { credentials: "include" })
+      .then((r) => r.ok ? r.json() as Promise<{ data: HealthEvent[] }> : Promise.resolve({ data: [] }))
+      .then((j) => setEvents(j.data ?? []))
+      .catch(() => {})
+      .finally(() => setEventsLoading(false));
+  }, []);
+
   // Poll silently every 5 s while any document is pending/processing
   useEffect(() => {
     const inFlight = docs.some((d) => d.aiStatus === "pending" || d.aiStatus === "processing");
@@ -395,6 +430,27 @@ function RecordsTab() {
     const timer = setInterval(() => { void loadDocs(true); }, 5000);
     return () => clearInterval(timer);
   }, [docs, loadDocs]);
+
+  async function loadDocEvents(docId: string) {
+    if (docEvents[docId]) return; // already cached
+    setDocEventsLoading(docId);
+    try {
+      const res = await fetch(`/api/v1/patients/health-timeline?sourceId=${docId}&limit=50`, { credentials: "include" });
+      if (res.ok) {
+        const j = await res.json() as { data: HealthEvent[] };
+        setDocEvents((prev) => ({ ...prev, [docId]: j.data ?? [] }));
+      }
+    } finally { setDocEventsLoading(null); }
+  }
+
+  function toggleDocExpand(docId: string) {
+    if (expandedDocId === docId) {
+      setExpandedDocId(null);
+    } else {
+      setExpandedDocId(docId);
+      void loadDocEvents(docId);
+    }
+  }
 
   async function upload() {
     if (!selectedFile) { setUploadMsg({ ok: false, text: "Pick a file first." }); return; }
@@ -422,14 +478,10 @@ function RecordsTab() {
     try {
       await fetch(`/api/v1/patients/documents/${documentId}`, { method: "DELETE", credentials: "include" });
       setDocs((prev) => prev.filter((d) => d.id !== documentId));
-    } finally {
-      setDeletingDocId(null);
-      setConfirmDeleteDocId(null);
-    }
+    } finally { setDeletingDocId(null); setConfirmDeleteDocId(null); }
   }
 
   async function retryAiScan(documentId: string) {
-    // Re-trigger extraction for a failed/stuck document via internal endpoint
     await fetch("/api/v1/patients/documents/retry-scan", {
       method: "POST", credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -441,7 +493,6 @@ function RecordsTab() {
   function handleFile(file: File) {
     setSelectedFile(file);
     setFormTitle(file.name.replace(/\.[^.]+$/, ""));
-    // Auto-detect type from filename hints
     const lower = file.name.toLowerCase();
     if (lower.includes("lab") || lower.includes("blood") || lower.includes("report") || lower.includes("cbc") || lower.includes("lft") || lower.includes("kft")) {
       setFormType("lab_report");
@@ -459,219 +510,9 @@ function RecordsTab() {
 
   const filtered = filter === "all" ? docs : docs.filter((d) => d.docType === filter);
 
-  return (
-    <div className="space-y-4">
-      {/* Upload zone */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-        onClick={() => fileInputRef.current?.click()}
-        className={`cursor-pointer border-2 border-dashed rounded-2xl p-8 text-center transition ${dragOver ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-white hover:border-emerald-300"}`}
-      >
-        <p className="text-3xl mb-2">📤</p>
-        <p className="font-semibold text-slate-700 text-sm">Drop prescription, lab report or scan here</p>
-        <p className="text-xs text-slate-400 mt-1">or click to browse · PDF, JPG, PNG supported</p>
-        <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-      </div>
-
-      {/* Upload panel (shown after file selected) */}
-      {showForm && selectedFile && (
-        <div className="bg-white rounded-2xl border border-emerald-200 shadow-md overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 border-b border-emerald-100">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-lg shrink-0">
-                {selectedFile.type === "application/pdf" ? "📄" : "🖼️"}
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-emerald-800 truncate">{selectedFile.name}</p>
-                <p className="text-[10px] text-emerald-600">{(selectedFile.size / 1024).toFixed(0)} KB</p>
-              </div>
-            </div>
-            <button onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
-              className="text-slate-400 hover:text-slate-600 text-lg leading-none shrink-0 ml-2">✕</button>
-          </div>
-
-          <div className="p-4 space-y-4">
-            {uploadMsg && (
-              <p className={`text-xs p-2.5 rounded-xl ${uploadMsg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{uploadMsg.text}</p>
-            )}
-
-            {/* Document name */}
-            <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1.5">Document Name</label>
-              <input
-                type="text"
-                value={formTitle}
-                onChange={(e) => setFormTitle(e.target.value)}
-                placeholder="e.g. Blood Test – March 2026"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-800"
-              />
-            </div>
-
-            {/* Document type pills */}
-            <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-2">Document Type</label>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
-                  <button
-                    key={k}
-                    onClick={() => setFormType(k)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
-                      formType === k
-                        ? "text-white border-transparent"
-                        : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                    style={formType === k ? { background: "#1B8A4A" } : {}}
-                  >
-                    {v}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => void upload()}
-                disabled={uploading}
-                className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{ background: "#1B8A4A" }}
-              >
-                {uploading ? (
-                  <>
-                    <span className="animate-spin text-sm">⏳</span>
-                    Uploading…
-                  </>
-                ) : (
-                  <>📤 Upload</>
-                )}
-              </button>
-              <button
-                onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
-                className="px-4 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center">
-              By uploading, you consent to AI-assisted extraction of health data for your personal records.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Filter pills */}
-      <div className="flex gap-2 flex-wrap">
-        {[["all", "All"], ...Object.entries(DOC_TYPE_LABELS)].map(([k, v]) => (
-          <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${filter === k ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"}`}
-            style={filter === k ? { background: "#1B8A4A" } : {}}>
-            {v}
-          </button>
-        ))}
-      </div>
-
-      {/* Documents list */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3].map((i) => <Sk key={i} className="h-16" />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
-          <p className="text-3xl mb-2">📋</p>
-          <p className="text-slate-500 font-medium">No documents yet</p>
-          <p className="text-xs text-slate-400 mt-1">Upload your prescriptions, lab reports, or scans above.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((d) => (
-            <div key={d.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-start gap-3 hover:shadow-sm transition">
-              <span className="text-2xl shrink-0 mt-0.5">
-                {d.docType === "lab_report" ? "🧪" : d.docType === "prescription" ? "💊" : d.docType === "imaging" ? "🩻" : "📄"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-slate-800 text-sm truncate">{d.title ?? "Untitled"}</p>
-                <p className="text-xs text-slate-400">{DOC_TYPE_LABELS[d.docType ?? ""] ?? "Document"} · {formatDate(d.docDate ?? d.uploadedAt)}</p>
-                {(d.aiStatus === "pending" || d.aiStatus === "processing") && (
-                  <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
-                    <span className="animate-spin inline-block">⏳</span>
-                    AI is reading your document…
-                  </p>
-                )}
-                {d.aiStatus === "failed" && (
-                  <button onClick={() => void retryAiScan(d.id)}
-                    className="text-[10px] text-red-600 hover:text-red-800 mt-0.5 underline">
-                    Retry AI scan →
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-1.5 shrink-0">
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
-                  d.aiStatus === "done" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                  d.aiStatus === "processing" ? "bg-blue-50 text-blue-700 border-blue-200" :
-                  d.aiStatus === "failed" ? "bg-red-50 text-red-600 border-red-200" :
-                  "bg-amber-50 text-amber-700 border-amber-200"
-                }`}>
-                  {d.aiStatus === "done" ? "✓ AI Extracted" : d.aiStatus === "processing" ? "Processing…" : d.aiStatus === "failed" ? "Scan Failed" : "Pending AI Scan"}
-                </span>
-                {confirmDeleteDocId === d.id ? (
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => void deleteDoc(d.id)} disabled={deletingDocId === d.id}
-                      className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg disabled:opacity-50">
-                      {deletingDocId === d.id ? "…" : "Delete"}
-                    </button>
-                    <button onClick={() => setConfirmDeleteDocId(null)}
-                      className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 border border-slate-200 rounded-lg">
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={() => setConfirmDeleteDocId(d.id)}
-                    className="text-[10px] text-slate-400 hover:text-red-500 transition">
-                    🗑 Delete
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Timeline Tab ──────────────────────────────────────────────────────────────
-
-function TimelineTab({ appointments }: { appointments: Appointment[] }) {
-  const [events, setEvents] = useState<HealthEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
-
-  const EVENT_ICONS: Record<string, string> = {
-    vital: "💓", lab_result: "🧪", diagnosis: "🩺", medication: "💊",
-    procedure: "🔬", device_reading: "📡",
-  };
-  const EVENT_COLORS: Record<string, string> = {
-    vital: "text-pink-700 bg-pink-50 border-pink-200",
-    lab_result: "text-purple-700 bg-purple-50 border-purple-200",
-    diagnosis: "text-blue-700 bg-blue-50 border-blue-200",
-    medication: "text-emerald-700 bg-emerald-50 border-emerald-200",
-    procedure: "text-orange-700 bg-orange-50 border-orange-200",
-    device_reading: "text-teal-700 bg-teal-50 border-teal-200",
-  };
-
-  useEffect(() => {
-    fetch("/api/v1/patients/health-timeline?limit=100", { credentials: "include" })
-      .then((r) => r.ok ? r.json() as Promise<{ data: HealthEvent[] }> : Promise.resolve({ data: [] }))
-      .then((j) => setEvents(j.data ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Build month buckets for SVG bar chart
+  // ── Timeline progress chart data ──
   const allDates = [
-    ...events.map((e) => e.eventDate ?? e.data.date as string ?? null),
+    ...events.map((e) => e.eventDate ?? null),
     ...appointments.filter((a) => a.completedAt ?? a.scheduledAt).map((a) => a.completedAt ?? a.scheduledAt),
   ].filter(Boolean) as string[];
 
@@ -681,24 +522,17 @@ function TimelineTab({ appointments }: { appointments: Appointment[] }) {
     const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     buckets.set(k, { events: 0, appts: 0 });
   }
-  for (const dt of allDates) {
-    const k = dt.slice(0, 7);
-    if (buckets.has(k)) buckets.get(k)!.events++;
-  }
+  for (const dt of allDates) { const k = dt.slice(0, 7); if (buckets.has(k)) buckets.get(k)!.events++; }
   for (const a of appointments) {
-    const dt = a.completedAt ?? a.scheduledAt;
-    if (!dt) continue;
-    const k = dt.slice(0, 7);
-    if (buckets.has(k)) buckets.get(k)!.appts++;
+    const dt = a.completedAt ?? a.scheduledAt; if (!dt) continue;
+    const k = dt.slice(0, 7); if (buckets.has(k)) buckets.get(k)!.appts++;
   }
   const chartData = Array.from(buckets.entries()).map(([k, v]) => ({ k, ...v }));
   const maxVal = Math.max(1, ...chartData.map((d) => d.events));
 
-  const filtered = filter === "all" ? events : events.filter((e) => e.eventType === filter);
-
-  // Group by month for list
+  const timelineFiltered = timelineFilter === "all" ? events : events.filter((e) => e.eventType === timelineFilter);
   const grouped = new Map<string, HealthEvent[]>();
-  for (const e of filtered) {
+  for (const e of timelineFiltered) {
     const d = e.eventDate ? new Date(e.eventDate) : null;
     const label = d ? d.toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "Unknown Date";
     if (!grouped.has(label)) grouped.set(label, []);
@@ -706,116 +540,417 @@ function TimelineTab({ appointments }: { appointments: Appointment[] }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* SVG Bar Chart */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-bold text-slate-700">12-Month Health Activity</p>
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#1B8A4A", opacity: 0.7 }} /> Health Events</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block bg-amber-400" /> Appointments</span>
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <svg viewBox={`0 0 ${chartData.length * 40} 160`} className="w-full" style={{ minWidth: "300px", height: "130px" }}>
-            {/* Grid lines */}
-            {[0.25, 0.5, 0.75, 1].map((f) => (
-              <line key={f} x1="0" x2={chartData.length * 40} y1={120 - f * 100} y2={120 - f * 100}
-                stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4,4" />
-            ))}
-            {chartData.map(({ k, events: ev, appts }, i) => {
-              const barH = ev > 0 ? Math.max(4, Math.round((ev / maxVal) * 100)) : 0;
-              const cx = i * 40 + 20;
-              const barX = i * 40 + 6;
-              return (
-                <g key={k}>
-                  {barH > 0 && (
-                    <rect x={barX} y={120 - barH} width={28} height={barH}
-                      rx="4" fill="#1B8A4A" opacity={0.65} />
-                  )}
-                  {appts > 0 && (
-                    <circle cx={cx} cy={Math.max(8, 120 - barH - 8)} r={5} fill="#F59E0B" />
-                  )}
-                  <text x={cx} y={148} textAnchor="middle" fontSize="9" fill="#94a3b8">
-                    {new Date(k + "-01").toLocaleDateString("en-IN", { month: "short" })}
-                  </text>
-                  <text x={cx} y={158} textAnchor="middle" fontSize="8" fill="#cbd5e1">
-                    {k.slice(2, 4)}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-      </div>
-
-      {/* Filter pills */}
-      <div className="flex gap-2 flex-wrap">
-        {[["all", "All"], ["vital", "Vitals 💓"], ["lab_result", "Labs 🧪"], ["diagnosis", "Diagnoses 🩺"], ["medication", "Medications 💊"], ["procedure", "Procedures"]].map(([k, v]) => (
-          <button key={k} onClick={() => setFilter(k)}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${filter === k ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"}`}
-            style={filter === k ? { background: "#1B8A4A" } : {}}>
-            {v}
+    <div className="space-y-4">
+      {/* Sub-tab toggle */}
+      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+        {([["documents", "📋 Documents"], ["progress", "📈 Health Progress"]] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setSubTab(key)}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${subTab === key ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            style={subTab === key ? { background: "#1B8A4A" } : {}}>
+            {label}
           </button>
         ))}
       </div>
 
-      {/* Events list */}
-      {loading ? (
-        <div className="space-y-3">{[1,2,3].map((i) => <Sk key={i} className="h-16" />)}</div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
-          <p className="text-3xl mb-2">📈</p>
-          <p className="text-slate-500 font-medium">No health events yet</p>
-          <p className="text-xs text-slate-400 mt-1">Upload reports and complete appointments to build your timeline.</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {Array.from(grouped.entries()).map(([month, evts]) => (
-            <div key={month}>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{month}</p>
-              <div className="space-y-2">
-                {evts.map((e) => {
-                  const parts: string[] = [];
-                  if (e.data.name) parts.push(String(e.data.name));
-                  if (e.data.value !== undefined) parts.push(`${e.data.value}${e.data.unit ? ` ${e.data.unit}` : ""}`);
-                  if (e.data.dosage) parts.push(String(e.data.dosage));
-                  if (e.data.notes) parts.push(String(e.data.notes));
-                  const detail = parts.join(" · ") || "No details";
-                  return (
-                    <div key={e.id} className="flex items-start gap-3 bg-white rounded-xl border border-slate-200 p-3">
-                      <span className={`text-sm px-2 py-1 rounded-lg border font-medium shrink-0 ${EVENT_COLORS[e.eventType] ?? "text-slate-600 bg-slate-50 border-slate-200"}`}>
-                        {EVENT_ICONS[e.eventType] ?? "📌"} {e.eventType.replace(/_/g, " ")}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 truncate">{detail}</p>
-                        <p className="text-[10px] text-slate-400">{formatDate(e.eventDate)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+      {/* ═══════ DOCUMENTS SUB-TAB ═══════ */}
+      {subTab === "documents" && (
+        <div className="space-y-4">
+          {/* Upload zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`cursor-pointer border-2 border-dashed rounded-2xl p-8 text-center transition ${dragOver ? "border-emerald-400 bg-emerald-50" : "border-slate-300 bg-white hover:border-emerald-300"}`}
+          >
+            <p className="text-3xl mb-2">📤</p>
+            <p className="font-semibold text-slate-700 text-sm">Drop prescription, lab report or scan here</p>
+            <p className="text-xs text-slate-400 mt-1">or click to browse · PDF, JPG, PNG supported</p>
+            <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+          </div>
+
+          {/* Upload panel */}
+          {showForm && selectedFile && (
+            <div className="bg-white rounded-2xl border border-emerald-200 shadow-md overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 border-b border-emerald-100">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-lg shrink-0">{selectedFile.type === "application/pdf" ? "📄" : "🖼️"}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-emerald-800 truncate">{selectedFile.name}</p>
+                    <p className="text-[10px] text-emerald-600">{(selectedFile.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                </div>
+                <button onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
+                  className="text-slate-400 hover:text-slate-600 text-lg leading-none shrink-0 ml-2">✕</button>
+              </div>
+              <div className="p-4 space-y-4">
+                {uploadMsg && (
+                  <p className={`text-xs p-2.5 rounded-xl ${uploadMsg.ok ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{uploadMsg.text}</p>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1.5">Document Name</label>
+                  <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
+                    placeholder="e.g. Blood Test – March 2026"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 text-slate-800" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-2">Document Type</label>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(DOC_TYPE_LABELS).map(([k, v]) => (
+                      <button key={k} onClick={() => setFormType(k)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${formType === k ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"}`}
+                        style={formType === k ? { background: "#1B8A4A" } : {}}>{v}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => void upload()} disabled={uploading}
+                    className="flex-1 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"
+                    style={{ background: "#1B8A4A" }}>
+                    {uploading ? (<><span className="animate-spin text-sm">⏳</span> Uploading…</>) : (<>📤 Upload</>)}
+                  </button>
+                  <button onClick={() => { setShowForm(false); setSelectedFile(null); setUploadMsg(null); }}
+                    className="px-4 text-sm font-semibold text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50">Cancel</button>
+                </div>
+                <p className="text-[10px] text-slate-400 text-center">By uploading, you consent to AI-assisted extraction of health data.</p>
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Filter pills */}
+          <div className="flex gap-2 flex-wrap">
+            {[["all", "All"], ...Object.entries(DOC_TYPE_LABELS)].map(([k, v]) => (
+              <button key={k} onClick={() => setFilter(k)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${filter === k ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"}`}
+                style={filter === k ? { background: "#1B8A4A" } : {}}>{v}</button>
+            ))}
+          </div>
+
+          {/* Documents list — expandable cards with AI extractions */}
+          {loading ? (
+            <div className="space-y-3">{[1,2,3].map((i) => <Sk key={i} className="h-16" />)}</div>
+          ) : filtered.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-slate-500 font-medium">No documents yet</p>
+              <p className="text-xs text-slate-400 mt-1">Upload your prescriptions, lab reports, or scans above.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((d) => {
+                const isExpanded = expandedDocId === d.id;
+                const evts = docEvents[d.id];
+                const evtsLoading = docEventsLoading === d.id;
+                return (
+                  <div key={d.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-sm transition">
+                    {/* Document header — clickable to expand */}
+                    <button onClick={() => d.aiStatus === "done" ? toggleDocExpand(d.id) : undefined}
+                      className={`w-full p-4 flex items-start gap-3 text-left ${d.aiStatus === "done" ? "cursor-pointer" : "cursor-default"}`}>
+                      <span className="text-2xl shrink-0 mt-0.5">
+                        {d.docType === "lab_report" ? "🧪" : d.docType === "prescription" ? "💊" : d.docType === "imaging" ? "🩻" : "📄"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-sm truncate">{d.title ?? "Untitled"}</p>
+                        <p className="text-xs text-slate-400">{DOC_TYPE_LABELS[d.docType ?? ""] ?? "Document"} · {formatDate(d.docDate ?? d.uploadedAt)}</p>
+                        {(d.aiStatus === "pending" || d.aiStatus === "processing") && (
+                          <p className="text-[10px] text-amber-600 mt-0.5 flex items-center gap-1">
+                            <span className="animate-spin inline-block">⏳</span> AI is reading your document…
+                          </p>
+                        )}
+                        {d.aiStatus === "failed" && (
+                          <button onClick={(e) => { e.stopPropagation(); void retryAiScan(d.id); }}
+                            className="text-[10px] text-red-600 hover:text-red-800 mt-0.5 underline">Retry AI scan →</button>
+                        )}
+                        {d.aiStatus === "done" && (
+                          <p className="text-[10px] text-emerald-600 mt-0.5">{isExpanded ? "▼ Hide AI analysis" : "▶ View AI analysis"}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                          d.aiStatus === "done" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                          d.aiStatus === "processing" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                          d.aiStatus === "failed" ? "bg-red-50 text-red-600 border-red-200" :
+                          "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}>
+                          {d.aiStatus === "done" ? "✓ AI Extracted" : d.aiStatus === "processing" ? "Processing…" : d.aiStatus === "failed" ? "Scan Failed" : "Pending"}
+                        </span>
+                        {confirmDeleteDocId === d.id ? (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => void deleteDoc(d.id)} disabled={deletingDocId === d.id}
+                              className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-lg disabled:opacity-50">
+                              {deletingDocId === d.id ? "…" : "Delete"}
+                            </button>
+                            <button onClick={() => setConfirmDeleteDocId(null)}
+                              className="text-[10px] font-semibold text-slate-500 hover:text-slate-700 px-1.5 py-0.5 border border-slate-200 rounded-lg">Cancel</button>
+                          </div>
+                        ) : (
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteDocId(d.id); }}
+                            className="text-[10px] text-slate-400 hover:text-red-500 transition">🗑 Delete</button>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Expanded AI extraction panel */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-100 bg-slate-50 px-4 py-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">AI-Extracted Health Data</p>
+                        {evtsLoading ? (
+                          <p className="text-xs text-slate-400 py-2">Loading extracted data…</p>
+                        ) : !evts || evts.length === 0 ? (
+                          <p className="text-xs text-slate-400 py-2">No health events were extracted from this document.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {evts.map((e) => {
+                              const parts: string[] = [];
+                              if (e.data.name) parts.push(String(e.data.name));
+                              if (e.data.value !== undefined) {
+                                let val = `${e.data.value}`;
+                                if (e.data.unit) val += ` ${e.data.unit}`;
+                                parts.push(val);
+                              }
+                              if (e.data.dosage) parts.push(String(e.data.dosage));
+                              if (e.data.status && e.data.status !== "normal") parts.push(`(${String(e.data.status)})`);
+                              const line = parts.join(" · ") || "—";
+                              const isAbnormal = e.data.status === "high" || e.data.status === "low" || e.data.status === "abnormal";
+                              return (
+                                <div key={e.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${isAbnormal ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"}`}>
+                                  <span className={`px-1.5 py-0.5 rounded border font-medium shrink-0 ${EVENT_COLORS[e.eventType] ?? "text-slate-600 bg-slate-50 border-slate-200"}`}>
+                                    {EVENT_ICONS[e.eventType] ?? "📌"} {e.eventType.replace(/_/g, " ")}
+                                  </span>
+                                  <span className={`flex-1 ${isAbnormal ? "text-amber-800 font-semibold" : "text-slate-700"}`}>{line}</span>
+                                  {isAbnormal && <span className="text-amber-600 font-bold shrink-0">⚠</span>}
+                                </div>
+                              );
+                            })}
+                            <p className="text-[10px] text-slate-400 mt-1">{evts.length} item{evts.length > 1 ? "s" : ""} extracted · added to your Health Progress timeline</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════ HEALTH PROGRESS SUB-TAB ═══════ */}
+      {subTab === "progress" && (
+        <div className="space-y-6">
+          {/* 12-Month Activity Chart */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-sm font-bold text-slate-700">12-Month Health Activity</p>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block" style={{ background: "#1B8A4A", opacity: 0.7 }} /> Health Events</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full inline-block bg-amber-400" /> Appointments</span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <svg viewBox={`0 0 ${chartData.length * 40} 160`} className="w-full" style={{ minWidth: "300px", height: "130px" }}>
+                {[0.25, 0.5, 0.75, 1].map((f) => (
+                  <line key={f} x1="0" x2={chartData.length * 40} y1={120 - f * 100} y2={120 - f * 100}
+                    stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4,4" />
+                ))}
+                {chartData.map(({ k, events: ev, appts }, i) => {
+                  const barH = ev > 0 ? Math.max(4, Math.round((ev / maxVal) * 100)) : 0;
+                  const cx = i * 40 + 20;
+                  const barX = i * 40 + 6;
+                  return (
+                    <g key={k}>
+                      {barH > 0 && <rect x={barX} y={120 - barH} width={28} height={barH} rx="4" fill="#1B8A4A" opacity={0.65} />}
+                      {appts > 0 && <circle cx={cx} cy={Math.max(8, 120 - barH - 8)} r={5} fill="#F59E0B" />}
+                      <text x={cx} y={148} textAnchor="middle" fontSize="9" fill="#94a3b8">
+                        {new Date(k + "-01").toLocaleDateString("en-IN", { month: "short" })}
+                      </text>
+                      <text x={cx} y={158} textAnchor="middle" fontSize="8" fill="#cbd5e1">{k.slice(2, 4)}</text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+              <p className="text-2xl font-bold text-slate-800">{docs.length}</p>
+              <p className="text-[10px] text-slate-500 font-semibold">Documents</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+              <p className="text-2xl font-bold text-slate-800">{events.length}</p>
+              <p className="text-[10px] text-slate-500 font-semibold">Health Events</p>
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
+              <p className="text-2xl font-bold text-slate-800">{appointments.filter((a) => a.status === "completed").length}</p>
+              <p className="text-[10px] text-slate-500 font-semibold">Appointments</p>
+            </div>
+          </div>
+
+          {/* Timeline filter pills */}
+          <div className="flex gap-2 flex-wrap">
+            {[["all", "All"], ["vital", "Vitals 💓"], ["lab_result", "Labs 🧪"], ["diagnosis", "Diagnoses 🩺"], ["medication", "Medications 💊"], ["procedure", "Procedures"]].map(([k, v]) => (
+              <button key={k} onClick={() => setTimelineFilter(k)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${timelineFilter === k ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white hover:bg-slate-50"}`}
+                style={timelineFilter === k ? { background: "#1B8A4A" } : {}}>{v}</button>
+            ))}
+          </div>
+
+          {/* Events list */}
+          {eventsLoading ? (
+            <div className="space-y-3">{[1,2,3].map((i) => <Sk key={i} className="h-16" />)}</div>
+          ) : timelineFiltered.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+              <p className="text-3xl mb-2">📈</p>
+              <p className="text-slate-500 font-medium">No health events yet</p>
+              <p className="text-xs text-slate-400 mt-1">Upload reports and complete appointments to build your timeline.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Array.from(grouped.entries()).map(([month, evts]) => {
+                // Group events by source document
+                const docGroups: { key: string; type: string; date: string | null; source: string; events: HealthEvent[] }[] = [];
+                const docMap = new Map<string, number>();
+                for (const e of evts) {
+                  const groupKey = (e.sourceRefId && e.sourceRefId !== "self") ? `${e.sourceRefId}` : `single_${e.id}`;
+                  if (docMap.has(groupKey)) { docGroups[docMap.get(groupKey)!].events.push(e); }
+                  else { docMap.set(groupKey, docGroups.length); docGroups.push({ key: groupKey, type: e.eventType, date: e.eventDate, source: e.source ?? "self_report", events: [e] }); }
+                }
+                return (
+                  <div key={month}>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{month}</p>
+                    <div className="space-y-2">
+                      {docGroups.map((group) => {
+                        const isSingle = group.events.length === 1;
+                        const sourceLabel = group.source === "document_scan" ? "Uploaded Report"
+                          : group.source === "self_report" ? "Manual Entry"
+                          : group.source === "appointment" ? "Appointment"
+                          : group.source.replace(/_/g, " ");
+
+                        if (isSingle) {
+                          const e = group.events[0];
+                          const parts: string[] = [];
+                          if (e.data.name) parts.push(String(e.data.name));
+                          if (e.data.value !== undefined) parts.push(`${e.data.value}${e.data.unit ? ` ${e.data.unit}` : ""}`);
+                          if (e.data.dosage) parts.push(String(e.data.dosage));
+                          if (e.data.notes) parts.push(String(e.data.notes));
+                          const detail = parts.join(" · ") || "No details";
+                          return (
+                            <div key={e.id} className="flex items-start gap-3 bg-white rounded-xl border border-slate-200 p-3">
+                              <span className={`text-sm px-2 py-1 rounded-lg border font-medium shrink-0 ${EVENT_COLORS[e.eventType] ?? "text-slate-600 bg-slate-50 border-slate-200"}`}>
+                                {EVENT_ICONS[e.eventType] ?? "📌"} {e.eventType.replace(/_/g, " ")}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-700 truncate">{detail}</p>
+                                <p className="text-[10px] text-slate-400">{formatDate(e.eventDate)}</p>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Grouped card — multiple readings from same document
+                        return (
+                          <div key={group.key} className="bg-white rounded-xl border border-slate-200 p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`text-sm px-2 py-1 rounded-lg border font-medium shrink-0 ${EVENT_COLORS[group.type] ?? "text-slate-600 bg-slate-50 border-slate-200"}`}>
+                                {EVENT_ICONS[group.type] ?? "📌"} {group.type.replace(/_/g, " ")}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-700">{sourceLabel}</span>
+                              <span className="text-[10px] text-slate-400 ml-auto">{formatDate(group.date)}</span>
+                              <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">{group.events.length} items</span>
+                            </div>
+                            <div className="space-y-1 ml-1 border-l-2 border-slate-100 pl-3">
+                              {group.events.map((e) => {
+                                const parts: string[] = [];
+                                if (e.data.name) parts.push(String(e.data.name));
+                                if (e.data.value !== undefined) parts.push(`${e.data.value}${e.data.unit ? ` ${e.data.unit}` : ""}`);
+                                if (e.data.dosage) parts.push(String(e.data.dosage));
+                                const line = parts.join(" · ") || "—";
+                                return <p key={e.id} className="text-xs text-slate-600 py-0.5">{line}</p>;
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ── AI Coach Tab ──────────────────────────────────────────────────────────────
+// ── AI Care Navigator Tab (Chat + Symptom Triage + Provider Matching) ────────
+
+type UrgencyLevel = "emergency" | "urgent" | "routine" | "self_care";
+
+interface TriageResult {
+  urgency: UrgencyLevel;
+  urgencyLabel: string;
+  urgencyColor: "red" | "orange" | "yellow" | "green";
+  urgencyIcon: string;
+  specialists: Array<{ specialty: string; reason: string }>;
+  redFlags: string[];
+  selfCare: string[];
+  disclaimer: string;
+}
+
+interface ProviderMatch {
+  hospitalId: string;
+  hospitalName: string;
+  hospitalSlug: string;
+  specialties: string[];
+  matchReason: string;
+  score: number;
+  rating: number;
+  city: string;
+  estimatedFee?: string;
+  verified: boolean;
+}
+
+const URGENCY_STYLES: Record<UrgencyLevel, { bg: string; border: string; text: string; badge: string }> = {
+  emergency: { bg: "bg-red-50", border: "border-red-400", text: "text-red-800", badge: "bg-red-500 text-white" },
+  urgent:    { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-800", badge: "bg-orange-500 text-white" },
+  routine:   { bg: "bg-yellow-50", border: "border-yellow-400", text: "text-yellow-800", badge: "bg-yellow-500 text-white" },
+  self_care: { bg: "bg-green-50", border: "border-green-400", text: "text-green-800", badge: "bg-green-500 text-white" },
+};
+
+const SYMPTOM_SUGGESTIONS = [
+  "Chest pain and shortness of breath",
+  "High fever for 3 days",
+  "Severe headache with stiff neck",
+  "Knee pain while walking",
+  "Persistent cough for 2 weeks",
+  "Nausea and stomach ache",
+  "Mild cold and runny nose",
+];
 
 function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang?: string }) {
   const [mode, setMode] = useState<"chat" | "symptom">("chat");
+
+  // ── Chat state ──
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([
-    { role: "assistant", text: "Hello! I'm your EasyHeals AI Health Coach. I can help you understand your health reports, explain symptoms, and give personalised wellness guidance based on your records.\n\nWhat would you like to discuss today?" },
+    { role: "assistant", text: "Hello! I'm your EasyHeals AI Care Navigator. I can help you understand your health reports, explain symptoms, find the right specialist, and give personalised wellness guidance based on your records.\n\nWhat would you like to discuss today?" },
   ]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [symptoms, setSymptoms] = useState("");
-  const [triageResult, setTriageResult] = useState<string | null>(null);
-  const [triageLoading, setTriageLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // ── Triage state ──
+  const [symptoms, setSymptoms] = useState("");
+  const [age, setAge] = useState("");
+  const [gender, setGender] = useState("");
+  const [triageLoading, setTriageLoading] = useState(false);
+  const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+  const [triageError, setTriageError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<ProviderMatch[] | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -826,7 +961,6 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
     const userMsg = input.trim(); setInput("");
     setMessages((p) => [...p, { role: "user", text: userMsg }]);
     setStreaming(true);
-
     try {
       const res = await fetch("/api/v1/patients/health-coach", {
         method: "POST", credentials: "include",
@@ -857,42 +991,64 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
     finally { setStreaming(false); }
   }
 
-  async function runTriage() {
+  async function runTriage(e: React.FormEvent) {
+    e.preventDefault();
     if (!symptoms.trim()) return;
-    setTriageLoading(true); setTriageResult(null);
+    setTriageLoading(true); setTriageError(null); setTriageResult(null); setMatches(null);
     try {
-      const res = await fetch("/api/v1/patients/care-nav", {
+      const res = await fetch("/api/v1/care-nav/triage", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symptoms }),
+        body: JSON.stringify({ symptoms: symptoms.trim(), age: age ? Number(age) : undefined, gender: gender || undefined }),
       });
-      if (res.ok) { const j = await res.json() as { result?: string; recommendation?: string }; setTriageResult(j.result ?? j.recommendation ?? "No result."); }
-      else setTriageResult("Could not analyse symptoms. Please try again.");
-    } catch { setTriageResult("Network error."); }
+      const j = await res.json() as { data?: TriageResult; error?: { message: string } };
+      if (!res.ok || j.error) { setTriageError(j.error?.message ?? "Triage failed. Please try again."); return; }
+      setTriageResult(j.data ?? null);
+    } catch { setTriageError("Network error. Please check your connection."); }
     finally { setTriageLoading(false); }
   }
+
+  function handleTriageReset() {
+    setTriageResult(null); setTriageError(null); setMatches(null); setSymptoms(""); setAge(""); setGender("");
+  }
+
+  async function handleFindProviders() {
+    if (!symptoms.trim()) return;
+    setMatchLoading(true);
+    try {
+      const res = await fetch("/api/v1/care-nav/match", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symptoms: symptoms.trim() }),
+      });
+      if (res.ok) { const j = await res.json() as { matches: ProviderMatch[] }; setMatches(j.matches ?? []); }
+    } catch { /* non-fatal */ }
+    finally { setMatchLoading(false); }
+  }
+
+  const urgStyles = triageResult ? URGENCY_STYLES[triageResult.urgency] : null;
 
   return (
     <div className="space-y-4 relative">
       {!canUsePremium && (
         <PremiumGate
-          feature="AI Health Coach"
-          desc="Get personalised health guidance based on your reports, prescriptions, and medical history. Ask anything — from 'What does this lab result mean?' to 'What should I eat with diabetes?'"
+          feature="AI Care Navigator"
+          desc="Get personalised health guidance, symptom triage with urgency assessment, specialist recommendations, and provider matching — powered by AI."
         />
       )}
 
       {/* Mode toggle */}
-      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-fit">
+      <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
         {(["chat", "symptom"] as const).map((m) => (
           <button key={m} onClick={() => setMode(m)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition ${mode === m ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-semibold transition ${mode === m ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             style={mode === m ? { background: "#1B8A4A" } : {}}>
-            {m === "chat" ? "🤖 AI Health Coach Chat" : "🔍 Symptom Check"}
+            {m === "chat" ? "💬 AI Health Coach" : "🧭 Symptom Triage"}
           </button>
         ))}
       </div>
 
-      {/* Chat mode */}
+      {/* ═══════ CHAT MODE ═══════ */}
       {mode === "chat" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: "500px" }}>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -921,30 +1077,217 @@ function CoachTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang
         </div>
       )}
 
-      {/* Symptom check mode */}
+      {/* ═══════ SYMPTOM TRIAGE MODE ═══════ */}
       {mode === "symptom" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-          <div>
-            <p className="text-sm font-bold text-slate-700 mb-2">Describe your symptoms</p>
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">
-              ⚠️ This is for general guidance only. For emergencies, call 108 immediately.
-            </p>
-            <textarea
-              value={symptoms}
-              onChange={(e) => setSymptoms(e.target.value)}
-              placeholder="e.g. Fever for 2 days with headache and body ache, no cough. I am 45 years old, diabetic."
-              rows={4}
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-            />
-            <button onClick={() => void runTriage()} disabled={triageLoading || !symptoms.trim()}
-              className="mt-2 w-full py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50 transition"
-              style={{ background: "#1B8A4A" }}>
-              {triageLoading ? "Analysing symptoms…" : "Analyse Symptoms"}
-            </button>
+        <div className="space-y-4">
+          {/* Emergency banner */}
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 text-center">
+            <strong>Emergency?</strong> If you have chest pain, difficulty breathing, or feel faint — call{" "}
+            <a href="tel:102" className="font-bold underline">102 (Ambulance)</a> or go to the nearest ER immediately.
           </div>
-          {triageResult && (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap">
-              {triageResult}
+
+          {/* Triage form — shown before result */}
+          {!triageResult && (
+            <form onSubmit={runTriage} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Describe your symptoms *</label>
+                <textarea value={symptoms} onChange={(e) => setSymptoms(e.target.value)}
+                  placeholder="e.g. I have been having chest pain for the last hour along with shortness of breath..."
+                  rows={4} maxLength={1000}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none" />
+                <p className="text-xs text-slate-400 text-right mt-1">{symptoms.length}/1000</p>
+              </div>
+
+              {/* Suggestions */}
+              <div>
+                <p className="text-xs text-slate-400 mb-2">Common examples:</p>
+                <div className="flex flex-wrap gap-2">
+                  {SYMPTOM_SUGGESTIONS.map((s) => (
+                    <button key={s} type="button" onClick={() => setSymptoms(s)}
+                      className="text-xs bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 px-3 py-1.5 rounded-full transition">{s}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Optional fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Age (optional)</label>
+                  <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="e.g. 45" min={1} max={120}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Gender (optional)</label>
+                  <select value={gender} onChange={(e) => setGender(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white">
+                    <option value="">Prefer not to say</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {triageError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">{triageError}</div>
+              )}
+
+              <button type="submit" disabled={triageLoading || !symptoms.trim()}
+                className="w-full py-3 text-white font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "#1B8A4A" }}>
+                {triageLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Analysing symptoms...
+                  </span>
+                ) : "Get Triage Guidance"}
+              </button>
+            </form>
+          )}
+
+          {/* Triage results */}
+          {triageResult && urgStyles && (
+            <div className="space-y-4">
+              {/* Urgency card */}
+              <div className={`${urgStyles.bg} border-2 ${urgStyles.border} rounded-2xl p-6`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-4xl">{triageResult.urgencyIcon}</span>
+                  <div>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${urgStyles.badge}`}>
+                      {triageResult.urgency.replace("_", " ").toUpperCase()}
+                    </span>
+                    <p className={`text-xl font-bold mt-1 ${urgStyles.text}`}>{triageResult.urgencyLabel}</p>
+                  </div>
+                </div>
+                {triageResult.urgency === "emergency" && (
+                  <div className="mt-3 flex gap-3">
+                    <a href="tel:102" className="flex-1 py-2.5 text-center bg-red-600 text-white text-sm font-bold rounded-xl">
+                      Call 102 (Ambulance)
+                    </a>
+                    <Link href="/hospitals"
+                      className="flex-1 py-2.5 text-center bg-white border-2 border-red-400 text-red-700 text-sm font-bold rounded-xl">
+                      Find ER Nearby
+                    </Link>
+                  </div>
+                )}
+                {(triageResult.urgency === "urgent" || triageResult.urgency === "routine") && (
+                  <div className="mt-3">
+                    <Link href="/hospitals" className="block py-2.5 text-center text-white text-sm font-bold rounded-xl" style={{ background: "#1B8A4A" }}>
+                      Book Appointment Now
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Red flags */}
+              {triageResult.redFlags.length > 0 && (
+                <div className="bg-white border border-orange-200 rounded-2xl p-5">
+                  <h3 className="text-sm font-bold text-orange-800 mb-3">Warning signs to watch for</h3>
+                  <ul className="space-y-1.5">
+                    {triageResult.redFlags.map((flag, i) => (
+                      <li key={i} className="text-sm text-slate-700 flex gap-2">
+                        <span className="text-orange-500 mt-0.5">•</span>{flag}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-orange-700 mt-3 font-medium">If any of these appear, seek emergency care immediately.</p>
+                </div>
+              )}
+
+              {/* Specialists */}
+              {triageResult.specialists.length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-5">
+                  <h3 className="text-sm font-bold text-slate-800 mb-3">Recommended Specialists</h3>
+                  <div className="space-y-3">
+                    {triageResult.specialists.map((s, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: "#1B8A4A" }}>
+                          {s.specialty.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-slate-800">{s.specialty}</p>
+                          <p className="text-xs text-slate-500">{s.reason}</p>
+                        </div>
+                        <Link href={`/hospitals?q=${encodeURIComponent(s.specialty)}`}
+                          className="text-xs font-medium text-green-700 hover:underline flex-shrink-0">Find →</Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Self care tips */}
+              {triageResult.selfCare.length > 0 && (
+                <div className="bg-white border border-green-200 rounded-2xl p-5">
+                  <h3 className="text-sm font-bold text-green-800 mb-3">Home Care Tips</h3>
+                  <ul className="space-y-1.5">
+                    {triageResult.selfCare.map((tip, i) => (
+                      <li key={i} className="text-sm text-slate-700 flex gap-2">
+                        <span className="text-green-500 mt-0.5">✓</span>{tip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Disclaimer */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700 text-center">
+                {triageResult.disclaimer}
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleTriageReset}
+                  className="py-3 border border-slate-300 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                  Check Again
+                </button>
+                <button onClick={() => setMode("chat")}
+                  className="py-3 text-white rounded-xl text-sm font-semibold transition" style={{ background: "#1B8A4A" }}>
+                  Ask AI Coach
+                </button>
+              </div>
+
+              {/* Find Providers */}
+              {triageResult.urgency !== "emergency" && (
+                <button onClick={() => void handleFindProviders()} disabled={matchLoading}
+                  className="w-full py-3 rounded-xl text-sm font-semibold transition text-white"
+                  style={{ background: "#1e40af", opacity: matchLoading ? 0.7 : 1 }}>
+                  {matchLoading ? "Finding providers…" : "Find Matching Providers"}
+                </button>
+              )}
+
+              {/* Provider match results */}
+              {matches !== null && (
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">
+                    {matches.length > 0 ? `${matches.length} matching providers found` : "No providers found. Try a different city."}
+                  </p>
+                  <div className="space-y-2">
+                    {matches.slice(0, 5).map((m) => (
+                      <div key={m.hospitalId} className="bg-slate-50 rounded-xl border border-slate-200 p-3 flex gap-3 items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-800">
+                            {m.hospitalName}
+                            {m.verified && <span className="ml-1.5 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 py-px">✓ Verified</span>}
+                          </p>
+                          <p className="text-xs text-slate-500">{m.matchReason} · {m.city}</p>
+                          <div className="flex gap-2 text-xs mt-1">
+                            {m.rating > 0 && <span className="text-amber-500">★ {m.rating.toFixed(1)}</span>}
+                            {m.estimatedFee && <span className="text-slate-400">{m.estimatedFee}</span>}
+                          </div>
+                        </div>
+                        <Link href={`/hospitals/${m.hospitalSlug}`}
+                          className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white rounded-lg" style={{ background: "#1B8A4A" }}>
+                          Book
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2365,12 +2708,73 @@ function AbhaCard() {
   );
 }
 
+// ── Diet Plan Markdown Renderer ──────────────────────────────────────────────
+
+function DietPlanMarkdown({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="text-sm text-slate-700 leading-relaxed space-y-1">
+      {lines.map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-2" />;
+
+        // H2: ## or **SECTION** style headers
+        if (trimmed.startsWith("## ")) {
+          return <h3 key={i} className="text-base font-bold text-slate-800 mt-4 mb-1 border-b border-emerald-200 pb-1">{renderInline(trimmed.slice(3))}</h3>;
+        }
+        // H3: ### headers
+        if (trimmed.startsWith("### ")) {
+          return <h4 key={i} className="text-sm font-bold text-emerald-700 mt-3 mb-0.5">{renderInline(trimmed.slice(4))}</h4>;
+        }
+        // H1: # (rare but handle)
+        if (trimmed.startsWith("# ")) {
+          return <h2 key={i} className="text-lg font-bold text-slate-900 mt-4 mb-1">{renderInline(trimmed.slice(2))}</h2>;
+        }
+        // Bold-only lines (e.g. **Day 1 — Monday**)
+        if (/^\*\*.+\*\*$/.test(trimmed)) {
+          return <p key={i} className="font-bold text-slate-800 mt-3 mb-0.5">{renderInline(trimmed)}</p>;
+        }
+        // Bullet points
+        if (/^[-•*]\s/.test(trimmed)) {
+          return <div key={i} className="flex gap-2 pl-2"><span className="text-emerald-500 shrink-0">•</span><span>{renderInline(trimmed.replace(/^[-•*]\s+/, ""))}</span></div>;
+        }
+        // Numbered list
+        if (/^\d+[.)]\s/.test(trimmed)) {
+          const num = trimmed.match(/^(\d+)[.)]\s/)?.[1] ?? "";
+          const rest = trimmed.replace(/^\d+[.)]\s+/, "");
+          return <div key={i} className="flex gap-2 pl-2"><span className="text-emerald-600 font-semibold shrink-0 w-5 text-right">{num}.</span><span>{renderInline(rest)}</span></div>;
+        }
+        // Regular paragraph
+        return <p key={i}>{renderInline(trimmed)}</p>;
+      })}
+    </div>
+  );
+}
+
+/** Render inline markdown: **bold**, *italic* */
+function renderInline(text: string) {
+  // Split on **bold** and *italic*
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i} className="font-semibold text-slate-800">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return <em key={i}>{part.slice(1, -1)}</em>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+const LS_DIET_PLAN = "eh_diet_plan_v1";
+
 // ── Diet Plan Tab ─────────────────────────────────────────────────────────────
 
 function DietPlanTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; lang?: string }) {
   const EMPTY_DP: DietProfile = { foodPref: "", foodLikes: "", foodDislikes: "", goal: "", goalWeight: "", age: "", activityLevel: "" };
   const [dp, setDp] = useState<DietProfile>(() => lsGet<DietProfile>(LS_DIET_PROFILE, EMPTY_DP));
-  const [plan, setPlan]       = useState<string | null>(null);
+  const [plan, setPlan]       = useState<string | null>(() => lsGet<{ plan: string; date: string } | null>(LS_DIET_PLAN, null)?.plan ?? null);
+  const [planDate, setPlanDate] = useState<string | null>(() => lsGet<{ plan: string; date: string } | null>(LS_DIET_PLAN, null)?.date ?? null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const [saving, setSaving]   = useState(false);
@@ -2421,7 +2825,13 @@ function DietPlanTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; l
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...hp, ...dp, vitals: recentVitals }),
       });
-      if (res.ok) { const j = await res.json() as { plan?: string }; setPlan(j.plan ?? "No plan generated."); }
+      if (res.ok) {
+        const j = await res.json() as { plan?: string };
+        const p = j.plan ?? "No plan generated.";
+        const d = new Date().toISOString();
+        setPlan(p); setPlanDate(d);
+        lsSet(LS_DIET_PLAN, { plan: p, date: d });
+      }
       else { const j = await res.json() as { error?: string }; setError(j.error ?? "Failed to generate plan."); }
     } catch { setError("Network error. Please try again."); }
     finally { setLoading(false); }
@@ -2754,9 +3164,9 @@ function DietPlanTab({ canUsePremium, lang = "en" }: { canUsePremium: boolean; l
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Your Personalised Diet Plan</p>
-              <span className="text-xs text-emerald-600">Generated {new Date().toLocaleDateString("en-IN")}</span>
+              <span className="text-xs text-emerald-600">Generated {planDate ? new Date(planDate).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN")}</span>
             </div>
-            <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{plan}</div>
+            <DietPlanMarkdown text={plan} />
             <MedicalDisclaimer lang={lang} />
           </div>
         ) : !loading && (
@@ -2851,9 +3261,10 @@ export default function DashboardClient() {
   const NAV_ITEMS: { tab: DashboardTab; icon: string; label: string; premium?: boolean }[] = [
     { tab: "home",         icon: "🏠", label: "Home" },
     { tab: "appointments", icon: "📅", label: "My Appointments" },
-    { tab: "records",      icon: "📋", label: "My Records" },
-    { tab: "timeline",     icon: "📈", label: "Health Timeline" },
-    { tab: "coach",        icon: "🤖", label: "AI Health Coach", premium: true },
+    { tab: "records",      icon: "📋", label: "Health Records" },
+    { tab: "coach",        icon: "🧭", label: "AI Care Navigator", premium: true },
+    { tab: "wearable",     icon: "⌚", label: "Wearable Devices" },
+    { tab: "rewards",      icon: "🏆", label: "Rewards" },
     { tab: "reminders",    icon: "💊", label: "Reminders",       premium: true },
     { tab: "diet",         icon: "🥗", label: "Diet Plan",        premium: true },
     { tab: "profile",      icon: "👤", label: "My Profile" },
@@ -2886,18 +3297,6 @@ export default function DashboardClient() {
               </span>
             </button>
           ))}
-
-          {/* P5/P6 — separate pages, rendered as links */}
-          <Link href="/dashboard/health"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
-            <span className="text-base shrink-0">❤️</span>
-            <span className="hidden lg:block">Health Hub</span>
-          </Link>
-          <Link href="/dashboard/care-nav"
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
-            <span className="text-base shrink-0">🧭</span>
-            <span className="hidden lg:block">Care Navigator</span>
-          </Link>
 
           <div className="pt-2 border-t border-slate-100 mt-2">
             <Link href="/dashboard/privacy"
@@ -2942,9 +3341,10 @@ export default function DashboardClient() {
               <h1 className="text-xl font-bold text-slate-800">
                 {activeTab === "home"         ? `${getGreeting()}, ${patientName.split(" ")[0]}` :
                  activeTab === "appointments" ? "My Appointments" :
-                 activeTab === "records"      ? "My Records" :
-                 activeTab === "timeline"     ? "Health Timeline" :
-                 activeTab === "coach"        ? "AI Health Coach" :
+                 activeTab === "records"      ? "Health Records" :
+                 activeTab === "coach"        ? "AI Care Navigator" :
+                 activeTab === "wearable"     ? "Wearable Devices" :
+                 activeTab === "rewards"      ? "Rewards" :
                  activeTab === "diet"         ? "Diet Plan" :
                  activeTab === "profile"      ? "My Profile" :
                  "Care Reminders"}
@@ -3040,9 +3440,10 @@ export default function DashboardClient() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {[
                   { tab: "appointments" as DashboardTab, icon: "📅", label: "My Appointments", desc: "Book & manage visits" },
-                  { tab: "records"      as DashboardTab, icon: "📋", label: "My Records",      desc: "Prescriptions, labs, scans" },
-                  { tab: "timeline"     as DashboardTab, icon: "📈", label: "Health Timeline", desc: "Visual health history" },
-                  { tab: "coach"        as DashboardTab, icon: "🤖", label: "AI Health Coach",  desc: "Chat & symptom check" },
+                  { tab: "records"      as DashboardTab, icon: "📋", label: "Health Records",  desc: "Documents, labs & progress" },
+                  { tab: "coach"        as DashboardTab, icon: "🧭", label: "AI Care Navigator", desc: "Chat & symptom check" },
+                  { tab: "wearable"     as DashboardTab, icon: "⌚", label: "Wearable Devices", desc: "Sync health data" },
+                  { tab: "rewards"      as DashboardTab, icon: "🏆", label: "Rewards",          desc: "Points, streaks & referrals" },
                   { tab: "reminders"    as DashboardTab, icon: "💊", label: "Reminders",       desc: "Pills & appointments" },
                   { tab: "diet"         as DashboardTab, icon: "🥗", label: "Diet Plan",        desc: "AI diet & nutrition" },
                   { tab: "profile"      as DashboardTab, icon: "👤", label: "My Profile",      desc: "Personal info & family" },
@@ -3062,9 +3463,10 @@ export default function DashboardClient() {
 
           {/* ── OTHER TABS ── */}
           {activeTab === "appointments" && <AppointmentsTab appointments={appointments} loading={loading} />}
-          {activeTab === "records"      && <RecordsTab />}
-          {activeTab === "timeline"     && <TimelineTab appointments={appointments} />}
+          {activeTab === "records"      && <RecordsTab appointments={appointments} />}
           {activeTab === "coach"        && <CoachTab canUsePremium={trial.canUsePremium} lang={preferredLang} />}
+          {activeTab === "wearable"     && <WearableTab />}
+          {activeTab === "rewards"      && <RewardsTab />}
           {activeTab === "diet"         && <DietPlanTab canUsePremium={trial.canUsePremium} lang={preferredLang} />}
           {activeTab === "profile"      && <ProfileTab patientName={patientName} canUsePremium={trial.canUsePremium} lang={preferredLang} onLangChange={changeLang} />}
           {activeTab === "reminders"    && (

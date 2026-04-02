@@ -37,6 +37,31 @@ const ALLOWED_MIME: Record<string, string> = {
   "image/webp": "webp",
 };
 
+// Fallback: infer MIME from file extension (mobile cameras often send empty/wrong MIME)
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+function resolveFileType(file: File): { mimeType: string; fileExt: string } | null {
+  // Try MIME type first
+  let mime = file.type?.toLowerCase() ?? "";
+  let ext = ALLOWED_MIME[mime];
+  if (ext) return { mimeType: mime, fileExt: ext };
+
+  // Fallback: infer from file name extension (critical for mobile camera uploads)
+  const name = (file as File).name ?? "";
+  const nameExt = name.split(".").pop()?.toLowerCase() ?? "";
+  mime = EXT_TO_MIME[nameExt] ?? "";
+  ext = ALLOWED_MIME[mime];
+  if (ext) return { mimeType: mime, fileExt: ext };
+
+  return null; // unsupported
+}
+
 // ── GET — list documents ──────────────────────────────────────────────────────
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -111,11 +136,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     throw new AppError("SYS_UNHANDLED", "No file", "Field 'file' is required", 400);
   }
 
-  const mimeType = (file as File).type ?? "";
-  const fileExt = ALLOWED_MIME[mimeType];
-  if (!fileExt) {
+  const resolved = resolveFileType(file as File);
+  if (!resolved) {
     throw new AppError("SYS_UNHANDLED", "Unsupported type", "Allowed: PDF, JPEG, PNG, WebP", 415);
   }
+  const { mimeType, fileExt } = resolved;
   if (file.size > MAX_SIZE) {
     throw new AppError("SYS_UNHANDLED", "File too large", "Maximum file size is 10MB", 413);
   }
