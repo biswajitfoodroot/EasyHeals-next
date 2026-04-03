@@ -45,6 +45,7 @@ export function AdminDoctorsTab() {
   // Bulk selection: per-doctor map of selected affiliation IDs
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // Debounce search
   useEffect(() => {
@@ -93,9 +94,11 @@ export function AdminDoctorsTab() {
   async function bulkAction(action: AffAction) {
     const ids = Array.from(selected);
     if (ids.length === 0) return;
+    const actionLabel = action.replace("_", " ");
     if (action === "delete" && !confirm(`Delete ${ids.length} affiliation(s) permanently? This cannot be undone.`)) return;
+    if (action !== "delete" && !confirm(`${actionLabel} ${ids.length} affiliation(s)?`)) return;
     setBulkBusy(true);
-    setMsg(null);
+    setBulkMsg(null);
     try {
       const res = await fetch("/api/admin/doctors", {
         method: "PATCH",
@@ -104,14 +107,15 @@ export function AdminDoctorsTab() {
       });
       const body = await res.json() as { data?: { ok: boolean; affected: number }; error?: string };
       if (res.ok) {
-        setMsg({ id: expandedId ?? "", text: `${action.replace("_", " ")} applied to ${body.data?.affected ?? ids.length} affiliation(s)`, ok: true });
+        const count = body.data?.affected ?? ids.length;
+        setBulkMsg({ text: `✓ ${actionLabel} applied to ${count} affiliation(s)`, ok: true });
         setSelected(new Set());
         void load();
       } else {
-        setMsg({ id: expandedId ?? "", text: body.error ?? "Failed", ok: false });
+        setBulkMsg({ text: `✗ ${body.error ?? "Failed"}`, ok: false });
       }
     } catch {
-      setMsg({ id: expandedId ?? "", text: "Bulk action failed", ok: false });
+      setBulkMsg({ text: "✗ Bulk action failed — network error", ok: false });
     }
     setBulkBusy(false);
   }
@@ -220,6 +224,14 @@ export function AdminDoctorsTab() {
           >
             Clear
           </button>
+        </div>
+      )}
+
+      {/* Bulk action result banner */}
+      {bulkMsg && (
+        <div className={`rounded-xl p-3 text-sm font-medium ${bulkMsg.ok ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-red-50 text-red-800 border border-red-200"}`}>
+          {bulkMsg.text}
+          <button type="button" onClick={() => setBulkMsg(null)} className="ml-3 text-xs underline opacity-70 hover:opacity-100">dismiss</button>
         </div>
       )}
 
