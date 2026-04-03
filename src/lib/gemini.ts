@@ -141,7 +141,7 @@ function detectSearchType(query: string): SearchIntent["searchType"] {
   if (/(surgery|therapy|treatment|operation|procedure)/i.test(query)) return "treatment";
   // Direct specialty search: user names a specialty (not describing symptoms)
   if (DIRECT_SPECIALTY_RE.test(query)) return "specialty";
-  if (/(pain|fever|rash|cough|vomit|weak|breath|symptom|dard|bukhar|khansi)/i.test(query)) {
+  if (/(pain|fever|rash|cough|vomit|weak|breath|symptom|headache|nausea|dizz|swelling|itch|bleed|sore|cold|block|fatigue|tired|dard|bukhar|khansi|sir.*dard|chakkar|sujan)/i.test(query)) {
     return "symptom";
   }
   return "general";

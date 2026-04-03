@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { doctors, hospitals, leads, searchLogs } from "@/db/schema";
+import { doctors, hospitals, leads, searchLogs, type SymptomKnowledgeData, type ReportKnowledgeData } from "@/db/schema";
 import { env } from "@/lib/env";
 import { extractSearchIntent, heuristicIntent } from "@/lib/gemini";
 import { lookupBestMatch, buildGuidanceBlock, lookupFewShots, type KnowledgeMatch } from "@/lib/chatbot-knowledge";
@@ -241,7 +241,7 @@ function buildKnowledgeFallback(
   topResults: SearchResultItem[],
 ): AssistantResponse {
   if (knowledgeMatch.type === "symptom") {
-    const d = knowledgeMatch.data as import("@/db/schema").SymptomKnowledgeData;
+    const d = knowledgeMatch.data as SymptomKnowledgeData;
     const causes = d.commonCauses.slice(0, 3).join(", ");
     const redFlag = d.redFlags[0] ?? "";
     const specialist = d.likelySpecialty;
@@ -270,7 +270,7 @@ function buildKnowledgeFallback(
   }
 
   if (knowledgeMatch.type === "report") {
-    const d = knowledgeMatch.data as import("@/db/schema").ReportKnowledgeData;
+    const d = knowledgeMatch.data as ReportKnowledgeData;
     return {
       answer: `${d.patientFriendlyMeaning} ${d.nextStep}`,
       followUps: ["Find a specialist", "Tell me more about this", "Request a callback", "Is this urgent?"],
@@ -475,6 +475,7 @@ async function generateAssistant(params: {
 
   // Knowledge base lookup — ALWAYS run for symptom/diagnosis states (even without Gemini)
   const needsKnowledge = state === "SYMPTOM_GUIDANCE" || state === "EMERGENCY" || state === "DISEASE_INFO" || state === "PROCEDURE_INFO";
+  console.log("[search] state:", state, "needsKnowledge:", needsKnowledge, "query:", params.query);
   const [knowledgeMatch, fewShots] = await Promise.all([
     needsKnowledge
       ? lookupBestMatch(params.query).catch(() => null)
@@ -487,6 +488,8 @@ async function generateAssistant(params: {
         ).catch(() => [] as Array<{ input: string; output: string }>)
       : Promise.resolve([] as Array<{ input: string; output: string }>),
   ]);
+
+  console.log("[search] knowledgeMatch:", knowledgeMatch ? `${knowledgeMatch.type}/${knowledgeMatch.key}` : "null", "hasApiKey:", !!env.GOOGLE_AI_API_KEY);
 
   if (!env.GOOGLE_AI_API_KEY) {
     // Use knowledge-aware fallback for symptom queries, plain fallback otherwise
@@ -753,7 +756,8 @@ async function generateAssistant(params: {
       degraded: !parsed,
       chatbotState: state,
     };
-  } catch {
+  } catch (err) {
+    console.error("[search] Gemini error:", err instanceof Error ? err.message : err);
     // Use knowledge-aware fallback when Gemini fails for symptom queries
     const assistant = knowledgeMatch
       ? buildKnowledgeFallback(params.query, knowledgeMatch, params.topResults)
