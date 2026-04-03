@@ -46,6 +46,7 @@ export function AdminDoctorsTab() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [minAffiliations, setMinAffiliations] = useState(0); // 0 = show all
 
   // Debounce search
   useEffect(() => {
@@ -142,6 +143,10 @@ export function AdminDoctorsTab() {
     });
   }
 
+  const filteredDoctors = minAffiliations > 0
+    ? doctors.filter(d => d.affiliations.length >= minAffiliations)
+    : doctors;
+
   const currentAffiliations = (d: Doctor) => d.affiliations.filter(a => a.isActive && a.affiliationStatus === "active");
   const pastAffiliations = (d: Doctor) => d.affiliations.filter(a => !a.isActive || a.affiliationStatus !== "active");
 
@@ -166,15 +171,28 @@ export function AdminDoctorsTab() {
           </button>
         </div>
 
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
-          <input
-            type="search"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search by doctor name, city, or specialization…"
-            className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
-          />
+        <div className="flex gap-3 items-center">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+            <input
+              type="search"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search by doctor name, city, or specialization…"
+              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+            />
+          </div>
+          <select
+            value={minAffiliations}
+            onChange={e => setMinAffiliations(Number(e.target.value))}
+            className="border border-slate-200 rounded-xl text-sm py-2.5 px-3 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400 text-slate-700 font-medium"
+          >
+            <option value={0}>All doctors</option>
+            <option value={2}>2+ hospitals</option>
+            <option value={3}>3+ hospitals</option>
+            <option value={4}>4+ hospitals</option>
+            <option value={5}>5+ hospitals</option>
+          </select>
         </div>
       </div>
 
@@ -243,14 +261,20 @@ export function AdminDoctorsTab() {
         </div>
       )}
 
-      {!loading && doctors.length === 0 && (
+      {!loading && filteredDoctors.length === 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
-          No doctors found{query ? ` for "${query}"` : ""}.
+          No doctors found{query ? ` for "${query}"` : ""}{minAffiliations > 0 ? ` with ${minAffiliations}+ affiliations` : ""}.
         </div>
       )}
 
+      {minAffiliations > 0 && filteredDoctors.length > 0 && (
+        <p className="text-xs text-slate-500">
+          Showing {filteredDoctors.length} of {doctors.length} doctors with {minAffiliations}+ hospital affiliations
+        </p>
+      )}
+
       <div className="space-y-3">
-        {doctors.map((doctor) => {
+        {filteredDoctors.map((doctor) => {
           const current = currentAffiliations(doctor);
           const past = pastAffiliations(doctor);
           const isExpanded = expandedId === doctor.id;
