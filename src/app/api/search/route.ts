@@ -748,14 +748,19 @@ async function generateAssistant(params: {
     ].join("\n");
 
     const response = await model.generateContent(prompt);
-    const parsed = parseAssistantJson(response.response.text());
+    const rawText = response.response.text();
+    const parsed = parseAssistantJson(rawText);
 
-    return {
-      assistant: parsed ?? fallback,
-      model: parsed ? env.GEMINI_MODEL : "fallback",
-      degraded: !parsed,
-      chatbotState: state,
-    };
+    if (parsed) {
+      return { assistant: parsed, model: env.GEMINI_MODEL, degraded: false, chatbotState: state };
+    }
+
+    // Gemini responded but JSON was invalid — use knowledge fallback if available
+    console.warn("[search] Gemini response not valid JSON, using knowledge fallback. Raw:", rawText.slice(0, 200));
+    const kbFallback = knowledgeMatch
+      ? buildKnowledgeFallback(params.query, knowledgeMatch, params.topResults)
+      : fallback;
+    return { assistant: kbFallback, model: knowledgeMatch ? "knowledge-base" : "fallback", degraded: true, chatbotState: state };
   } catch (err) {
     console.error("[search] Gemini error:", err instanceof Error ? err.message : err);
     // Use knowledge-aware fallback when Gemini fails for symptom queries
@@ -1195,4 +1200,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 
