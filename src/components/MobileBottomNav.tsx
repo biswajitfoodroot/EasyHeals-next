@@ -14,10 +14,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { useTranslations } from "@/i18n/LocaleContext";
+
 const NAV_ITEMS = [
   {
     href: "/",
-    label: "Home",
+    labelKey: "mobileNav.home",
     exact: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -28,7 +30,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/hospitals",
-    label: "Find",
+    labelKey: "mobileNav.find",
     exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,7 +41,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/dashboard/health",
-    label: "Health",
+    labelKey: "mobileNav.health",
     exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -50,7 +52,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/dashboard/appointments",
-    label: "Bookings",
+    labelKey: "mobileNav.bookings",
     exact: false,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -63,7 +65,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/dashboard",
-    label: "Profile",
+    labelKey: "mobileNav.profile",
     exact: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -78,6 +80,7 @@ const HIDDEN_PREFIXES = ["/admin", "/portal", "/provider-management", "/login", 
 
 export function MobileBottomNav() {
   const pathname = usePathname();
+  const { t } = useTranslations();
 
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return null;
@@ -139,7 +142,7 @@ export function MobileBottomNav() {
             >
               {item.icon}
             </span>
-            <span style={{ lineHeight: 1 }}>{item.label}</span>
+            <span style={{ lineHeight: 1 }}>{t(item.labelKey)}</span>
           </Link>
         );
       })}

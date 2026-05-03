@@ -33,9 +33,9 @@ type ChatSearchProps = {
 };
 
 const modes = [
-  { key: "chat", label: "AI Chat" },
-  { key: "symptom", label: "Symptoms" },
-  { key: "name", label: "Name Search" },
+  { key: "chat", labelKey: "search.aiChat" },
+  { key: "symptom", labelKey: "search.symptoms" },
+  { key: "name", labelKey: "search.nameSearch" },
 ] as const;
 
 const languages = ["English", "Hindi", "Marathi", "Tamil", "Bengali", "Telugu", "Malayalam", "Kannada", "Arabic", "Sinhala"];
@@ -158,14 +158,30 @@ export function ChatSearch({
   onQueuedPromptHandled,
   isLoggedIn = false,
 }: ChatSearchProps) {
-  const { locale } = useTranslations();
+  const { locale, t } = useTranslations();
   const [activeMode, setActiveMode] = useState<(typeof modes)[number]["key"]>("chat");
   const tabCfg = TAB_CONFIG[activeMode];
+
+  // Translated placeholder + prompts per active mode (falls back to English)
+  const localizedPlaceholder = useMemo(() => {
+    const key = activeMode === "chat" ? "chatSearch.placeholderChat"
+      : activeMode === "symptom" ? "chatSearch.placeholderSymptom"
+      : "chatSearch.placeholderName";
+    return t(key);
+  }, [activeMode, t]);
+  const localizedPrompts = useMemo(() => {
+    const key = activeMode === "chat" ? "chatSearch.promptsChat"
+      : activeMode === "symptom" ? "chatSearch.promptsSymptom"
+      : "chatSearch.promptsName";
+    const raw = t(key);
+    return raw.includes("|") ? raw.split("|").map((s) => s.trim()).filter(Boolean) : (tabCfg.prompts as unknown as string[]);
+  }, [activeMode, t, tabCfg.prompts]);
+
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", text: tabCfg.greeting }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [langIndex, setLangIndex] = useState(0);
-  const [followUps, setFollowUps] = useState<string[]>(tabCfg.prompts as unknown as string[]);
+  const [followUps, setFollowUps] = useState<string[]>(localizedPrompts);
   const [clarifyQuestion, setClarifyQuestion] = useState<string | null>(null);
   const [modelLabel, setModelLabel] = useState("Gemini AI · Multilingual");
   const [listening, setListening] = useState(false);
@@ -181,13 +197,24 @@ export function ChatSearch({
   useEffect(() => {
     const cfg = TAB_CONFIG[activeMode];
     setMessages([{ role: "assistant", text: cfg.greeting }]);
-    setFollowUps(cfg.prompts as unknown as string[]);
+    setFollowUps(localizedPrompts);
     setPatientContext({});
     setLeadCreated(false);
     setGuestQuestions(0);
     setInput("");
     setClarifyQuestion(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMode]);
+
+  // Refresh prompt chips when locale changes (only when chat is at initial state)
+  useEffect(() => {
+    setFollowUps((prev) => {
+      // If user hasn't started a conversation yet, swap chips to new locale
+      if (messages.length <= 1) return localizedPrompts;
+      return prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   // Sync chat language with nav locale selection — also update greeting
   useEffect(() => {
@@ -371,7 +398,7 @@ export function ChatSearch({
             className={activeMode === mode.key ? styles.tabActive : ""}
             onClick={() => setActiveMode(mode.key)}
           >
-            {mode.label}
+            {t(mode.labelKey)}
           </button>
         ))}
       </div>
@@ -432,7 +459,7 @@ export function ChatSearch({
           rows={1}
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={tabCfg.placeholder}
+          placeholder={localizedPlaceholder}
           required
           disabled={showLoginGate}
         />
@@ -456,12 +483,13 @@ export function ChatSearch({
 
       {!isLoggedIn && !showLoginGate && (
         <p style={{ margin: 0, fontSize: "0.73rem", color: "#8FA39A", textAlign: "center", padding: "0 0.5rem 0.25rem" }}>
-          {GUEST_QUESTION_LIMIT - guestQuestions} free question{GUEST_QUESTION_LIMIT - guestQuestions !== 1 ? "s" : ""} remaining ·{" "}
-          <Link href="/dashboard/login" style={{ color: "#1B8A4A" }}>Login</Link> for unlimited access
+          {GUEST_QUESTION_LIMIT - guestQuestions} {t("chatSearch.freeQuestionsRemaining")}
+          {GUEST_QUESTION_LIMIT - guestQuestions !== 1 ? (locale === "en" ? "s" : "") : ""} {t("chatSearch.freeQuestionsRemainingSuffix")} ·{" "}
+          <Link href="/dashboard/login" style={{ color: "#1B8A4A" }}>{t("home.login")}</Link>
         </p>
       )}
 
-      <p className={styles.modelText}>Powered by {modelLabel}</p>
+      <p className={styles.modelText}>{t("chatSearch.poweredBy")} {modelLabel}</p>
     </section>
   );
 }

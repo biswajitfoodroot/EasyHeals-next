@@ -21,6 +21,105 @@ export type Dict = {
     findCare: string;
     register: string;
     changeLanguage: string;
+    diagnostics?: string;
+  };
+  // Namespaces below are optional per-locale; missing keys fall back to English
+  // via getTranslation so newly added strings render correctly across locales.
+  homepage?: {
+    heroTitleSecond?: string;
+    setCity?: string;
+    detecting?: string;
+    useMyLocation?: string;
+    searchCity?: string;
+    noCitiesFound?: string;
+    selectCity?: string;
+    selectYourCity?: string;
+  };
+  disclaimer?: {
+    dpdpCompliant?: string;
+    verifiedListings?: string;
+    freeToUse?: string;
+    noMedicationAdvice?: string;
+    communityVerifiedListings?: string;
+    nineLanguages?: string;
+    aes256Encrypted?: string;
+    freeForPatients?: string;
+  };
+  personBar?: {
+    welcomeBack?: string;
+    welcomeBackSub?: string;
+    unlockTitle?: string;
+    unlockSub?: string;
+    appointments?: string;
+    healthTimeline?: string;
+    rewards?: string;
+    aiCoach?: string;
+    goToDashboard?: string;
+    signInFree?: string;
+    dismiss?: string;
+  };
+  trust?: {
+    supportedBy?: string;
+    incubatedAt?: string;
+    iimLucknowSub?: string;
+    iitMandiSub?: string;
+    iihmrSub?: string;
+    deshpandeSub?: string;
+    msmfSub?: string;
+  };
+  provider?: {
+    sectionLabel?: string;
+    description?: string;
+    feature1?: string;
+    feature2?: string;
+    feature3?: string;
+    feature4?: string;
+    feature5?: string;
+    feature6?: string;
+    visualHeading?: string;
+    appointments?: string;
+    appointmentsSub?: string;
+    opdTokens?: string;
+    opdTokensSub?: string;
+    whatsapp?: string;
+    whatsappSub?: string;
+    aiSummaries?: string;
+    aiSummariesSub?: string;
+  };
+  faq?: {
+    sectionLabel?: string;
+    sectionTitle?: string;
+    q1?: string;
+    a1?: string;
+    q2?: string;
+    a2?: string;
+    q3?: string;
+    a3?: string;
+    q4?: string;
+    a4?: string;
+    q5?: string;
+    a5?: string;
+    q6?: string;
+    a6?: string;
+  };
+  mobileNav?: {
+    home?: string;
+    find?: string;
+    health?: string;
+    bookings?: string;
+    profile?: string;
+  };
+  chatSearch?: {
+    placeholderChat?: string;
+    placeholderSymptom?: string;
+    placeholderName?: string;
+    promptsChat?: string;
+    promptsSymptom?: string;
+    promptsName?: string;
+    freeQuestionsRemaining?: string;
+    freeQuestionsRemainingSuffix?: string;
+    loginForUnlimited?: string;
+    poweredBy?: string;
   };
   search: {
     placeholder: string;
@@ -235,6 +334,7 @@ const en: Dict = {
     findCare: "Find Care",
     register: "Register Hospital",
     changeLanguage: "Language",
+    diagnostics: "Diagnostics",
   },
   search: {
     placeholder: "Type symptoms, doctor name, or ask anything...",
@@ -439,6 +539,102 @@ const en: Dict = {
     manageDataConsent: "Manage data & consent",
     signOut: "Sign Out",
   },
+  homepage: {
+    heroTitleSecond: "We'll find the right care.",
+    setCity: "Set city",
+    detecting: "Detecting…",
+    useMyLocation: "Use my location",
+    searchCity: "Search city…",
+    noCitiesFound: "No cities found",
+    selectCity: "Select city",
+    selectYourCity: "Select your city",
+  },
+  disclaimer: {
+    dpdpCompliant: "DPDP Compliant",
+    verifiedListings: "Verified Listings",
+    freeToUse: "Free to Use",
+    noMedicationAdvice: "No Medication Advice",
+    communityVerifiedListings: "Community Verified Listings",
+    nineLanguages: "9 Languages",
+    aes256Encrypted: "AES-256 Encrypted",
+    freeForPatients: "Free for Patients",
+  },
+  personBar: {
+    welcomeBack: "Welcome back! Your health dashboard is ready",
+    welcomeBackSub: "View your appointments, health timeline, rewards & AI health coach.",
+    unlockTitle: "Unlock Your Personalized Health Dashboard",
+    unlockSub: "Sign in to get AI-powered health suggestions, track appointments, earn rewards & access your personal health coach.",
+    appointments: "Appointments",
+    healthTimeline: "Health Timeline",
+    rewards: "Rewards",
+    aiCoach: "AI Coach",
+    goToDashboard: "Go to Dashboard →",
+    signInFree: "Sign In Free →",
+    dismiss: "Dismiss",
+  },
+  trust: {
+    supportedBy: "Supported By",
+    incubatedAt: "Incubated At",
+    iimLucknowSub: "Indian Institute of Management",
+    iitMandiSub: "Indian Institute of Technology",
+    iihmrSub: "Institute of Health Management Research",
+    deshpandeSub: "Startup Incubator",
+    msmfSub: "Mazumdar Shaw Medical Foundation",
+  },
+  provider: {
+    sectionLabel: "For Doctors & Hospitals",
+    description: "Manage appointments, patient flow, and your online presence — completely free. No hidden charges, no premium tiers for basic features.",
+    feature1: "Free appointment management system",
+    feature2: "OPD token queue for walk-in patients",
+    feature3: "Patient communication via WhatsApp",
+    feature4: "AI-powered patient summaries before visits",
+    feature5: "Community-verified listing on EasyHeals",
+    feature6: "Self-service OTP onboarding in minutes",
+    visualHeading: "What You Get — Free",
+    appointments: "Appointments",
+    appointmentsSub: "Manage bookings easily",
+    opdTokens: "OPD Tokens",
+    opdTokensSub: "Walk-in queue system",
+    whatsapp: "WhatsApp",
+    whatsappSub: "Patient notifications",
+    aiSummaries: "AI Summaries",
+    aiSummariesSub: "Pre-visit patient briefs",
+  },
+  faq: {
+    sectionLabel: "Common Questions",
+    sectionTitle: "Frequently Asked Questions",
+    q1: "What is EasyHeals?",
+    a1: "EasyHeals is an AI-powered healthcare discovery platform that helps patients find the right hospitals, doctors, treatments, and lab tests across India. It supports multilingual search in Hindi, Tamil, Marathi, Bengali and English.",
+    q2: "Is EasyHeals free to use?",
+    a2: "Yes. EasyHeals is completely free for patients. Hospitals and doctors can also list their practice and manage appointments at no cost.",
+    q3: "Does EasyHeals provide medical advice or prescriptions?",
+    a3: "No. EasyHeals helps you understand symptoms and find the right specialist, but it does not prescribe medication or offer medical diagnosis. Always consult a qualified doctor for medical advice.",
+    q4: "How does EasyHeals AI search work?",
+    a4: "Our Gemini-powered AI understands your symptoms or health queries in multiple languages, maps them to the right medical specialties, and shows you verified hospitals and doctors from the EasyHeals network.",
+    q5: "Can hospitals register on EasyHeals?",
+    a5: "Yes. Hospitals and clinics can register for free through the self-service OTP-verified onboarding. Once registered, they get access to appointment management, OPD token system, and patient communication tools.",
+    q6: "Is my health data safe on EasyHeals?",
+    a6: "Absolutely. EasyHeals follows DPDP (Digital Personal Data Protection) guidelines. All personal health data is AES-256 encrypted, and access is consent-gated. You control your data at all times.",
+  },
+  mobileNav: {
+    home: "Home",
+    find: "Find",
+    health: "Health",
+    bookings: "Bookings",
+    profile: "Profile",
+  },
+  chatSearch: {
+    placeholderChat: "Type symptoms, doctor name, or ask anything...",
+    placeholderSymptom: "Describe your symptoms in detail...",
+    placeholderName: "Type hospital or doctor name...",
+    promptsChat: "Chest pain since morning|Mujhe seene mein dard ho raha hai|Knee pain for 2 weeks|High fever and fatigue|I feel dizzy and nauseous",
+    promptsSymptom: "Severe headache with vomiting|Chest tightness when climbing stairs|Swollen knee after a fall|Irregular periods and hair fall|Persistent cough for 3 weeks",
+    promptsName: "Apollo Hospitals Pune|Fortis Hospital Mumbai|Dr Devi Shetty|AIIMS Delhi|Kokilaben Hospital",
+    freeQuestionsRemaining: "free question",
+    freeQuestionsRemainingSuffix: "remaining",
+    loginForUnlimited: "Login for unlimited access",
+    poweredBy: "Powered by",
+  },
 };
 
 const hi: Dict = {
@@ -449,6 +645,7 @@ const hi: Dict = {
     findCare: "देखभाल खोजें",
     register: "अस्पताल पंजीकृत करें",
     changeLanguage: "भाषा",
+    diagnostics: "जांच",
   },
   search: {
     placeholder: "लक्षण, डॉक्टर का नाम, या कुछ भी पूछें...",
@@ -653,6 +850,102 @@ const hi: Dict = {
     manageDataConsent: "डेटा और सहमति प्रबंधित करें",
     signOut: "साइन आउट",
   },
+  homepage: {
+    heroTitleSecond: "हम सही देखभाल खोजेंगे।",
+    setCity: "शहर चुनें",
+    detecting: "खोज रहे हैं…",
+    useMyLocation: "मेरा स्थान उपयोग करें",
+    searchCity: "शहर खोजें…",
+    noCitiesFound: "कोई शहर नहीं मिला",
+    selectCity: "शहर चुनें",
+    selectYourCity: "अपना शहर चुनें",
+  },
+  disclaimer: {
+    dpdpCompliant: "DPDP अनुपालक",
+    verifiedListings: "सत्यापित सूचियां",
+    freeToUse: "उपयोग के लिए निःशुल्क",
+    noMedicationAdvice: "कोई दवा सलाह नहीं",
+    communityVerifiedListings: "समुदाय सत्यापित सूचियां",
+    nineLanguages: "9 भाषाएं",
+    aes256Encrypted: "AES-256 एन्क्रिप्टेड",
+    freeForPatients: "रोगियों के लिए निःशुल्क",
+  },
+  personBar: {
+    welcomeBack: "वापस स्वागत है! आपका स्वास्थ्य डैशबोर्ड तैयार है",
+    welcomeBackSub: "अपनी अपॉइंटमेंट, स्वास्थ्य टाइमलाइन, पुरस्कार और AI स्वास्थ्य कोच देखें।",
+    unlockTitle: "अपना व्यक्तिगत स्वास्थ्य डैशबोर्ड अनलॉक करें",
+    unlockSub: "AI-संचालित स्वास्थ्य सुझाव पाने, अपॉइंटमेंट ट्रैक करने, पुरस्कार कमाने और अपने व्यक्तिगत स्वास्थ्य कोच तक पहुंचने के लिए साइन इन करें।",
+    appointments: "अपॉइंटमेंट",
+    healthTimeline: "स्वास्थ्य टाइमलाइन",
+    rewards: "पुरस्कार",
+    aiCoach: "AI कोच",
+    goToDashboard: "डैशबोर्ड पर जाएं →",
+    signInFree: "निःशुल्क साइन इन →",
+    dismiss: "बंद करें",
+  },
+  trust: {
+    supportedBy: "द्वारा समर्थित",
+    incubatedAt: "इन्क्यूबेटेड",
+    iimLucknowSub: "भारतीय प्रबंधन संस्थान",
+    iitMandiSub: "भारतीय प्रौद्योगिकी संस्थान",
+    iihmrSub: "स्वास्थ्य प्रबंधन अनुसंधान संस्थान",
+    deshpandeSub: "स्टार्टअप इन्क्यूबेटर",
+    msmfSub: "मजूमदार शॉ मेडिकल फाउंडेशन",
+  },
+  provider: {
+    sectionLabel: "डॉक्टरों और अस्पतालों के लिए",
+    description: "अपॉइंटमेंट, रोगी प्रवाह और अपनी ऑनलाइन उपस्थिति का प्रबंधन करें — पूरी तरह निःशुल्क। कोई छिपे हुए शुल्क नहीं, बुनियादी सुविधाओं के लिए कोई प्रीमियम स्तर नहीं।",
+    feature1: "निःशुल्क अपॉइंटमेंट प्रबंधन प्रणाली",
+    feature2: "वॉक-इन रोगियों के लिए OPD टोकन कतार",
+    feature3: "WhatsApp के माध्यम से रोगी संचार",
+    feature4: "विजिट से पहले AI-संचालित रोगी सारांश",
+    feature5: "EasyHeals पर समुदाय-सत्यापित सूची",
+    feature6: "मिनटों में सेल्फ-सर्विस OTP ऑनबोर्डिंग",
+    visualHeading: "आपको क्या मिलता है — निःशुल्क",
+    appointments: "अपॉइंटमेंट",
+    appointmentsSub: "बुकिंग आसानी से प्रबंधित करें",
+    opdTokens: "OPD टोकन",
+    opdTokensSub: "वॉक-इन कतार प्रणाली",
+    whatsapp: "WhatsApp",
+    whatsappSub: "रोगी सूचनाएं",
+    aiSummaries: "AI सारांश",
+    aiSummariesSub: "विजिट-पूर्व रोगी ब्रीफ",
+  },
+  faq: {
+    sectionLabel: "सामान्य प्रश्न",
+    sectionTitle: "अक्सर पूछे जाने वाले प्रश्न",
+    q1: "EasyHeals क्या है?",
+    a1: "EasyHeals एक AI-संचालित स्वास्थ्य सेवा खोज मंच है जो रोगियों को पूरे भारत में सही अस्पताल, डॉक्टर, उपचार और लैब टेस्ट खोजने में मदद करता है। यह हिंदी, तमिल, मराठी, बंगाली और अंग्रेजी में बहुभाषी खोज का समर्थन करता है।",
+    q2: "क्या EasyHeals उपयोग के लिए निःशुल्क है?",
+    a2: "हां। EasyHeals रोगियों के लिए पूरी तरह निःशुल्क है। अस्पताल और डॉक्टर भी निःशुल्क अपनी प्रैक्टिस सूचीबद्ध कर सकते हैं और अपॉइंटमेंट प्रबंधित कर सकते हैं।",
+    q3: "क्या EasyHeals चिकित्सा सलाह या नुस्खे प्रदान करता है?",
+    a3: "नहीं। EasyHeals आपको लक्षण समझने और सही विशेषज्ञ खोजने में मदद करता है, लेकिन यह दवा निर्धारित नहीं करता या चिकित्सा निदान नहीं देता। चिकित्सा सलाह के लिए हमेशा योग्य डॉक्टर से परामर्श करें।",
+    q4: "EasyHeals AI खोज कैसे काम करती है?",
+    a4: "हमारा Gemini-संचालित AI आपके लक्षण या स्वास्थ्य प्रश्न कई भाषाओं में समझता है, उन्हें सही चिकित्सा विशेषज्ञता से मिलाता है, और आपको EasyHeals नेटवर्क से सत्यापित अस्पताल और डॉक्टर दिखाता है।",
+    q5: "क्या अस्पताल EasyHeals पर पंजीकृत हो सकते हैं?",
+    a5: "हां। अस्पताल और क्लीनिक सेल्फ-सर्विस OTP-सत्यापित ऑनबोर्डिंग के माध्यम से निःशुल्क पंजीकृत हो सकते हैं। पंजीकृत होने के बाद, उन्हें अपॉइंटमेंट प्रबंधन, OPD टोकन प्रणाली और रोगी संचार उपकरणों तक पहुंच मिलती है।",
+    q6: "क्या मेरा स्वास्थ्य डेटा EasyHeals पर सुरक्षित है?",
+    a6: "बिल्कुल। EasyHeals DPDP (डिजिटल व्यक्तिगत डेटा संरक्षण) दिशानिर्देशों का पालन करता है। सभी व्यक्तिगत स्वास्थ्य डेटा AES-256 एन्क्रिप्टेड है, और पहुंच सहमति-गेटेड है। आप हर समय अपने डेटा को नियंत्रित करते हैं।",
+  },
+  mobileNav: {
+    home: "होम",
+    find: "खोजें",
+    health: "स्वास्थ्य",
+    bookings: "बुकिंग",
+    profile: "प्रोफ़ाइल",
+  },
+  chatSearch: {
+    placeholderChat: "लक्षण, डॉक्टर का नाम, या कुछ भी पूछें...",
+    placeholderSymptom: "अपने लक्षण विस्तार से बताएं...",
+    placeholderName: "अस्पताल या डॉक्टर का नाम टाइप करें...",
+    promptsChat: "सुबह से सीने में दर्द|मुझे सीने में दर्द हो रहा है|2 सप्ताह से घुटने में दर्द|तेज़ बुखार और थकान|मुझे चक्कर और मतली आ रही है",
+    promptsSymptom: "उल्टी के साथ तेज़ सिरदर्द|सीढ़ियां चढ़ते समय सीने में जकड़न|गिरने के बाद घुटने में सूजन|अनियमित मासिक धर्म और बाल झड़ना|3 सप्ताह से लगातार खांसी",
+    promptsName: "अपोलो हॉस्पिटल्स पुणे|फोर्टिस हॉस्पिटल मुंबई|डॉ. देवी शेट्टी|एम्स दिल्ली|कोकिलाबेन हॉस्पिटल",
+    freeQuestionsRemaining: "निःशुल्क प्रश्न",
+    freeQuestionsRemainingSuffix: "शेष",
+    loginForUnlimited: "असीमित पहुंच के लिए लॉगिन करें",
+    poweredBy: "संचालित",
+  },
 };
 
 const mr: Dict = {
@@ -663,6 +956,7 @@ const mr: Dict = {
     findCare: "काळजी शोधा",
     register: "रुग्णालय नोंदणी",
     changeLanguage: "भाषा",
+    diagnostics: "निदान",
   },
   search: {
     placeholder: "लक्षणे, डॉक्टरचे नाव किंवा काहीही विचारा...",
@@ -877,6 +1171,7 @@ const ta: Dict = {
     findCare: "சிகிச்சை தேடு",
     register: "மருத்துவமனை பதிவு",
     changeLanguage: "மொழி",
+    diagnostics: "கண்டறிதல்",
   },
   search: {
     placeholder: "அறிகுறிகள், மருத்துவர் பெயர் அல்லது எதையும் கேளுங்கள்...",
@@ -1091,6 +1386,7 @@ const bn: Dict = {
     findCare: "সেবা খুঁজুন",
     register: "হাসপাতাল নিবন্ধন",
     changeLanguage: "ভাষা",
+    diagnostics: "পরীক্ষা",
   },
   search: {
     placeholder: "লক্ষণ, ডাক্তারের নাম বা যেকোনো কিছু জিজ্ঞাসা করুন...",
@@ -1305,6 +1601,7 @@ const ml: Dict = {
     findCare: "പരിചരണം കണ്ടെത്തുക",
     register: "ആശുപത്രി രജിസ്റ്റർ ചെയ്യുക",
     changeLanguage: "ഭാഷ",
+    diagnostics: "ഡയഗ്നോസ്റ്റിക്സ്",
   },
   search: {
     placeholder: "രോഗലക്ഷണങ്ങൾ, ഡോക്ടറുടെ പേര്, അല്ലെങ്കിൽ എന്തും ചോദിക്കൂ...",
@@ -1519,6 +1816,7 @@ const kn: Dict = {
     findCare: "ಆರೈಕೆ ಹುಡುಕಿ",
     register: "ಆಸ್ಪತ್ರೆ ನೋಂದಣಿ",
     changeLanguage: "ಭಾಷೆ",
+    diagnostics: "ರೋಗನಿರ್ಣಯ",
   },
   search: {
     placeholder: "ರೋಗಲಕ್ಷಣಗಳು, ವೈದ್ಯರ ಹೆಸರು ಅಥವಾ ಏನಾದರೂ ಕೇಳಿ...",
@@ -1733,6 +2031,7 @@ const te: Dict = {
     findCare: "సంరక్షణ కనుగొనండి",
     register: "ఆసుపత్రి నమోదు",
     changeLanguage: "భాష",
+    diagnostics: "నిర్ధారణ",
   },
   search: {
     placeholder: "లక్షణాలు, వైద్యుని పేరు, లేదా ఏదైనా అడగండి...",
@@ -1947,6 +2246,7 @@ const ar: Dict = {
     findCare: "ابحث عن رعاية",
     register: "سجّل مستشفى",
     changeLanguage: "اللغة",
+    diagnostics: "التشخيص",
   },
   search: {
     placeholder: "أدخل الأعراض أو اسم الطبيب أو اسأل أي شيء...",
@@ -2161,6 +2461,7 @@ const si: Dict = {
     findCare: "රැකවරණය සොයා ගන්න",
     register: "රෝහල ලියාපදිංචි කරන්න",
     changeLanguage: "භාෂාව",
+    diagnostics: "රෝග විනිශ්චය",
   },
   search: {
     placeholder: "රෝග ලක්ෂණ, වෛද්‍යවරයා නම, හෝ ඕනෑ දෙයක් අසන්න...",
@@ -2369,11 +2670,19 @@ const si: Dict = {
 
 export const dictionaries: Record<Locale, Dict> = { en, hi, mr, ta, bn, ml, kn, te, ar, si };
 
-// Utility: navigate nested object by dot-notation key
+// Utility: navigate nested object by dot-notation key.
+// Falls back to English when the key does not exist in the requested locale,
+// so newly-added keys are still readable while translators catch up.
 export function getTranslation(dict: Dict, path: string): string {
-  const value = path.split(".").reduce<unknown>((obj, key) => {
-    if (obj && typeof obj === "object") return (obj as Record<string, unknown>)[key];
-    return undefined;
-  }, dict);
-  return typeof value === "string" ? value : path;
+  function lookup(d: Dict): string | undefined {
+    const value = path.split(".").reduce<unknown>((obj, key) => {
+      if (obj && typeof obj === "object") return (obj as Record<string, unknown>)[key];
+      return undefined;
+    }, d);
+    return typeof value === "string" ? value : undefined;
+  }
+  const primary = lookup(dict);
+  if (primary !== undefined) return primary;
+  const fallback = lookup(en);
+  return fallback ?? path;
 }

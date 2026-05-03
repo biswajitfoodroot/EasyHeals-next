@@ -16,36 +16,6 @@ import { easyHealsPublicData } from "@/data/easyhealsPublicData";
 import HealthAssistant from "@/components/health-assistant/HealthAssistant";
 import styles from "@/components/homepage/homepage.module.css";
 
-/* ── FAQ Data (SEO) ────────────────────────────────────────────────────────── */
-
-const homeFAQs = [
-  {
-    q: "What is EasyHeals?",
-    a: "EasyHeals is an AI-powered healthcare discovery platform that helps patients find the right hospitals, doctors, treatments, and lab tests across India. It supports multilingual search in Hindi, Tamil, Marathi, Bengali and English.",
-  },
-  {
-    q: "Is EasyHeals free to use?",
-    a: "Yes. EasyHeals is completely free for patients. Hospitals and doctors can also list their practice and manage appointments at no cost.",
-  },
-  {
-    q: "Does EasyHeals provide medical advice or prescriptions?",
-    a: "No. EasyHeals helps you understand symptoms and find the right specialist, but it does not prescribe medication or offer medical diagnosis. Always consult a qualified doctor for medical advice.",
-  },
-  {
-    q: "How does EasyHeals AI search work?",
-    a: "Our Gemini-powered AI understands your symptoms or health queries in multiple languages, maps them to the right medical specialties, and shows you verified hospitals and doctors from the EasyHeals network.",
-  },
-  {
-    q: "Can hospitals register on EasyHeals?",
-    a: "Yes. Hospitals and clinics can register for free through the self-service OTP-verified onboarding. Once registered, they get access to appointment management, OPD token system, and patient communication tools.",
-  },
-  {
-    q: "Is my health data safe on EasyHeals?",
-    a: "Absolutely. EasyHeals follows DPDP (Digital Personal Data Protection) guidelines. All personal health data is AES-256 encrypted, and access is consent-gated. You control your data at all times.",
-  },
-];
-
-
 /* ══════════════════════════════════════════════════════════════════════════════
    HOMEPAGE COMPONENT
    ══════════════════════════════════════════════════════════════════════════════ */
@@ -234,7 +204,7 @@ export default function HomePage() {
 
           <nav className={styles.topNavLinks} aria-label="Main navigation">
             <Link href="/treatments">{t("nav.treatments")}</Link>
-            <Link href="/diagnostics">Diagnostics</Link>
+            <Link href="/diagnostics">{t("nav.diagnostics")}</Link>
             <Link href="/hospitals">{t("nav.hospitals")}</Link>
             <Link href="/doctors">{t("nav.doctors")}</Link>
           </nav>
@@ -246,14 +216,14 @@ export default function HomePage() {
               className={styles.navLangBtn}
               style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}
               onClick={() => { setCityPickerOpen((v) => !v); setCitySearch(""); }}
-              aria-label="Select city"
-              title="Select your city"
+              aria-label={t("homepage.selectCity")}
+              title={t("homepage.selectYourCity")}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="11" r="3" /><path d="M12 2a9 9 0 00-9 9c0 5.25 9 13 9 13s9-7.75 9-13a9 9 0 00-9-9z" />
               </svg>
               <span style={{ maxWidth: "72px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.8rem" }}>
-                {city ?? "Set city"}
+                {city ?? t("homepage.setCity")}
               </span>
               <span style={{ fontSize: "0.55rem", opacity: 0.6 }}>▼</span>
             </button>
@@ -270,13 +240,13 @@ export default function HomePage() {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /><circle cx="12" cy="12" r="9" strokeDasharray="2 3" />
                   </svg>
-                  {gpsLoading ? "Detecting…" : "Use my location"}
+                  {gpsLoading ? t("homepage.detecting") : t("homepage.useMyLocation")}
                 </button>
 
                 {/* Search input */}
                 <input
                   type="text"
-                  placeholder="Search city…"
+                  placeholder={t("homepage.searchCity")}
                   value={citySearch}
                   onChange={(e) => setCitySearch(e.target.value)}
                   style={{ width: "100%", padding: "0.35rem 0.5rem", borderRadius: "0.4rem", border: "1px solid #d0e4d8", fontSize: "0.8rem", outline: "none", marginBottom: "0.5rem", boxSizing: "border-box" }}
@@ -305,7 +275,7 @@ export default function HomePage() {
                 ))}
 
                 {filteredCityGroups.length === 0 && (
-                  <p style={{ fontSize: "0.78rem", color: "#8FA39A", textAlign: "center", padding: "0.5rem" }}>No cities found</p>
+                  <p style={{ fontSize: "0.78rem", color: "#8FA39A", textAlign: "center", padding: "0.5rem" }}>{t("homepage.noCitiesFound")}</p>
                 )}
               </div>
             )}
@@ -367,7 +337,7 @@ export default function HomePage() {
           <span className={styles.heroBadge}>{t("home.heroLabel")}</span>
 
           <h1 id="hero-title" className={styles.heroTitle}>
-            {t("home.heroTitle").split(".")[0]}.<br /><em>We&apos;ll find the right care.</em>
+            {t("home.heroTitle").split(".")[0]}.<br /><em>{t("homepage.heroTitleSecond")}</em>
           </h1>
 
           <p className={styles.heroSubtitle}>
@@ -382,10 +352,10 @@ export default function HomePage() {
           {/* ── Mobile: disclaimers + stats below HealthAssistant ── */}
           <div className="md:hidden">
             <div className={styles.heroDisclaimers}>
-              <span>🛡️ DPDP Compliant</span>
-              <span>✅ Verified Listings</span>
-              <span>🆓 Free to Use</span>
-              <span>💊 No Medication Advice</span>
+              <span>🛡️ {t("disclaimer.dpdpCompliant")}</span>
+              <span>✅ {t("disclaimer.verifiedListings")}</span>
+              <span>🆓 {t("disclaimer.freeToUse")}</span>
+              <span>💊 {t("disclaimer.noMedicationAdvice")}</span>
             </div>
             <div className={styles.heroStats}>
               <article><strong>{stats.hospitalLabel}</strong><span>{t("home.statHospitals")}</span></article>
@@ -414,10 +384,10 @@ export default function HomePage() {
                 />
               </div>
               <div className={styles.heroDisclaimers}>
-                <span>🛡️ DPDP Compliant</span>
-                <span>✅ Verified Listings</span>
-                <span>🆓 Free to Use</span>
-                <span>💊 No Medication Advice</span>
+                <span>🛡️ {t("disclaimer.dpdpCompliant")}</span>
+                <span>✅ {t("disclaimer.verifiedListings")}</span>
+                <span>🆓 {t("disclaimer.freeToUse")}</span>
+                <span>💊 {t("disclaimer.noMedicationAdvice")}</span>
               </div>
               <div className={styles.heroStats}>
                 <article><strong>12k+</strong><span>{t("home.statHospitals")}</span></article>
@@ -453,17 +423,17 @@ export default function HomePage() {
           <div className={styles.personBarInner}>
             <span className={styles.personBarIcon}>{isLoggedIn ? "👋" : "💡"}</span>
             <div className={styles.personBarText}>
-              <strong>{isLoggedIn ? "Welcome back! Your health dashboard is ready" : "Unlock Your Personalized Health Dashboard"}</strong>
-              <p>{isLoggedIn ? "View your appointments, health timeline, rewards & AI health coach." : "Sign in to get AI-powered health suggestions, track appointments, earn rewards & access your personal health coach."}</p>
+              <strong>{isLoggedIn ? t("personBar.welcomeBack") : t("personBar.unlockTitle")}</strong>
+              <p>{isLoggedIn ? t("personBar.welcomeBackSub") : t("personBar.unlockSub")}</p>
               <div className={styles.personBarFeatures}>
-                <span>📅 Appointments</span>
-                <span>📊 Health Timeline</span>
-                <span>🏆 Rewards</span>
-                <span>🤖 AI Coach</span>
+                <span>📅 {t("personBar.appointments")}</span>
+                <span>📊 {t("personBar.healthTimeline")}</span>
+                <span>🏆 {t("personBar.rewards")}</span>
+                <span>🤖 {t("personBar.aiCoach")}</span>
               </div>
             </div>
-            <Link href={isLoggedIn ? "/dashboard" : "/login"} className={styles.personBarBtn}>{isLoggedIn ? "Go to Dashboard →" : "Sign In Free →"}</Link>
-            <button type="button" className={styles.personBarDismiss} onClick={dismissPersonBar} aria-label="Dismiss">✕</button>
+            <Link href={isLoggedIn ? "/dashboard" : "/login"} className={styles.personBarBtn}>{isLoggedIn ? t("personBar.goToDashboard") : t("personBar.signInFree")}</Link>
+            <button type="button" className={styles.personBarDismiss} onClick={dismissPersonBar} aria-label={t("personBar.dismiss")}>✕</button>
           </div>
         </div>
       )}
@@ -474,57 +444,57 @@ export default function HomePage() {
           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <section className={styles.trustSection} aria-label="Institutional support and trust signals">
         <div className={styles.trustInner}>
-          <p className={styles.trustLabel}>Supported By</p>
+          <p className={styles.trustLabel}>{t("trust.supportedBy")}</p>
           <div className={styles.trustLogos}>
             <div className={styles.trustBadge}>
               <img src="/logos/iim-lucknow.svg" alt="IIM Lucknow" className={styles.trustLogo} />
               <div className={styles.trustBadgeText}>
                 <strong>IIM Lucknow</strong>
-                <small>Indian Institute of Management</small>
+                <small>{t("trust.iimLucknowSub")}</small>
               </div>
             </div>
             <div className={styles.trustBadge}>
               <img src="/logos/iit-mandi.svg" alt="IIT Mandi" className={styles.trustLogo} />
               <div className={styles.trustBadgeText}>
                 <strong>IIT Mandi</strong>
-                <small>Indian Institute of Technology</small>
+                <small>{t("trust.iitMandiSub")}</small>
               </div>
             </div>
             <div className={styles.trustBadge}>
               <img src="/logos/iihmr.svg" alt="IIHMR" className={styles.trustLogo} />
               <div className={styles.trustBadgeText}>
                 <strong>IIHMR</strong>
-                <small>Institute of Health Management Research</small>
+                <small>{t("trust.iihmrSub")}</small>
               </div>
             </div>
           </div>
 
           <div className={styles.trustDivider} />
 
-          <p className={styles.trustLabel}>Incubated At</p>
+          <p className={styles.trustLabel}>{t("trust.incubatedAt")}</p>
           <div className={styles.trustLogos}>
             <div className={styles.trustBadge}>
               <img src="/logos/deshpande.svg" alt="Deshpande Foundation" className={styles.trustLogo} />
               <div className={styles.trustBadgeText}>
                 <strong>Deshpande Foundation</strong>
-                <small>Startup Incubator</small>
+                <small>{t("trust.deshpandeSub")}</small>
               </div>
             </div>
             <div className={styles.trustBadge}>
               <img src="/logos/msmf.svg" alt="Mazumdar Shaw Medical Foundation" className={styles.trustLogo} />
               <div className={styles.trustBadgeText}>
                 <strong>MSMF</strong>
-                <small>Mazumdar Shaw Medical Foundation</small>
+                <small>{t("trust.msmfSub")}</small>
               </div>
             </div>
           </div>
 
           <div className={styles.trustSignals}>
-            <span>🛡️ DPDP Compliant</span>
-            <span>✅ Community Verified Listings</span>
-            <span>🆓 Free for Patients</span>
-            <span>🌐 9 Languages</span>
-            <span>🔒 AES-256 Encrypted</span>
+            <span>🛡️ {t("disclaimer.dpdpCompliant")}</span>
+            <span>✅ {t("disclaimer.communityVerifiedListings")}</span>
+            <span>🆓 {t("disclaimer.freeForPatients")}</span>
+            <span>🌐 {t("disclaimer.nineLanguages")}</span>
+            <span>🔒 {t("disclaimer.aes256Encrypted")}</span>
           </div>
         </div>
       </section>
@@ -536,17 +506,17 @@ export default function HomePage() {
       <section className={styles.providerSection} aria-labelledby="provider-title">
         <div className={styles.providerInner}>
           <div className={styles.providerCopy}>
-            <span className={styles.sectionLabel}>For Doctors &amp; Hospitals</span>
+            <span className={styles.sectionLabel}>{t("provider.sectionLabel")}</span>
             <h2 id="provider-title">{t("home.listHospitalCta")}</h2>
-            <p>Manage appointments, patient flow, and your online presence — completely free. No hidden charges, no premium tiers for basic features.</p>
+            <p>{t("provider.description")}</p>
 
             <ul className={styles.providerFeatures}>
-              <li>Free appointment management system</li>
-              <li>OPD token queue for walk-in patients</li>
-              <li>Patient communication via WhatsApp</li>
-              <li>AI-powered patient summaries before visits</li>
-              <li>Community-verified listing on EasyHeals</li>
-              <li>Self-service OTP onboarding in minutes</li>
+              <li>{t("provider.feature1")}</li>
+              <li>{t("provider.feature2")}</li>
+              <li>{t("provider.feature3")}</li>
+              <li>{t("provider.feature4")}</li>
+              <li>{t("provider.feature5")}</li>
+              <li>{t("provider.feature6")}</li>
             </ul>
 
             <div className={styles.providerActions}>
@@ -557,27 +527,27 @@ export default function HomePage() {
           </div>
 
           <div className={styles.providerVisual}>
-            <h3>What You Get — Free</h3>
+            <h3>{t("provider.visualHeading")}</h3>
             <div className={styles.providerVisualGrid}>
               <div className={styles.providerVisualItem}>
                 <span>📅</span>
-                <strong>Appointments</strong>
-                <p>Manage bookings easily</p>
+                <strong>{t("provider.appointments")}</strong>
+                <p>{t("provider.appointmentsSub")}</p>
               </div>
               <div className={styles.providerVisualItem}>
                 <span>🎫</span>
-                <strong>OPD Tokens</strong>
-                <p>Walk-in queue system</p>
+                <strong>{t("provider.opdTokens")}</strong>
+                <p>{t("provider.opdTokensSub")}</p>
               </div>
               <div className={styles.providerVisualItem}>
                 <span>📱</span>
-                <strong>WhatsApp</strong>
-                <p>Patient notifications</p>
+                <strong>{t("provider.whatsapp")}</strong>
+                <p>{t("provider.whatsappSub")}</p>
               </div>
               <div className={styles.providerVisualItem}>
                 <span>🤖</span>
-                <strong>AI Summaries</strong>
-                <p>Pre-visit patient briefs</p>
+                <strong>{t("provider.aiSummaries")}</strong>
+                <p>{t("provider.aiSummariesSub")}</p>
               </div>
             </div>
           </div>
@@ -589,25 +559,29 @@ export default function HomePage() {
           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <section className={styles.faqSection} aria-labelledby="faq-title">
         <div className={styles.sectionHeader}>
-          <span className={styles.sectionLabel}>Common Questions</span>
-          <h2 id="faq-title" className={styles.sectionTitle}>Frequently Asked Questions</h2>
+          <span className={styles.sectionLabel}>{t("faq.sectionLabel")}</span>
+          <h2 id="faq-title" className={styles.sectionTitle}>{t("faq.sectionTitle")}</h2>
         </div>
 
         <div className={styles.faqGrid}>
-          {homeFAQs.map((faq, i) => (
-            <div key={faq.q} className={styles.faqItem}>
-              <button
-                type="button"
-                className={styles.faqQuestion}
-                onClick={() => setOpenFQIndex(openFQIndex === i ? null : i)}
-                aria-expanded={openFQIndex === i}
-              >
-                {faq.q}
-                <span style={{ fontSize: 18, transform: openFQIndex === i ? "rotate(45deg)" : "none", transition: "transform 0.2s" }}>+</span>
-              </button>
-              {openFQIndex === i && <p className={styles.faqAnswer}>{faq.a}</p>}
-            </div>
-          ))}
+          {[1, 2, 3, 4, 5, 6].map((n, i) => {
+            const q = t(`faq.q${n}`);
+            const a = t(`faq.a${n}`);
+            return (
+              <div key={q} className={styles.faqItem}>
+                <button
+                  type="button"
+                  className={styles.faqQuestion}
+                  onClick={() => setOpenFQIndex(openFQIndex === i ? null : i)}
+                  aria-expanded={openFQIndex === i}
+                >
+                  {q}
+                  <span style={{ fontSize: 18, transform: openFQIndex === i ? "rotate(45deg)" : "none", transition: "transform 0.2s" }}>+</span>
+                </button>
+                {openFQIndex === i && <p className={styles.faqAnswer}>{a}</p>}
+              </div>
+            );
+          })}
         </div>
       </section>
 
