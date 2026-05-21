@@ -104,6 +104,12 @@ export function TreatmentsClient({
   const [activeType, setActiveType] = useState("all");
   const [city, setCity] = useState("all");
 
+  // Batched rendering — 60 cards initially, +60 per "Load more"
+  const PAGE_SIZE = 60;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Reset when filter/search changes
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [query, activeType]);
+
   // Default city from nav localStorage
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("eh_city") : null;
@@ -122,8 +128,8 @@ export function TreatmentsClient({
   const typeLabel: Record<string, string> = {
     specialty:  t("treatment.typeSpecialty"),
     treatment:  t("treatment.typeTreatment"),
-    pathology:  "🧪 Pathology Tests",
-    radiology:  "🔬 Radiology & Imaging",
+    pathology:  `🧪 ${t("treatment.typePathology")}`,
+    radiology:  `🔬 ${t("treatment.typeRadiology")}`,
     procedure:  t("treatment.typeProcedure"),
     condition:  t("treatment.typeCondition"),
     department: t("treatment.typeDepartment"),
@@ -144,16 +150,20 @@ export function TreatmentsClient({
     });
   }, [allItems, activeType, query]);
 
-  // Group filtered items by type for display
+  // Visible slice (batched). Order preserves type ordering so sections render naturally.
+  const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
+  const hasMore = filteredItems.length > visibleCount;
+
+  // Group visible items by type for display
   const filteredGrouped = useMemo(() => {
     const result: GroupedItems = {};
-    for (const item of filteredItems) {
+    for (const item of visibleItems) {
       const key = item.type ?? "other";
       if (!result[key]) result[key] = [];
       result[key].push(item);
     }
     return result;
-  }, [filteredItems]);
+  }, [visibleItems]);
 
   const activeTypes = activeType === "all" ? types.filter((t) => filteredGrouped[t]?.length) : [activeType];
 
@@ -164,7 +174,7 @@ export function TreatmentsClient({
         <span className={styles.kicker}>{t("treatment.directoryTitle")}</span>
         <h1>{t("treatment.directoryTitle")}</h1>
         <p>
-          {totalCount} {t("treatment.hospitalsFound").split(" ").pop()} · {t("treatment.directoryDescription")}
+          {t("treatment.totalFound").replace("{n}", String(totalCount))} · {t("treatment.directoryDescription")}
         </p>
 
         <div className={styles.searchBar}>
@@ -194,7 +204,7 @@ export function TreatmentsClient({
             className={activeType === "all" ? styles.filterPillActive : styles.filterPill}
             onClick={() => setActiveType("all")}
           >
-            All
+            {t("treatment.all")}
             <span className={styles.filterPillCount}>{totalCount}</span>
           </button>
           {types.map((type) => {
@@ -216,7 +226,7 @@ export function TreatmentsClient({
 
       {/* ── Result count ── */}
       <p style={{ width: "min(1180px,100%)", margin: "8px auto 0", fontSize: "12px", color: "#8FA39A", fontFamily: "var(--font-bricolage),sans-serif" }}>
-        {filteredItems.length} {t("treatment.directoryTitle").toLowerCase()} found
+        {t("treatment.totalFound").replace("{n}", String(filteredItems.length))}
         {city !== "all" ? ` · ${city}` : ""}
       </p>
 
@@ -301,6 +311,31 @@ export function TreatmentsClient({
 
         {filteredItems.length === 0 && (
           <p className={styles.emptyState}>{t("common.noResults")}</p>
+        )}
+
+        {hasMore && (
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "8px", marginBottom: "16px" }}>
+            <button
+              type="button"
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              style={{
+                padding: "10px 24px",
+                borderRadius: "999px",
+                border: "1.5px solid #1B8A4A",
+                background: "#fff",
+                color: "#1B8A4A",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "var(--font-bricolage),sans-serif",
+                transition: "background 0.15s, color 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#1B8A4A"; e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#1B8A4A"; }}
+            >
+              {t("treatment.loadMore")} ({filteredItems.length - visibleCount})
+            </button>
+          </div>
         )}
       </div>
     </main>

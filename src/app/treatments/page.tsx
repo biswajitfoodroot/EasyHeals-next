@@ -17,8 +17,15 @@ export const metadata: Metadata = buildMetadata({
 export default async function TreatmentsPage() {
   const { and, inArray } = await import("drizzle-orm");
   const VALID_TYPES = ["specialty", "treatment", "pathology", "radiology", "procedure", "condition", "department"];
+  // Select only the columns the client uses — skip the heavy JSON `metadata` column.
   const rows = await db
-    .select()
+    .select({
+      id: taxonomyNodes.id,
+      slug: taxonomyNodes.slug,
+      title: taxonomyNodes.title,
+      description: taxonomyNodes.description,
+      type: taxonomyNodes.type,
+    })
     .from(taxonomyNodes)
     .where(and(
       eq(taxonomyNodes.isActive, true),
@@ -26,8 +33,14 @@ export default async function TreatmentsPage() {
     ))
     .orderBy(asc(taxonomyNodes.type), asc(taxonomyNodes.title));
 
-  const grouped: Record<string, typeof rows> = {};
-  for (const row of rows) {
+  // Truncate descriptions to keep the SSR payload small (client shows first ~100 chars only).
+  const trimmed = rows.map((r) => ({
+    ...r,
+    description: r.description && r.description.length > 140 ? r.description.slice(0, 140) : r.description,
+  }));
+
+  const grouped: Record<string, typeof trimmed> = {};
+  for (const row of trimmed) {
     (grouped[row.type] ??= []).push(row);
   }
   const types = Object.keys(grouped).sort();
@@ -36,7 +49,7 @@ export default async function TreatmentsPage() {
     <TreatmentsClient
       grouped={grouped}
       types={types}
-      totalCount={rows.length}
+      totalCount={trimmed.length}
     />
   );
 }
