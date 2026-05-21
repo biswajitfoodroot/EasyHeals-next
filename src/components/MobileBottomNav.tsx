@@ -102,7 +102,7 @@ export function MobileBottomNav() {
         boxShadow: "0 -2px 16px rgba(0,0,0,0.07)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
-      className="md:hidden"
+      className="lg:hidden"
     >
       {NAV_ITEMS.map((item) => {
         const isActive = item.exact
