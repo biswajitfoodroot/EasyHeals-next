@@ -3400,9 +3400,11 @@ export default function DashboardClient() {
   ];
 
   return (
-    <div className="h-screen bg-slate-50 flex overflow-hidden">
+    <div className="bg-slate-50 flex overflow-hidden" style={{ height: "100dvh" }}>
       {/* ── Sidebar ── */}
-      <aside className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 h-screen shadow-sm">
+      <aside
+        className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 shadow-sm dashboard-aside"
+      >
         {/* Logo */}
         <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5">
           <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm" style={{ background: "#1B8A4A" }}>E</span>
@@ -3464,7 +3466,7 @@ export default function DashboardClient() {
 
       {/* ── Main content ── */}
       <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-4 pt-6 pb-36 md:pb-12 space-y-6">
+        <div className="dashboard-main max-w-3xl mx-auto px-4 pt-6 space-y-6">
 
           {/* Page title + language toggle */}
           <div className="flex items-center justify-between flex-wrap gap-3">

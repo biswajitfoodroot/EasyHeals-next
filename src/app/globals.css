@@ -36,6 +36,22 @@ body {
   min-height: 100dvh;
 }
 
+/* Dashboard layout — sidebar and main scroll above the mobile bottom nav */
+.dashboard-aside {
+  height: calc(100dvh - var(--mobile-nav-height));
+}
+.dashboard-main {
+  padding-bottom: calc(var(--mobile-nav-height) + 1.5rem);
+}
+@media (min-width: 768px) {
+  .dashboard-aside {
+    height: 100dvh;
+  }
+  .dashboard-main {
+    padding-bottom: 3rem;
+  }
+}
+
 /* SiteNav uses position:fixed via inline styles; this is kept as a stable anchor */
 .site-header {
   position: fixed;
