@@ -3412,22 +3412,24 @@ export default function DashboardClient() {
           </div>
         </div>
 
-        <nav className="flex-1 p-2 pb-20 md:pb-2 space-y-0.5 overflow-y-auto">
-          {NAV_ITEMS.map((n) => (
-            <button key={n.tab} onClick={() => switchTab(n.tab)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
-              style={activeTab === n.tab ? { background: "#1B8A4A" } : {}}>
-              <span className="text-base shrink-0">{n.icon}</span>
-              <span className="hidden lg:flex lg:flex-1 lg:items-center lg:gap-1.5">
-                {n.label}
-                {n.premium && !trial.canUsePremium && (
-                  <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded ml-auto">PRO</span>
-                )}
-              </span>
-            </button>
-          ))}
+        <nav className="flex-1 p-2 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto pb-20 md:pb-2 space-y-0.5">
+            {NAV_ITEMS.map((n) => (
+              <button key={n.tab} onClick={() => switchTab(n.tab)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === n.tab ? "text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-100"}`}
+                style={activeTab === n.tab ? { background: "#1B8A4A" } : {}}>
+                <span className="text-base shrink-0">{n.icon}</span>
+                <span className="hidden lg:flex lg:flex-1 lg:items-center lg:gap-1.5">
+                  {n.label}
+                  {n.premium && !trial.canUsePremium && (
+                    <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded ml-auto">PRO</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
 
-          <div className="pt-2 border-t border-slate-100 mt-2">
+          <div className="pt-2 border-t border-slate-100 mt-2 shrink-0">
             <Link href="/dashboard/privacy"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
               <span className="text-base shrink-0">🔒</span>
@@ -3435,7 +3437,7 @@ export default function DashboardClient() {
             </Link>
             {!trial.canUsePremium && (
               <Link href="/dashboard/upgrade"
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-600 hover:bg-amber-50 transition-all border border-amber-200 mt-1">
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-amber-600 hover:bg-amber-50 transition-all border border-amber-200 mt-1 mb-20 md:mb-0">
                 <span className="text-base shrink-0">⭐</span>
                 <span className="hidden lg:block">Upgrade</span>
               </Link>

@@ -142,6 +142,13 @@ export const metadata: Metadata = {
     title: "EasyHeals — AI Healthcare Discovery",
     description: "Find the right hospitals, doctors & treatments across India with AI-powered search.",
   },
+  icons: {
+    icon: [
+      { url: "/logo.jpg", type: "image/jpeg" },
+    ],
+    apple: "/logo.jpg",
+    shortcut: "/logo.jpg",
+  },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,
   },
