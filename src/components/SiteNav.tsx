@@ -25,7 +25,8 @@ const CITY_GROUPS = [
 
 /**
  * SiteNav — white fixed top nav, matching the homepage header.
- * Renders on all pages except /admin, /portal, and / (home has its own nav).
+ * Renders on all pages except /admin, /portal, /provider-management, /dashboard,
+ * /unauthorized, and / (home has its own nav).
  */
 export function SiteNav() {
   const pathname = usePathname();
@@ -81,7 +82,7 @@ export function SiteNav() {
       .filter((g) => g.cities.length > 0);
   }, [citySearch]);
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || pathname.startsWith("/provider-management") || pathname.startsWith("/unauthorized") || pathname === "/") return null;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || pathname.startsWith("/provider-management") || pathname.startsWith("/unauthorized") || pathname.startsWith("/dashboard") || pathname === "/") return null;
 
   const currentLocale = LOCALES.find((l) => l.code === locale);
 
@@ -181,7 +182,7 @@ export function SiteNav() {
         <nav className="sitenav-links" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
           {[
             { href: "/treatments", label: t("nav.treatments") },
-            { href: "/diagnostics", label: "Diagnostics" },
+            { href: "/diagnostics", label: t("nav.diagnostics") },
             { href: "/hospitals", label: t("nav.hospitals") },
             { href: "/doctors", label: t("nav.doctors") },
           ].map(({ href, label }) => {
@@ -535,7 +536,7 @@ export function SiteNav() {
                 { href: "/treatments", label: t("nav.treatments") },
                 { href: "/hospitals", label: t("nav.hospitals") },
                 { href: "/doctors", label: t("nav.doctors") },
-                { href: "/diagnostics", label: "Diagnostics" },
+                { href: "/diagnostics", label: t("nav.diagnostics") },
               ].map(({ href, label }) => {
                 const active = pathname.startsWith(href);
                 return (

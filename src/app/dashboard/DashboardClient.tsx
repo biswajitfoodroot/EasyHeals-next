@@ -3448,18 +3448,28 @@ export default function DashboardClient() {
         </nav>
 
         {/* User info */}
-        <div className="p-3 border-t border-slate-100">
+        <div className="p-3 border-t border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ background: "#1B8A4A" }}>
               {patientName.charAt(0).toUpperCase()}
             </div>
-            <div className="hidden lg:block min-w-0">
+            <div className="hidden lg:block min-w-0 flex-1">
               <p className="text-xs font-semibold text-slate-700 truncate">{patientName}</p>
               <p className="text-[10px] text-slate-400 capitalize">{trial.tier === "free" ? "Free Plan" : trial.tier}</p>
             </div>
           </div>
-          <button onClick={() => void handleSignOut()} className="hidden lg:block mt-2 text-xs text-slate-400 hover:text-red-500 transition w-full text-left">
-            Sign out →
+          <button
+            onClick={() => void handleSignOut()}
+            title="Sign out"
+            aria-label="Sign out"
+            className="mt-2 flex items-center justify-center lg:justify-start gap-2 w-full px-2 py-1.5 text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span className="hidden lg:inline">Sign out</span>
           </button>
         </div>
       </aside>
