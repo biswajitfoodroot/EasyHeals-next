@@ -173,6 +173,12 @@ export type Dict = {
     submitting: string;
     edit: string;
     specialist: string;
+    hospitalsFound: string;  // "{n} hospitals found"
+    doctorsFound: string;    // "{n} doctors found"
+    contactToBook: string;
+    showMore: string;        // "Show more ({n} remaining)"
+    sortAZ: string;
+    sortReviews: string;
   };
   hospital: {
     directoryTitle: string;
@@ -417,6 +423,12 @@ const en: Dict = {
     submitting: "Submitting...",
     edit: "Edit",
     specialist: "Specialist",
+    hospitalsFound: "{n} hospitals found",
+    doctorsFound: "{n} doctors found",
+    contactToBook: "Contact to Book",
+    showMore: "Show more ({n} remaining)",
+    sortAZ: "A–Z",
+    sortReviews: "Most reviews",
   },
   hospital: {
     directoryTitle: "Private Hospitals Across India",
@@ -757,6 +769,12 @@ const hi: Dict = {
     submitting: "जमा हो रहा है...",
     edit: "संपादित करें",
     specialist: "विशेषज्ञ",
+    hospitalsFound: "{n} अस्पताल मिले",
+    doctorsFound: "{n} डॉक्टर मिले",
+    contactToBook: "बुकिंग के लिए संपर्क करें",
+    showMore: "और दिखाएं ({n} शेष)",
+    sortAZ: "अ–ज्ञ",
+    sortReviews: "सर्वाधिक समीक्षा",
   },
   hospital: {
     directoryTitle: "भारत भर के निजी अस्पताल",
@@ -1097,6 +1115,12 @@ const mr: Dict = {
     submitting: "सादर होत आहे...",
     edit: "संपादित करा",
     specialist: "तज्ञ",
+    hospitalsFound: "{n} रुग्णालये आढळली",
+    doctorsFound: "{n} डॉक्टर आढळले",
+    contactToBook: "बुकिंगसाठी संपर्क करा",
+    showMore: "अधिक दाखवा ({n} शिल्लक)",
+    sortAZ: "अ–ज्ञ",
+    sortReviews: "सर्वाधिक पुनरावलोकने",
   },
   hospital: {
     directoryTitle: "भारतभरातील खाजगी रुग्णालये",
@@ -1437,6 +1461,12 @@ const ta: Dict = {
     submitting: "சமர்ப்பிக்கிறது...",
     edit: "திருத்து",
     specialist: "நிபுணர்",
+    hospitalsFound: "{n} மருத்துவமனைகள் கிடைத்தன",
+    doctorsFound: "{n} மருத்துவர்கள் கிடைத்தனர்",
+    contactToBook: "முன்பதிவுக்கு தொடர்பு கொள்ள",
+    showMore: "மேலும் காட்டு ({n} மீதம்)",
+    sortAZ: "அ–ஃ",
+    sortReviews: "அதிக மதிப்புரைகள்",
   },
   hospital: {
     directoryTitle: "இந்தியா முழுவதும் தனியார் மருத்துவமனைகள்",
@@ -1777,6 +1807,12 @@ const bn: Dict = {
     submitting: "জমা হচ্ছে...",
     edit: "সম্পাদনা",
     specialist: "বিশেষজ্ঞ",
+    hospitalsFound: "{n} হাসপাতাল পাওয়া গেছে",
+    doctorsFound: "{n} ডাক্তার পাওয়া গেছে",
+    contactToBook: "বুকিংয়ের জন্য যোগাযোগ করুন",
+    showMore: "আরও দেখান ({n} বাকি)",
+    sortAZ: "অ–ঔ",
+    sortReviews: "সর্বাধিক পর্যালোচনা",
   },
   hospital: {
     directoryTitle: "ভারত জুড়ে বেসরকারি হাসপাতাল",
@@ -2117,6 +2153,12 @@ const ml: Dict = {
     submitting: "സമർപ്പിക്കുന്നു...",
     edit: "എഡിറ്റ്",
     specialist: "വിദഗ്ദ്ധൻ",
+    hospitalsFound: "{n} ആശുപത്രികൾ ലഭിച്ചു",
+    doctorsFound: "{n} ഡോക്ടർമാർ ലഭിച്ചു",
+    contactToBook: "ബുക്ക് ചെയ്യാൻ ബന്ധപ്പെടുക",
+    showMore: "കൂടുതൽ കാണിക്കുക ({n} ശേഷിക്കുന്നു)",
+    sortAZ: "അ–ഃ",
+    sortReviews: "ഏറ്റവും കൂടുതൽ അവലോകനങ്ങൾ",
   },
   hospital: {
     directoryTitle: "ഇന്ത്യ മുഴുവൻ സ്വകാര്യ ആശുപത്രികൾ",
@@ -2457,6 +2499,12 @@ const kn: Dict = {
     submitting: "ಸಲ್ಲಿಸಲಾಗುತ್ತಿದೆ...",
     edit: "ಸಂಪಾದಿಸಿ",
     specialist: "ತಜ್ಞ",
+    hospitalsFound: "{n} ಆಸ್ಪತ್ರೆಗಳು ಸಿಕ್ಕಿವೆ",
+    doctorsFound: "{n} ವೈದ್ಯರು ಸಿಕ್ಕಿದ್ದಾರೆ",
+    contactToBook: "ಬುಕಿಂಗ್‌ಗಾಗಿ ಸಂಪರ್ಕಿಸಿ",
+    showMore: "ಇನ್ನಷ್ಟು ತೋರಿಸಿ ({n} ಉಳಿದಿವೆ)",
+    sortAZ: "ಅ–ಔ",
+    sortReviews: "ಹೆಚ್ಚು ವಿಮರ್ಶೆಗಳು",
   },
   hospital: {
     directoryTitle: "ಭಾರತ ಉದ್ದಕ್ಕೂ ಖಾಸಗಿ ಆಸ್ಪತ್ರೆಗಳು",
@@ -2797,6 +2845,12 @@ const te: Dict = {
     submitting: "సమర్పిస్తోంది...",
     edit: "సవరించండి",
     specialist: "నిపుణుడు",
+    hospitalsFound: "{n} ఆసుపత్రులు లభించాయి",
+    doctorsFound: "{n} వైద్యులు లభించారు",
+    contactToBook: "బుకింగ్ కోసం సంప్రదించండి",
+    showMore: "మరిన్ని చూపించు ({n} మిగిలి ఉన్నాయి)",
+    sortAZ: "అ–ఔ",
+    sortReviews: "అత్యధిక సమీక్షలు",
   },
   hospital: {
     directoryTitle: "భారతదేశం అంతటా ప్రైవేట్ ఆసుపత్రులు",
@@ -3137,6 +3191,12 @@ const ar: Dict = {
     submitting: "جارٍ الإرسال...",
     edit: "تعديل",
     specialist: "متخصص",
+    hospitalsFound: "تم العثور على {n} مستشفى",
+    doctorsFound: "تم العثور على {n} طبيب",
+    contactToBook: "اتصل للحجز",
+    showMore: "عرض المزيد ({n} متبقية)",
+    sortAZ: "أ–ي",
+    sortReviews: "الأكثر مراجعة",
   },
   hospital: {
     directoryTitle: "المستشفيات الخاصة عبر الهند",
@@ -3477,6 +3537,12 @@ const si: Dict = {
     submitting: "ඉදිරිපත් කෙරෙමින්...",
     edit: "සංස්කරණය",
     specialist: "විශේෂඥ",
+    hospitalsFound: "රෝහල් {n}ක් සොයාගත්තා",
+    doctorsFound: "වෛද්‍යවරුන් {n}ක් සොයාගත්තා",
+    contactToBook: "වෙන්කරවා ගැනීමට සම්බන්ධ වන්න",
+    showMore: "තවත් පෙන්වන්න ({n} ඉතිරියි)",
+    sortAZ: "අ–ඖ",
+    sortReviews: "වැඩිම සමාලෝචන",
   },
   hospital: {
     directoryTitle: "ඉන්දියාව පුරා පෞද්ගලික රෝහල්",

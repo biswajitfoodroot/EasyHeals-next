@@ -30,7 +30,8 @@ export default async function HospitalsPage() {
         rating: row.rating,
         reviewCount: row.reviewCount,
         verified: row.verified,
-        subtitle: row.description,
+        // Card truncates to 70 chars; trim server-side to keep the SSR payload small.
+        subtitle: row.description && row.description.length > 90 ? row.description.slice(0, 90) : row.description,
         url: `/hospitals/${row.slug}`,
         networkTierCode: row.networkTierCode,
       }))}

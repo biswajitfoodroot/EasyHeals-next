@@ -133,21 +133,21 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             value={query}
             onChange={(e) => { setQuery(e.target.value); resetPage(); }}
             placeholder={kind === "hospital" ? t("hospital.searchPlaceholder") : t("doctor.searchPlaceholder")}
-            aria-label="Search listings"
+            aria-label={t("common.search")}
           />
           <select value={city} onChange={(e) => {
             const next = e.target.value;
             setCity(next);
             if (typeof window !== "undefined") localStorage.setItem("eh_city", next);
             resetPage();
-          }} aria-label="Filter by city">
+          }} aria-label={t("common.allCities")}>
             <option value="all">{t("common.allCities")}</option>
             {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); resetPage(); }} aria-label="Sort">
+          <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); resetPage(); }} aria-label={t("common.rating")}>
             <option value="rating">★ {t("common.rating")}</option>
-            <option value="name">A–Z</option>
-            <option value="reviews">{t("common.rating")} (reviews)</option>
+            <option value="name">{t("common.sortAZ")}</option>
+            <option value="reviews">{t("common.sortReviews")}</option>
           </select>
         </div>
       </section>
@@ -184,7 +184,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
       {/* ── Result count ── */}
       <p style={{ width: "min(1180px,100%)", margin: "8px auto 0", fontSize: "12px", color: "#8FA39A", fontFamily: "var(--font-bricolage),sans-serif" }}>
-        {filtered.length} {kind === "hospital" ? t("nav.hospitals") : t("nav.doctors")} found
+        {(kind === "hospital" ? t("common.hospitalsFound") : t("common.doctorsFound")).replace("{n}", String(filtered.length))}
       </p>
 
       {/* ── Card grid ── */}
@@ -266,7 +266,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               {kind === "hospital" && !item.networkTierCode ? (
                 <Link href={`${item.url}?contact=1`} className={styles.directoryCardBook} data-testid="btn-contact"
                   style={{ background: "transparent", color: "#1B8A4A", border: "1.5px solid #1B8A4A" }}>
-                  Contact to Book
+                  {t("common.contactToBook")}
                 </Link>
               ) : (
                 <Link href={`${item.url}?book=1`} className={styles.directoryCardBook} data-testid="btn-book">
@@ -286,7 +286,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
       {hasMore && (
         <div className={styles.loadMoreWrap}>
           <button type="button" className={styles.loadMoreBtn} onClick={() => setPage((p) => p + 1)}>
-            Show more ({filtered.length - visibleItems.length} remaining)
+            {t("common.showMore").replace("{n}", String(filtered.length - visibleItems.length))}
           </button>
         </div>
       )}
