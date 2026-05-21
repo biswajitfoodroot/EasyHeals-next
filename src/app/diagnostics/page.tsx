@@ -16,22 +16,35 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function DiagnosticsPage() {
+  // Select only the columns the client uses — skip the heavy JSON `metadata` column.
   const rows = await db
-    .select()
+    .select({
+      id: taxonomyNodes.id,
+      slug: taxonomyNodes.slug,
+      title: taxonomyNodes.title,
+      description: taxonomyNodes.description,
+      type: taxonomyNodes.type,
+    })
     .from(taxonomyNodes)
     .where(
       inArray(taxonomyNodes.type, ["pathology", "radiology"]),
     )
     .orderBy(asc(taxonomyNodes.type), asc(taxonomyNodes.title));
 
-  const pathology = rows.filter(r => r.type === "pathology");
-  const radiology = rows.filter(r => r.type === "radiology");
+  // Truncate descriptions to keep the SSR payload small (card uses line-clamp-2 anyway).
+  const trimmed = rows.map((r) => ({
+    ...r,
+    description: r.description && r.description.length > 140 ? r.description.slice(0, 140) : r.description,
+  }));
+
+  const pathology = trimmed.filter(r => r.type === "pathology");
+  const radiology = trimmed.filter(r => r.type === "radiology");
 
   return (
     <DiagnosticsClient
       pathology={pathology}
       radiology={radiology}
-      totalCount={rows.length}
+      totalCount={trimmed.length}
     />
   );
 }

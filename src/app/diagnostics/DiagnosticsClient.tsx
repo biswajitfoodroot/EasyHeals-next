@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { useTranslations } from "@/i18n/LocaleContext";
 
 type TaxNode = {
   id: string;
@@ -64,6 +65,7 @@ function getIcon(title: string, type: "pathology" | "radiology"): string {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
+  const { t } = useTranslations();
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"all" | "pathology" | "radiology">("all");
 
@@ -86,25 +88,24 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 py-10 sm:py-14">
           <div className="flex items-center gap-2 text-sm text-gray-400 mb-3">
-            <Link href="/" className="hover:text-green-600">Home</Link>
+            <Link href="/" className="hover:text-green-600">{t("common.home")}</Link>
             <span>/</span>
-            <span className="text-gray-600">Diagnostics</span>
+            <span className="text-gray-600">{t("diagnostics.breadcrumbDiagnostics")}</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight">
-            Pathology &amp; Radiology
+            {t("diagnostics.heroTitle")}
           </h1>
           <p className="text-gray-500 mt-2 text-sm sm:text-base max-w-2xl">
-            Book lab tests and imaging scans near you — blood tests, MRI, CT scan, ultrasound, biopsy, and more.
-            Verified diagnostic centres across 50+ cities.
+            {t("diagnostics.heroSubtitle")}
           </p>
 
           {/* Stats */}
           <div className="flex flex-wrap gap-4 mt-5">
             {[
-              { label: "Pathology tests", val: pathology.length || "50+" },
-              { label: "Radiology / Imaging", val: radiology.length || "30+" },
-              { label: "Cities covered", val: "50+" },
-              { label: "Verified centres", val: "500+" },
+              { label: t("diagnostics.statPathologyTests"), val: pathology.length || "50+" },
+              { label: t("diagnostics.statRadiologyImaging"), val: radiology.length || "30+" },
+              { label: t("diagnostics.statCitiesCovered"), val: "50+" },
+              { label: t("diagnostics.statVerifiedCentres"), val: "500+" },
             ].map(s => (
               <div key={s.label} className="bg-green-50 border border-green-100 rounded-xl px-4 py-2.5">
                 <p className="font-bold text-green-700 text-lg leading-none">{s.val}</p>
@@ -120,21 +121,25 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search tests or scans… (e.g. HbA1c, MRI Brain)"
+          placeholder={t("diagnostics.searchPlaceholder")}
           className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 w-full"
         />
         <div className="flex rounded-xl border border-gray-200 bg-white overflow-hidden shrink-0">
-          {(["all", "pathology", "radiology"] as const).map(t => (
+          {(["all", "pathology", "radiology"] as const).map(key => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors ${
-                tab === t
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                tab === key
                   ? "bg-green-500 text-white"
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              {t === "all" ? "All" : t === "pathology" ? "🧪 Pathology" : "🔬 Radiology"}
+              {key === "all"
+                ? t("diagnostics.filterAll")
+                : key === "pathology"
+                  ? t("diagnostics.filterPathology")
+                  : t("diagnostics.filterRadiology")}
             </button>
           ))}
         </div>
@@ -147,13 +152,13 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">🧪</span>
               <div>
-                <h2 className="font-bold text-gray-800 text-lg">Pathology Tests</h2>
-                <p className="text-xs text-gray-400">{filtered.pathology.length} tests available</p>
+                <h2 className="font-bold text-gray-800 text-lg">{t("diagnostics.sectionPathologyTests")}</h2>
+                <p className="text-xs text-gray-400">{t("diagnostics.testsAvailable").replace("{n}", String(filtered.pathology.length))}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {filtered.pathology.map(node => (
-                <DiagnosticCard key={node.id} node={node} diagType="pathology" />
+                <DiagnosticCard key={node.id} node={node} diagType="pathology" findLabel={t("diagnostics.findCentres")} />
               ))}
             </div>
           </section>
@@ -165,13 +170,13 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">🔬</span>
               <div>
-                <h2 className="font-bold text-gray-800 text-lg">Radiology &amp; Imaging</h2>
-                <p className="text-xs text-gray-400">{filtered.radiology.length} imaging types available</p>
+                <h2 className="font-bold text-gray-800 text-lg">{t("diagnostics.sectionRadiologyImaging")}</h2>
+                <p className="text-xs text-gray-400">{t("diagnostics.imagingAvailable").replace("{n}", String(filtered.radiology.length))}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {filtered.radiology.map(node => (
-                <DiagnosticCard key={node.id} node={node} diagType="radiology" />
+                <DiagnosticCard key={node.id} node={node} diagType="radiology" findLabel={t("diagnostics.findCentres")} />
               ))}
             </div>
           </section>
@@ -183,14 +188,14 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
             <p className="text-4xl mb-3">{tab === "pathology" ? "🧪" : tab === "radiology" ? "🔬" : "🩺"}</p>
             <p className="text-gray-500 text-sm">
               {search
-                ? `No results for "${search}". Try a different keyword.`
-                : "No diagnostics listed yet. Ask your admin to add pathology or radiology nodes."}
+                ? t("diagnostics.noResultsFor").replace("{q}", search)
+                : t("diagnostics.noListings")}
             </p>
             <button
               onClick={() => { setSearch(""); setTab("all"); }}
               className="mt-4 text-sm text-green-600 hover:underline"
             >
-              Clear filters
+              {t("diagnostics.clearFilters")}
             </button>
           </div>
         )}
@@ -199,15 +204,15 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
         {totalCount === 0 && (
           <div className="bg-green-50 border border-green-200 rounded-2xl px-6 py-8 text-center">
             <p className="text-2xl mb-2">🔬</p>
-            <h3 className="font-bold text-gray-800 mb-1">Diagnostic tests coming soon</h3>
+            <h3 className="font-bold text-gray-800 mb-1">{t("diagnostics.comingSoonTitle")}</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Our team is listing verified pathology labs and radiology centres near you.
+              {t("diagnostics.comingSoonBody")}
             </p>
             <Link
               href="/?q=blood+test+near+me"
               className="inline-block bg-green-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-green-600 transition-colors"
             >
-              Find diagnostic centres via AI →
+              {t("diagnostics.findViaAi")}
             </Link>
           </div>
         )}
@@ -218,7 +223,7 @@ export function DiagnosticsClient({ pathology, radiology, totalCount }: Props) {
 
 // ── Card ─────────────────────────────────────────────────────────────────────
 
-function DiagnosticCard({ node, diagType }: { node: TaxNode; diagType: "pathology" | "radiology" }) {
+function DiagnosticCard({ node, diagType, findLabel }: { node: TaxNode; diagType: "pathology" | "radiology"; findLabel: string }) {
   const icon = getIcon(node.title, diagType);
   const desc = node.description?.trim();
 
@@ -235,7 +240,7 @@ function DiagnosticCard({ node, diagType }: { node: TaxNode; diagType: "patholog
         <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">{desc}</p>
       )}
       <span className="mt-auto text-xs text-green-600 font-medium group-hover:underline">
-        Find centres →
+        {findLabel}
       </span>
     </Link>
   );
