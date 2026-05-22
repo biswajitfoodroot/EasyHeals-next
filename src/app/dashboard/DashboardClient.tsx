@@ -3406,13 +3406,20 @@ export default function DashboardClient() {
         className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 shadow-sm dashboard-aside"
       >
         {/* Logo */}
-        <div className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm" style={{ background: "#1B8A4A" }}>E</span>
+        <Link href="/" className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5 hover:bg-slate-50 transition" aria-label="EasyHeals home">
+          <img
+            src="/logo.jpg"
+            alt="EasyHeals"
+            width={36}
+            height={36}
+            className="rounded-xl shrink-0 shadow-sm"
+            style={{ objectFit: "contain" }}
+          />
           <div className="hidden lg:block">
             <p className="font-bold text-slate-800 text-sm leading-tight">EasyHeals</p>
             <p className="text-[10px] text-slate-400">Patient Dashboard</p>
           </div>
-        </div>
+        </Link>
 
         <nav className="flex-1 p-2 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto space-y-0.5" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>

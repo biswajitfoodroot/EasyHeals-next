@@ -76,7 +76,7 @@ const NAV_ITEMS = [
   },
 ];
 
-const HIDDEN_PREFIXES = ["/admin", "/portal", "/provider-management", "/login", "/unauthorized"];
+const HIDDEN_PREFIXES = ["/admin", "/portal", "/provider-management", "/login", "/unauthorized", "/dashboard"];
 
 export function MobileBottomNav() {
   const pathname = usePathname();
@@ -97,12 +97,11 @@ export function MobileBottomNav() {
         zIndex: 9990,
         background: "#fff",
         borderTop: "1px solid #e2e8f0",
-        display: "flex",
         alignItems: "stretch",
         boxShadow: "0 -2px 16px rgba(0,0,0,0.07)",
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
-      className="md:hidden"
+      className="mobile-bottom-nav"
     >
       {NAV_ITEMS.map((item) => {
         const isActive = item.exact

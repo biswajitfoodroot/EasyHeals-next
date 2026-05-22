@@ -36,20 +36,26 @@ body {
   min-height: 100dvh;
 }
 
-/* Dashboard layout — sidebar and main scroll above the mobile bottom nav */
-.dashboard-aside {
-  height: calc(100dvh - var(--mobile-nav-height));
-}
-.dashboard-main {
-  padding-bottom: calc(var(--mobile-nav-height) + 1.5rem);
+/* Mobile bottom nav — visible only below md breakpoint (768px).
+   The inline `display: flex` was overriding md:hidden, so we control
+   visibility here where !important is not needed because no inline
+   style sets `display`. */
+.mobile-bottom-nav {
+  display: flex;
 }
 @media (min-width: 768px) {
-  .dashboard-aside {
-    height: 100dvh;
+  .mobile-bottom-nav {
+    display: none;
   }
-  .dashboard-main {
-    padding-bottom: 3rem;
-  }
+}
+
+/* Dashboard layout — MobileBottomNav is hidden on /dashboard, so the
+   sidebar and main can use the full viewport height. */
+.dashboard-aside {
+  height: 100dvh;
+}
+.dashboard-main {
+  padding-bottom: 3rem;
 }
 
 /* SiteNav uses position:fixed via inline styles; this is kept as a stable anchor */
