@@ -17,6 +17,7 @@ type SearchResultsProps = {
   onContribute: (result: SearchResult) => void;
   city?: string;
   isLoggedIn?: boolean;
+  lightTheme?: boolean;
 };
 
 // Common health needs by city — top searches in each metro
@@ -89,7 +90,7 @@ function defaultTabFromIntent(intent: SearchIntent | null): Tab {
   return "all";
 }
 
-export function SearchResults({ intent, results, loading, onPrompt, onContribute, city, isLoggedIn }: SearchResultsProps) {
+export function SearchResults({ intent, results, loading, onPrompt, onContribute, city, isLoggedIn, lightTheme = false }: SearchResultsProps) {
   const [intentConfirmed, setIntentConfirmed] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(() => defaultTabFromIntent(intent));
 
@@ -139,13 +140,15 @@ export function SearchResults({ intent, results, loading, onPrompt, onContribute
   const hasTabs = results.length > 0 && (hospitals.length > 0 || doctors.length > 0);
 
   return (
-    <section className={styles.resultsPanel} aria-label="Live search results">
-      {/* ── Header ── */}
-      <div className={styles.resultsHead}>
-        <h3>Live Results</h3>
-        <span>{visibleResults.length}</span>
-        <button type="button">Sort ↕</button>
-      </div>
+    <section className={`${styles.resultsPanel} ${lightTheme ? styles.lightTheme : ""}`} aria-label="Live search results">
+      {/* ── Header — hidden when no results yet ── */}
+      {(results.length > 0 || loading) && (
+        <div className={styles.resultsHead}>
+          <h3>Live Results</h3>
+          {visibleResults.length > 0 && <span>{visibleResults.length}</span>}
+          <button type="button">Sort ↕</button>
+        </div>
+      )}
 
       {/* ── Hospitals / Doctors tabs ── */}
       {hasTabs && (

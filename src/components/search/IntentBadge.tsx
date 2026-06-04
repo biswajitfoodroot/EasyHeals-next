@@ -33,8 +33,7 @@ type IntentBadgeProps = {
   confidence?: number;
 };
 
-export function IntentBadge({ icon = "✦", label, count, language, confidence }: IntentBadgeProps) {
-  const langMeta = getLanguageMeta(language);
+export function IntentBadge({ icon = "✦", label, count, confidence }: IntentBadgeProps) {
   const lowConfidence = confidence !== undefined && confidence < 0.5;
 
   return (
@@ -42,12 +41,7 @@ export function IntentBadge({ icon = "✦", label, count, language, confidence }
       <span>{icon}</span>
       <span>Showing results for</span>
       <strong>{label}</strong>
-      <span>— {count} listings</span>
-      {langMeta ? (
-        <span className={styles.langPill}>
-          {langMeta.flag} {langMeta.label}
-        </span>
-      ) : null}
+      <span>{"·"} {count} listings</span>
       {lowConfidence ? (
         <span className={styles.lowConfidencePill} title={`Confidence: ${Math.round((confidence ?? 0) * 100)}%`}>
           ~{Math.round((confidence ?? 0) * 100)}% match

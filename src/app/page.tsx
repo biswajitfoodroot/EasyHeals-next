@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import HomePage from "@/components/homepage/HomePage";
+import { listHospitalsDirectory } from "@/lib/profile-data";
+import { normalizeCityName } from "@/lib/strings";
 import { absoluteUrl, buildFAQJsonLd, buildOrganizationJsonLd, buildHreflangAlternates } from "@/lib/seo";
 
 /* ── SEO Metadata ─────────────────────────────────────────────────────────── */
@@ -200,30 +202,31 @@ const medicalWebPageJsonLd = {
 
 /* ── Page Component ──────────────────────────────────────────────────────── */
 
-export default function Home() {
+export const revalidate = 3600;
+
+export default async function Home() {
+  // Fetch top hospitals server-side for the "Popular in [City]" section
+  const rawHospitals = await listHospitalsDirectory(120);
+  const topHospitals = rawHospitals.map((h) => ({
+    id: h.id,
+    slug: h.slug,
+    name: h.name,
+    city: normalizeCityName(h.city),
+    state: h.state,
+    specialties: h.specialties,
+    rating: h.rating,
+    reviewCount: h.reviewCount,
+    verified: h.verified,
+    networkTierCode: h.networkTierCode,
+  }));
+
   return (
     <>
-      {/* JSON-LD: Organization */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-      />
-      {/* JSON-LD: WebSite (enables Google Sitelinks Search Box) */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
-      />
-      {/* JSON-LD: MedicalWebPage */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageJsonLd) }}
-      />
-      {/* JSON-LD: FAQ (rich results in Google + AI search engines) */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFAQJsonLd(homeFAQs)) }}
-      />
-      <HomePage />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(buildFAQJsonLd(homeFAQs)) }} />
+      <HomePage topHospitals={topHospitals} />
     </>
   );
 }

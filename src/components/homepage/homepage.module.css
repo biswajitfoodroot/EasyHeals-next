@@ -4,8 +4,19 @@
 
 .page {
   min-height: 100dvh;
+  /* Override the radial gradient blobs from globals body */
   background: #FFFFFF;
   color: #1A2B23;
+}
+
+/* Suppress body radial-gradient blobs within the homepage */
+.page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: -1;
+  pointer-events: none;
 }
 
 /* ── ① Nav Bar ─────────────────────────────────────────────────────────────── */
@@ -101,16 +112,17 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  flex: 1; /* pushes city · language · login · CTA to the right edge */
 }
 
 .topNavLinks a {
-  color: #5A7367;
+  color: #444;
   text-decoration: none;
   padding: 6px 12px;
   border-radius: 8px;
   font-family: var(--font-bricolage), sans-serif;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   transition: color 0.15s, background 0.15s;
 }
 
@@ -237,13 +249,942 @@
   background: #136836;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   Mobile-first hero elements
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Compact heading block — sits above the chat on mobile */
+.mobileHeroText {
+  padding: 16px 16px 12px;
+  text-align: left;
+}
+
+/* Mobile H1 — smaller than desktop, leaves room for chat */
+.heroTitleMobile {
+  margin: 8px 0 6px;
+  font-family: var(--font-serif), serif;
+  font-size: clamp(26px, 7vw, 36px);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #1A2B23;
+}
+
+.heroTitleMobile em {
+  font-style: italic;
+  background: linear-gradient(135deg, #1B8A4A, #22a85c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Mobile subtitle — single compact line */
+.heroSubtitleMobile {
+  margin: 0;
+  font-size: 13px;
+  color: #5A7367;
+  line-height: 1.5;
+}
+
+/* ── AI Chat — the hero on mobile ────────────────────────────────────────────── */
+
+.mobileChatWrap {
+  margin: 0 12px;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1.5px solid #D0E4D8;
+  box-shadow:
+    0 4px 24px rgba(27, 138, 74, 0.10),
+    0 1px 4px rgba(0, 0, 0, 0.04);
+  /* Fill the bulk of the visible screen */
+  height: calc(100dvh - 64px - 110px - 68px - 88px - 64px);
+  min-height: 380px;
+  max-height: 560px;
+  background: #fff;
+}
+
+/* ── Quick-access chip strip ─────────────────────────────────────────────────── */
+
+.mobileChipStrip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 12px 12px 4px;
+}
+
+.mobileChipStrip::-webkit-scrollbar { display: none; }
+
+.mobileChip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1.5px solid #D0E4D8;
+  border-radius: 14px;
+  text-decoration: none;
+  color: #1A2B23;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.mobileChip:active {
+  background: #F0F9F4;
+  border-color: #1B8A4A;
+}
+
+.mobileChipIcon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.mobileChipLabel {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-family: var(--font-bricolage), sans-serif;
+  color: #1A2B23;
+  text-align: center;
+}
+
+/* ── Compact stat row ────────────────────────────────────────────────────────── */
+
+.mobileStatRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 10px 12px 12px;
+}
+
+.mobileStat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  gap: 1px;
+}
+
+.mobileStat strong {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1B8A4A;
+  line-height: 1;
+}
+
+.mobileStat span {
+  font-size: 9px;
+  color: #8FA39A;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.mobileStatDivider {
+  width: 1px;
+  height: 28px;
+  background: #D0E4D8;
+  flex-shrink: 0;
+}
+
+/* ── Compact mobile trust strip ─────────────────────────────────────────────── */
+
+.mobileTrustStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid #EAF2EC;
+}
+
+.mobileTrustLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8FA39A;
+}
+
+.mobileTrustDot {
+  color: #D0E4D8;
+  font-size: 12px;
+}
+
+.mobileTrustName {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5A7367;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+/* Hide mobile-only elements on desktop */
+@media (min-width: 768px) {
+  .mobileHeroText,
+  .mobileChatWrap,
+  .mobileChipStrip,
+  .mobileStatRow,
+  .mobileTrustStrip {
+    display: none;
+  }
+}
+
+/* ── Hero search section wrapper ─────────────────────────────────────────── */
+
+.heroSearchSection {
+  width: 100%;
+  max-width: 740px;
+  margin: 28px auto 0;
+}
+
+.heroSearchLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1B8A4A;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px 2px;
+  opacity: 0.85;
+}
+
+/* ── Hero search bar ────────────────────────────────────────────────────────── */
+
+.heroSearchForm {
+  width: 100%;
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+.heroSearchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 2.5px solid #1B8A4A;
+  border-radius: 16px;
+  padding: 12px 14px;
+  cursor: text;
+  box-shadow: 0 6px 28px rgba(27, 138, 74, 0.14);
+  transition: box-shadow 0.2s;
+}
+
+.heroSearchBar:focus-within {
+  box-shadow: 0 8px 36px rgba(27, 138, 74, 0.22);
+}
+
+.heroSearchIcon {
+  color: #1B8A4A;
+  flex-shrink: 0;
+}
+
+.heroSearchInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  font: inherit;
+  font-size: 15px;
+  color: #1A2B23;
+  background: transparent;
+  min-width: 0;
+}
+
+.heroSearchInput::placeholder {
+  color: #8FA39A;
+  font-size: 14px;
+}
+
+.heroSearchDivider {
+  width: 1px;
+  height: 24px;
+  background: #D0E4D8;
+  flex-shrink: 0;
+}
+
+.heroSearchBtn {
+  background: #E8401C;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.heroSearchBtn:hover { background: #c73516; }
+
+.heroSearchHint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: #8FA39A;
+  text-align: center;
+}
+
+.heroSearchHint button {
+  background: none;
+  border: none;
+  color: #1B8A4A;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ── Browse chips ───────────────────────────────────────────────────────────── */
+
+.heroBrowseChips {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.heroBrowseChip {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 99px;
+  padding: 9px 18px;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  white-space: nowrap;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+
+.heroBrowseChip:hover {
+  border-color: #1B8A4A;
+  background: #F0F9F4;
+  color: #1B8A4A;
+}
+
+.chipIcon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Desktop: show full label, hide short */
+.chipLabelShort { display: none; }
+.chipLabelFull  { display: inline; }
+
+/* ── Mobile search bar additions ────────────────────────────────────────────── */
+
+/* Hidden on mobile, shown on desktop */
+.heroSearchAiBadgeMobile,
+.heroSearchMicMobile {
+  display: none;
+}
+
+/* Mobile search submit button (separate from the desktop one) */
+.heroSearchBtnMobile {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOBILE OVERRIDES (≤ 640px) — align with wireframe
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+
+  /* 1. Hide badge above heading */
+  .heroBadge { display: none; }
+
+  /* 2. Left-align hero container and every text child */
+  .heroInner   { text-align: left; }
+  .heroTitle   { text-align: left; font-size: 26px; letter-spacing: -0.02em; }
+  .heroSubtitle { text-align: left; font-size: 15px; margin-top: 3px; max-width: 100%; color: #888; }
+
+  /* ── Prominent search section on mobile ───────────────────────────────── */
+  .heroSearchSection {
+    /* Full-width card that pops out from the hero */
+    margin: 20px 0 0;
+    max-width: 100%;
+    background: linear-gradient(135deg, #f0faf4 0%, #e8f5f0 100%);
+    border: 2px solid #1B8A4A;
+    border-radius: 20px;
+    padding: 16px 14px 14px;
+    box-shadow:
+      0 0 0 4px rgba(27, 138, 74, 0.08),
+      0 8px 32px rgba(27, 138, 74, 0.18),
+      0 2px 8px rgba(0, 0, 0, 0.06);
+    position: relative;
+    overflow: visible;
+  }
+
+  /* Subtle glow ring around the card */
+  .heroSearchSection::before {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(27,138,74,0.15), rgba(34,168,92,0.08));
+    z-index: -1;
+    filter: blur(6px);
+  }
+
+  .heroSearchLabel {
+    font-size: 11px;
+    font-weight: 800;
+    color: #1B8A4A;
+    letter-spacing: 0.08em;
+    margin: 0 0 10px 2px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    opacity: 1;
+  }
+
+  /* Search form: stretch full width inside the card */
+  .heroSearchForm {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+  }
+
+  /* Enhance the search bar itself on mobile */
+  .heroSearchBar {
+    background: #fff;
+    border: 2px solid rgba(27, 138, 74, 0.35);
+    border-radius: 12px;
+    padding: 11px 12px;
+    box-shadow: 0 2px 12px rgba(27, 138, 74, 0.10);
+    gap: 8px;
+  }
+
+  .heroSearchBar:focus-within {
+    border-color: #1B8A4A;
+    box-shadow: 0 0 0 3px rgba(27,138,74,0.15), 0 4px 16px rgba(27,138,74,0.18);
+  }
+
+  .heroSearchIcon {
+    color: #1B8A4A;
+    width: 18px;
+    height: 18px;
+  }
+
+  .heroSearchInput {
+    font-size: 14px;
+  }
+
+  .heroSearchInput::placeholder {
+    font-size: 13px;
+    color: #9ab5a8;
+  }
+
+  /* 5. On mobile: hide desktop divider, hide tiny AI badge & mic.
+        Show the full-width submit button below instead. */
+  .heroSearchDivider { display: none; }
+  .heroSearchAiBadgeMobile { display: none; }
+  .heroSearchMicMobile { display: none; }
+
+  /* Compact inline button on the right of the search bar */
+  .heroSearchBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: auto;
+    flex-shrink: 0;
+    border-radius: 9px;
+    padding: 7px 13px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 0;
+    background: linear-gradient(135deg, #E8401C 0%, #c73516 100%);
+    box-shadow: 0 2px 8px rgba(232, 64, 28, 0.30);
+    letter-spacing: 0.01em;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  /* Show the divider again since button is inline */
+  .heroSearchDivider {
+    display: block;
+    width: 1px;
+    height: 20px;
+    background: #D0E4D8;
+    flex-shrink: 0;
+  }
+
+  .heroSearchBtn:hover,
+  .heroSearchBtn:active {
+    background: linear-gradient(135deg, #d13616 0%, #b32d12 100%);
+    box-shadow: 0 1px 4px rgba(232, 64, 28, 0.25);
+    transform: translateY(1px);
+  }
+
+  /* 6. Show hint text on mobile as quick-tap suggestions */
+  .heroSearchHint {
+    display: block;
+    text-align: left;
+    margin: 10px 0 0;
+    font-size: 11.5px;
+    color: #5A7367;
+    opacity: 0.85;
+  }
+
+  .heroSearchHint button {
+    color: #1B8A4A;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  /* 7. Browse chips — column layout, horizontal scroll, short labels */
+  .heroBrowseChips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    justify-content: flex-start;
+    gap: 8px;
+    scrollbar-width: none;
+    margin-top: 24px;
+  }
+  .heroBrowseChips::-webkit-scrollbar { display: none; }
+
+  .heroBrowseChip {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    border-radius: 16px;
+    padding: 14px 20px;
+    min-width: 80px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .chipIcon { font-size: 28px; }
+
+  /* Mobile: hide full label, show short */
+  .chipLabelShort { display: inline; }
+  .chipLabelFull  { display: none; }
+
+}
+
+/* ── Popular hospitals ─────────────────────────────────────────────────────── */
+
+.popularSection {
+  background: #fff;
+  border-top: 1px solid #EAF2EC;
+  border-bottom: 1px solid #EAF2EC;
+  padding: 24px 0;
+}
+
+.popularInner {
+  width: min(1200px, 100% - 2rem);
+  margin: 0 auto;
+}
+
+.popularHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+
+.popularTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
+  flex: 1;
+}
+
+.popularSeeAll {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1B8A4A;
+  text-decoration: none;
+  background: #E6F5EC;
+  border: 1.5px solid #C8E6D4;
+  border-radius: 99px;
+  padding: 4px 12px;
+  transition: background 0.15s;
+}
+
+.popularSeeAll:hover { background: #D4F0E0; }
+
+/* Mobile: horizontal scroll strip */
+.popularScroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.popularScroll::-webkit-scrollbar { display: none; }
+
+.popularCard {
+  flex: 0 0 220px;
+  background: #fff;
+  /* Neutral border — matches wireframe */
+  border: 1.5px solid #e8e8e8;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.popularCard:hover {
+  border-color: #1B8A4A;
+  box-shadow: 0 4px 16px rgba(27, 138, 74, 0.08);
+  transform: translateY(-2px);
+}
+
+/* Desktop: switch to 4-column grid — no horizontal scroll */
+@media (min-width: 768px) {
+  .popularScroll {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    overflow-x: visible;
+    gap: 16px;
+    padding-bottom: 0;
+  }
+
+  .popularCard {
+    flex: none;
+  }
+}
+
+/* ── Card inner layout (matches wireframe) ────────────────────────────────── */
+
+.popularCardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.popularCardAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  /* Light green background — matches wireframe */
+  background: linear-gradient(135deg, #e6f5ec, #d4f0e0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.popularCardInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.popularCardName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  font-family: var(--font-bricolage), sans-serif;
+  line-height: 1.3;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.popularCardCity {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 3px;
+}
+
+.popularCardRating {
+  font-size: 12px;
+  color: #F59E0B;
+  font-weight: 600;
+}
+
+/* ── Badges row (Verified + Network tier) ─────────────────────────────────── */
+
+.popularCardBadges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.popularCardBadgeVerified {
+  font-size: 10px;
+  font-weight: 600;
+  /* Blue — stands out against the green theme */
+  color: #2563EB;
+  background: #DBEAFE;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.popularCardBadgeNetwork {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 5px;
+  padding: 2px 7px;
+  /* color and background set inline from tierBadge */
+}
+
+.popularCardTags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.popularCardTags span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1B8A4A;
+  background: #E6F5EC;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+/* ── Action buttons ────────────────────────────────────────────────────────── */
+
+.popularCardBtns {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.popularCardBtnView {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border: 1.5px solid #1B8A4A;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1B8A4A;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s, color 0.15s;
+}
+
+.popularCardBtnView:hover {
+  background: #1B8A4A;
+  color: #fff;
+}
+
+.popularCardBtnBook {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  background: #E8401C;
+  border: 1.5px solid #E8401C;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s;
+}
+
+.popularCardBtnBook:hover { background: #c73516; border-color: #c73516; }
+
+/* ── How it works ──────────────────────────────────────────────────────────── */
+
+.howSection {
+  padding: clamp(36px, 6vw, 56px) 0;
+  background: #F8FAF9;
+}
+
+.howInner {
+  width: min(1200px, 100% - 2rem);
+  margin: 0 auto;
+}
+
+.howGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 24px;
+}
+
+@media (max-width: 640px) {
+  .howGrid { grid-template-columns: 1fr; gap: 12px; }
+}
+
+.howStep {
+  background: #fff;
+  border: 1.5px solid #D0E4D8;
+  border-radius: 18px;
+  padding: 24px;
+  text-align: center;
+  position: relative;
+}
+
+/* Highlight step 2 on desktop */
+@media (min-width: 641px) {
+  .howStep:nth-child(2) { border-color: #1B8A4A; box-shadow: 0 4px 20px rgba(27,138,74,0.10); }
+}
+
+/* Mobile: horizontal layout per step */
+@media (max-width: 640px) {
+  .howStep {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+    padding: 16px;
+  }
+}
+
+.howStepNum {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1B8A4A;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+  flex-shrink: 0;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+@media (max-width: 640px) {
+  .howStepNum { margin: 0; }
+}
+
+.howStepIcon {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 640px) {
+  .howStepIcon { display: none; }
+}
+
+.howStepTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
+  margin-bottom: 6px;
+}
+
+.howStepSub {
+  font-size: 13px;
+  color: #5A7367;
+  line-height: 1.5;
+}
+
+.howCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #E8401C;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s;
+}
+
+.howCta:hover { background: #c73516; }
+
+/* ── Mobile trust strip ─────────────────────────────────────────────────────── */
+
+.mobileTrustStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 16px;
+  background: #F8FAF9;
+  border-top: 1px solid #EAF2EC;
+}
+
+.mobileTrustLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8FA39A;
+}
+
+.mobileTrustDot { color: #D0E4D8; font-size: 12px; }
+
+.mobileTrustName {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5A7367;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.mobileTrustStrip { display: none; }
+
+/* Mobile: badge sizing and trust signals */
+@media (max-width: 767px) {
+  .trustBadge {
+    width: 100%;
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .trustLogo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .trustBadgeText strong {
+    font-size: 13px;
+  }
+
+  .trustBadgeText small {
+    font-size: 10px;
+  }
+
+  /* trust signals handled by mobile-first base rule above */
+}
+
 /* ── ② Hero Section ────────────────────────────────────────────────────────── */
 
 .heroSection {
   position: relative;
   overflow: hidden;
-  padding: calc(64px + 48px) 0 0;
-  background: linear-gradient(180deg, #FFFFFF 0%, #F8FAF9 100%);
+  padding: calc(64px + 36px) 0 0;
+  background: #fff;
+}
+
+@media (max-width: 767px) {
+  .heroSection {
+    padding: calc(62px + 20px) 0 0;
+  }
 }
 
 .heroDecor {
@@ -279,10 +1220,16 @@
 .heroInner {
   position: relative;
   z-index: 2;
-  width: min(800px, 100%);
+  width: min(1200px, 100%);
   margin: 0 auto;
-  padding: 0 24px 56px;
+  padding: 0 32px 32px;
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .heroInner {
+    padding: 0 16px 20px;
+  }
 }
 
 .heroBadge {
@@ -304,30 +1251,26 @@
 
 .heroTitle {
   margin: 0;
-  font-family: var(--font-serif), serif;
-  font-size: clamp(32px, 5vw, 56px);
-  font-weight: 400;
-  line-height: 1.12;
-  letter-spacing: -0.02em;
-  color: #1A2B23;
+  font-family: var(--font-bricolage), sans-serif;
+  /* Wider canvas → bigger comfortable title */
+  font-size: clamp(32px, 4.5vw, 64px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: #111;
 }
 
 .heroTitle em {
-  font-style: italic;
-  background: linear-gradient(135deg, #1B8A4A, #22a85c);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  padding-right: 0.2em;
-  display: inline;
+  font-style: normal;
+  color: #1B8A4A;
 }
 
 .heroSubtitle {
-  margin: 16px auto 0;
+  margin: 8px auto 0;
   font-size: 17px;
-  line-height: 1.65;
-  color: #5A7367;
-  max-width: 560px;
+  line-height: 1.6;
+  color: #666;
+  max-width: 600px;
 }
 
 .heroChat {
@@ -355,21 +1298,23 @@
 }
 
 .heroStats {
-  margin-top: 28px;
-  border-radius: 18px;
-  border: 1px solid #D0E4D8;
-  background: #fff;
-  overflow: hidden;
+  margin-top: 36px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  max-width: 520px;
+  max-width: 700px;
   margin-inline: auto;
 }
 
+.heroStatIcon { display: none; }
+
 .heroStats article {
-  padding: 16px 10px;
+  padding: 12px 8px;
   text-align: center;
   border-right: 1px solid #D0E4D8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 .heroStats article:last-child {
@@ -380,14 +1325,16 @@
   display: block;
   color: #1B8A4A;
   font-family: var(--font-bricolage), sans-serif;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .heroStats span {
   color: #8FA39A;
   font-size: 11px;
   font-weight: 500;
+  line-height: 1.4;
 }
 
 /* Search results panel — used as a class wrapper for :global overrides */
@@ -721,24 +1668,33 @@
 .trustLabel::before { right: calc(100% + 12px); }
 .trustLabel::after  { left:  calc(100% + 12px); }
 
+/* Mobile default: single column stack */
 .trustLogos {
   display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 20px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
+/* Desktop: 5-column grid */
+@media (min-width: 768px) {
+  .trustLogos {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+}
+
 .trustBadge {
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1.5px solid #D0E4D8;
   background: linear-gradient(145deg, #fff 0%, #F8FAF9 100%);
-  padding: 16px 22px;
+  /* Reduced padding so badges fit comfortably */
+  padding: 12px 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 220px;
+  gap: 10px;
+  min-width: 0;
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   cursor: default;
 }
@@ -750,21 +1706,22 @@
 }
 
 .trustLogo {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   flex-shrink: 0;
   object-fit: cover;
 }
 
 .trustBadgeText {
   text-align: left;
+  min-width: 0;
 }
 
 .trustBadgeText strong {
   display: block;
   font-family: var(--font-bricolage), sans-serif;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #1A2B23;
   line-height: 1.3;
@@ -773,7 +1730,7 @@
 .trustBadgeText small {
   display: block;
   font-weight: 400;
-  font-size: 11px;
+  font-size: 10px;
   color: #8FA39A;
   margin-top: 2px;
   line-height: 1.3;
@@ -786,20 +1743,36 @@
   margin: 24px auto;
 }
 
+/* Mobile-first: single horizontal scroll row — no wrapping, no cascade fights */
 .trustSignals {
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 24px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 8px;
+  margin-top: 20px;
+  padding-bottom: 4px;
+}
+
+.trustSignals::-webkit-scrollbar { display: none; }
+
+/* Desktop: wrap naturally, centred */
+@media (min-width: 768px) {
+  .trustSignals {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    justify-content: center;
+    gap: 10px;
+  }
 }
 
 .trustSignals span {
+  flex-shrink: 0;
   border-radius: 999px;
   border: 1px solid #D0E4D8;
   background: #fff;
   color: #5A7367;
-  padding: 6px 14px;
+  padding: 7px 14px;
   font-size: 12px;
   font-weight: 500;
 }
@@ -1023,7 +1996,7 @@
 .providerPrimary {
   border-radius: 999px;
   border: none;
-  background: #1B8A4A;
+  background: #E8401C;
   color: #fff;
   padding: 12px 24px;
   font-size: 15px;
@@ -1034,7 +2007,7 @@
 }
 
 .providerPrimary:hover {
-  background: #136836;
+  background: #c73516;
 }
 
 .providerVisual {
@@ -1268,8 +2241,16 @@
 .faqGrid {
   display: grid;
   gap: 12px;
-  max-width: 720px;
+  max-width: 100%;
   margin: 0 auto;
+}
+
+/* Desktop: two-column FAQ grid */
+@media (min-width: 768px) {
+  .faqGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
 }
 
 .faqItem {
@@ -1316,15 +2297,161 @@
   }
 }
 
+/* ── Touch tap feedback ─────────────────────────────────────────────────────── */
+
+@media (hover: none) and (pointer: coarse) {
+  .quickCard:active,
+  .faqItem:active {
+    background: #F4FAF6;
+    transition: background 0.1s;
+  }
+
+  .providerPrimary:active,
+  .personBarBtn:active,
+  .navCta:active,
+  .navLoginBtn:active,
+  .navDashBtn:active {
+    transform: scale(0.96);
+    transition: transform 0.1s;
+  }
+
+  .mobileMenu a:active,
+  .mobileMenu button:active {
+    background: #E6F5EC;
+    transition: background 0.1s;
+  }
+}
+
+/* ── Burger button — hidden on desktop, shown on mobile ──────────────────────── */
+
+.navBurger {
+  display: none;
+}
+
+/* ── Mobile nav drawer ───────────────────────────────────────────────────────── */
+
+.mobileMenu {
+  display: none;
+}
+
 @media (max-width: 920px) {
-  .navPill,
-  .topNavLinks,
-  .navLang {
+  .navBurger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    border: 1.5px solid #D0E4D8;
+    background: #fff;
+    color: #1A2B23;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* Hide CTA + auth links on mobile — both are inside the burger menu */
+  .navCta,
+  .navLoginBtn,
+  .navDashBtn {
     display: none !important;
   }
 
+  .mobileMenu {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    z-index: 199;
+    background: #fff;
+    border-bottom: 1px solid #D0E4D8;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.10);
+    padding: 16px;
+    gap: 4px;
+    animation: slideDown 0.18s ease-out;
+  }
+
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .mobileMenu a,
+  .mobileMenu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-family: var(--font-bricolage), sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1A2B23;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    transition: background 0.12s;
+  }
+
+  .mobileMenu a:hover,
+  .mobileMenu button:hover {
+    background: #F0F9F4;
+    color: #1B8A4A;
+  }
+
+  .mobileMenuDivider {
+    height: 1px;
+    background: #E8F0EC;
+    margin: 6px 0;
+  }
+
+  .mobileMenuCta {
+    margin-top: 4px;
+    border-radius: 12px !important;
+    background: #1B8A4A !important;
+    color: #fff !important;
+    justify-content: center !important;
+  }
+
+  .mobileMenuCta:hover {
+    background: #136836 !important;
+  }
+}
+
+@media (max-width: 920px) {
+  /* Hide nav links, language picker, and pill — but NOT city picker */
+  .navPill,
+  .topNavLinks {
+    display: none !important;
+  }
+
+  /* Hide language picker specifically; city picker stays visible */
+  .navLang[data-lang-picker] {
+    display: none !important;
+  }
+
+  /* City picker on mobile: compact pill */
+  .navLang[data-city-picker] {
+    display: flex !important;
+  }
+
+  .navLang[data-city-picker] .navLangBtn {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
   .topNavInner {
-    justify-content: space-between;
+    justify-content: flex-start;
+    padding: 0 12px;
+  }
+
+  /* Push city picker (and burger after it) to the right edge */
+  .navLang[data-city-picker] {
+    margin-left: auto;
   }
 
   .quickGrid {
@@ -1362,12 +2489,37 @@
     padding: 0 16px;
   }
 
+  /* Mobile stats: flat transparent row, no box, no gradient, no icons */
   .heroStats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: transparent;
+    border-top: none;
+    box-shadow: none;
+    border-radius: 0;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    max-width: 100%;
+    margin-top: 24px;
   }
 
-  .heroStats article:nth-child(2n) {
+  .heroStats article {
+    padding: 8px 4px;
+    border-right: 1px solid #D0E4D8;
+    gap: 1px;
+  }
+
+  .heroStats article:last-child {
     border-right: none;
+  }
+
+  .heroStatIcon { display: none; }
+
+  .heroStats strong {
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .heroStats span {
+    font-size: 9px;
+    color: #8FA39A;
   }
 
   .quickGrid {

@@ -105,6 +105,7 @@ export type Dict = {
   mobileNav?: {
     home?: string;
     find?: string;
+    ask?: string;
     health?: string;
     bookings?: string;
     profile?: string;
@@ -689,6 +690,7 @@ const en: Dict = {
   mobileNav: {
     home: "Home",
     find: "Find",
+    ask: "Ask AI",
     health: "Health",
     bookings: "Bookings",
     profile: "Profile",

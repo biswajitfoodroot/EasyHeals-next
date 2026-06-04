@@ -1,0 +1,301 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   /ask page — AI Health Assistant
+   Light theme applied via data-theme="light" on chatWrap/resultsWrap.
+   The actual component overrides live in phase1.module.css under
+   [data-theme="light"] selectors.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.page {
+  min-height: 100dvh;
+  background: #fff;
+  padding-top: 62px;
+  padding-bottom: 64px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Mobile header ──────────────────────────────────────────────────────────── */
+
+.mobileHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  border-bottom: 1.5px solid #e8e8e8;
+  position: sticky;
+  top: 62px;
+  z-index: 50;
+}
+
+.backBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.backBtn:hover { background: #f5f5f5; }
+
+.mobileHeaderText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mobileHeaderTitle {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.mobileHeaderSub {
+  font-size: 10px;
+  color: #1B8A4A;
+  font-weight: 600;
+}
+
+.mobileHeaderSub::before { content: "● "; }
+
+.mobileHeaderControls {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Desktop hero (hidden on mobile) ────────────────────────────────────────── */
+
+.desktopHero {
+  display: none;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+
+.layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Chat column ─────────────────────────────────────────────────────────────── */
+
+.chatCol {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chatWrap {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Mobile: cap chat at 45dvh so results are always visible below */
+@media (max-width: 767px) {
+  .chatCol {
+    max-height: 65dvh;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .chatWrap {
+    overflow: hidden;
+  }
+}
+
+/* ── Mobile results header ───────────────────────────────────────────────────── */
+
+.mobileResultsHeader {
+  display: none;
+}
+
+/* ── Results column ──────────────────────────────────────────────────────────── */
+
+.resultsCol {
+  min-height: 0;
+}
+
+.resultsWrap {
+  min-height: 0;
+}
+
+/* ── Fixed input bar — mobile only ──────────────────────────────────────────── */
+
+.fixedInputBar {
+  display: none; /* hidden on desktop */
+}
+
+@media (max-width: 767px) {
+  .fixedInputBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    bottom: 64px; /* above bottom nav */
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: #fff;
+    border-top: 1.5px solid #e8e8e8;
+    padding: 10px 14px;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  }
+
+  .fixedInputPill {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    background: #f5f5f5;
+    border: 1.5px solid #e8e8e8;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .fixedInputField {
+    flex: 1;
+    border: none;
+    background: transparent;
+    outline: none;
+    padding: 9px 4px 9px 12px;
+    font-size: 13px;
+    color: #333;
+    font-family: inherit;
+  }
+
+  .fixedInputField::placeholder { color: #aaa; }
+
+  .fixedInputMic {
+    padding: 0 10px;
+    font-size: 15px;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+
+  .fixedSendBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #1B8A4A;
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .fixedSendBtn:hover { background: #136836; }
+  .fixedSendBtn:disabled { background: #a0c8b0; }
+
+  /* Push page bottom padding so content isn't hidden behind the bar */
+  .page {
+    padding-bottom: calc(64px + 64px); /* bottom nav + fixed input bar */
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Desktop layout (≥ 768px)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 768px) {
+  .page {
+    padding-bottom: 0;
+  }
+
+  .mobileHeader {
+    display: none;
+  }
+
+  .desktopHero {
+    display: block;
+    padding: 20px 32px 0;
+    background: linear-gradient(180deg, #f0f9f4, #fff);
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  .desktopHeroInner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 14px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .desktopBackBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 6px 12px;
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+  .desktopBackBtn:hover { background: #f5f5f5; }
+
+  .desktopAskTitle {
+    font-size: 18px;
+    font-weight: 800;
+    color: #111;
+    font-family: var(--font-bricolage), sans-serif;
+  }
+
+  .desktopAskOnline {
+    font-size: 12px;
+    color: #1B8A4A;
+    font-weight: 600;
+    margin-left: auto;
+  }
+
+  .layout {
+    flex-direction: row;
+    align-items: start;
+    gap: 0;
+    padding: 0;
+    max-width: 100%;
+  }
+
+  .chatCol {
+    flex: 1;
+    min-width: 0;
+    border-right: 1px solid #e8e8e8;
+    padding: 20px;
+  }
+
+  .chatWrap {
+    flex: 1;
+  }
+
+  .resultsCol {
+    flex: 1;
+    min-width: 0;
+    padding: 20px;
+    max-height: calc(100dvh - 62px - 58px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #e0e0e0 transparent;
+  }
+
+  .mobileResultsHeader {
+    display: none;
+  }
+}

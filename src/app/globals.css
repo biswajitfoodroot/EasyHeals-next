@@ -445,6 +445,16 @@ body {
   height: 1rem;
 }
 
+/* ── Touch tap feedback — only on true touch devices (no hover) ─────────────── */
+
+@media (hover: none) and (pointer: coarse) {
+  /* Cards */
+  a[href]:active,
+  button:active {
+    opacity: 0.82;
+  }
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

@@ -149,6 +149,6 @@ export const SYMPTOM_FLOWS: SymptomFlow[] = [
   },
 ];
 
-export const WHATSAPP_NUMBER = "917510818108";
+export const WHATSAPP_NUMBER = "919175576299";
 export const CITIES = ["Mumbai", "Pune", "Delhi NCR", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Other city"];
 export const CALL_TIMES = ["Morning (9 AM–12 PM)", "Afternoon (12–5 PM)", "Evening (5–8 PM)", "Any time works"];

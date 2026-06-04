@@ -1,0 +1,244 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   SiteFooter — dark premium footer
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.footer {
+  background: #0F2118;
+  color: #cbd5e1;
+  padding: 56px 0 0;
+  margin-top: auto;
+}
+
+.inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ── Top grid ──────────────────────────────────────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: 48px;
+  padding-bottom: 48px;
+}
+
+/* ── Brand column ──────────────────────────────────────────────────────────── */
+
+.brandCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.brandLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.brandLink img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.brandName {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.brandName span { color: #4ade80; }
+
+.tagline {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contactItem {
+  font-size: 13px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.contactItem:hover { color: #4ade80; }
+
+.contactIcon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.social {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.socialBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid #1e3a2e;
+  background: #122117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.socialBtn:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+  background: #0d2418;
+}
+
+/* ── Link columns ──────────────────────────────────────────────────────────── */
+
+.linkCol {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.colHeading {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.link {
+  font-size: 14px;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.link:hover { color: #4ade80; }
+
+.ctaLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #E8401C;
+  color: #fff;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  margin-top: 4px;
+  align-self: flex-start;
+  transition: background 0.15s;
+}
+
+.ctaLink:hover { background: #c73516; }
+
+/* ── Bottom bar ────────────────────────────────────────────────────────────── */
+
+.bottomBar {
+  border-top: 1px solid #1e3a2e;
+  padding: 20px 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.copyright {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.incubation {
+  font-size: 12px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.incubation span { color: #94a3b8; }
+.incubation b { color: #94a3b8; font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mobile (≤ 767px)
+═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  .footer { padding: 40px 0 0; }
+
+  .inner { padding: 0 16px; }
+
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px 24px;
+    padding-bottom: 32px;
+  }
+
+  /* Brand col spans full width on mobile */
+  .brandCol {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .brandLeft {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .contact {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .social {
+    width: 100%;
+    margin-top: 0;
+  }
+
+  .bottomBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 16px 0 80px; /* extra bottom for mobile nav */
+  }
+
+  .incubation { flex-wrap: wrap; gap: 4px; }
+}
+
+@media (max-width: 400px) {
+  .grid { grid-template-columns: 1fr; }
+  .brandCol { flex-direction: column; }
+}

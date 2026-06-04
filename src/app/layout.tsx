@@ -15,6 +15,8 @@ import {
 import { cookies } from "next/headers";
 
 import { LocaleProvider } from "@/i18n/LocaleContext";
+import { ToastProvider } from "@/components/toast/ToastContext";
+import { OfflineBanner } from "@/components/OfflineBanner";
 import type { Locale } from "@/i18n/translations";
 import { SiteNav } from "@/components/SiteNav";
 import { SiteFooter } from "@/components/common/SiteFooter";
@@ -49,60 +51,59 @@ const notoSans = Noto_Sans({
   display: "swap",
 });
 
-// Bengali script support
+// Script-specific Noto fonts — display:"optional" so they only apply when already
+// cached; avoids layout shift for the majority of users whose locale is en/hi/mr.
+// Weights reduced to 400+600 (covers body + bold) to halve the download size.
+
 const notoBengali = Noto_Sans_Bengali({
   variable: "--font-noto-bn",
   subsets: ["bengali"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
-// Tamil script support
 const notoTamil = Noto_Sans_Tamil({
   variable: "--font-noto-ta",
   subsets: ["tamil"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
-// Malayalam script support
 const notoMalayalam = Noto_Sans_Malayalam({
   variable: "--font-noto-ml",
   subsets: ["malayalam"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
-// Kannada script support
 const notoKannada = Noto_Sans_Kannada({
   variable: "--font-noto-kn",
   subsets: ["kannada"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
-// Telugu script support
 const notoTelugu = Noto_Sans_Telugu({
   variable: "--font-noto-te",
   subsets: ["telugu"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
 // Arabic script support (also covers Urdu, Persian)
 const notoArabic = Noto_Sans_Arabic({
   variable: "--font-noto-ar",
   subsets: ["arabic"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
 // Sinhala script support
 const notoSinhala = Noto_Sans_Sinhala({
   variable: "--font-noto-si",
   subsets: ["sinhala"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  weight: ["400", "600"],
+  display: "optional",
 });
 
 export const metadata: Metadata = {
@@ -169,13 +170,16 @@ export default async function RootLayout({
     <html lang={initialLocale}>
       <body className={`${bricolage.variable} ${dmSans.variable} ${dmSerif.variable} ${notoSans.variable} ${notoBengali.variable} ${notoTamil.variable} ${notoMalayalam.variable} ${notoKannada.variable} ${notoTelugu.variable} ${notoArabic.variable} ${notoSinhala.variable}`}>
         <LocaleProvider initialLocale={initialLocale}>
-          <SiteNav />
-          <div className="pb-[64px] md:pb-0" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-            <main style={{ flex: 1 }}>{children}</main>
-            <SiteFooter />
-          </div>
-          <MobileBottomNav />
-          <MSG91HelloChat />
+          <ToastProvider>
+            <OfflineBanner />
+            <SiteNav />
+            <div className="pb-[64px] md:pb-0" style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+              <main style={{ flex: 1 }}>{children}</main>
+              <SiteFooter />
+            </div>
+            <MobileBottomNav />
+            <MSG91HelloChat />
+          </ToastProvider>
         </LocaleProvider>
       </body>
     </html>

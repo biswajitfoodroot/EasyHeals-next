@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WearableTab } from "./health/tabs/WearableTab";
 import { RewardsTab } from "./health/tabs/RewardsTab";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -3352,26 +3353,27 @@ export default function DashboardClient() {
     if (r.ok) { const j = await r.json() as { data: TrialStatus }; setTrial(j.data); }
   }
 
+  async function loadDashboardData() {
+    setLoading(true);
+    await Promise.allSettled([
+      fetch("/api/v1/appointments?limit=100", { credentials: "include" }).then(async (r) => {
+        if (r.ok) { const j = await r.json() as { data: Appointment[] }; setAppointments(j.data ?? []); }
+      }),
+      fetch("/api/v1/patients/documents", { credentials: "include" }).then(async (r) => {
+        if (r.ok) { const j = await r.json() as { data: unknown[] }; setDocsCount(j.data?.length ?? 0); }
+      }),
+      fetch("/api/v1/patients/subscription", { credentials: "include", cache: "no-store" }).then(async (r) => {
+        if (r.ok) { const j = await r.json() as { data: TrialStatus }; setTrial(j.data); }
+      }),
+      fetch("/api/v1/patients/me", { credentials: "include" }).then(async (r) => {
+        if (r.ok) { const j = await r.json() as { patient?: { name?: string; googleName?: string } }; setPatientName(j.patient?.googleName ?? j.patient?.name ?? "there"); }
+      }),
+    ]);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function init() {
-      setLoading(true);
-      await Promise.allSettled([
-        fetch("/api/v1/appointments?limit=100", { credentials: "include" }).then(async (r) => {
-          if (r.ok) { const j = await r.json() as { data: Appointment[] }; setAppointments(j.data ?? []); }
-        }),
-        fetch("/api/v1/patients/documents", { credentials: "include" }).then(async (r) => {
-          if (r.ok) { const j = await r.json() as { data: unknown[] }; setDocsCount(j.data?.length ?? 0); }
-        }),
-        fetch("/api/v1/patients/subscription", { credentials: "include", cache: "no-store" }).then(async (r) => {
-          if (r.ok) { const j = await r.json() as { data: TrialStatus }; setTrial(j.data); }
-        }),
-        fetch("/api/v1/patients/me", { credentials: "include" }).then(async (r) => {
-          if (r.ok) { const j = await r.json() as { patient?: { name?: string; googleName?: string } }; setPatientName(j.patient?.googleName ?? j.patient?.name ?? "there"); }
-        }),
-      ]);
-      setLoading(false);
-    }
-    void init();
+    void loadDashboardData();
 
     // Re-fetch subscription when user returns to this tab (e.g. after changing tier in /dev)
     const onFocus = () => void refreshSubscription();
@@ -3401,9 +3403,9 @@ export default function DashboardClient() {
 
   return (
     <div className="bg-slate-50 flex overflow-hidden" style={{ height: "100dvh" }}>
-      {/* ── Sidebar ── */}
+      {/* ── Sidebar — hidden on mobile, shown from sm+ ── */}
       <aside
-        className="w-14 lg:w-60 bg-white border-r border-slate-200 flex flex-col shrink-0 sticky top-0 shadow-sm dashboard-aside"
+        className="hidden sm:flex w-14 lg:w-60 bg-white border-r border-slate-200 flex-col shrink-0 sticky top-0 shadow-sm dashboard-aside"
       >
         {/* Logo */}
         <Link href="/" className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5 hover:bg-slate-50 transition" aria-label="EasyHeals home">
@@ -3482,11 +3484,63 @@ export default function DashboardClient() {
       </aside>
 
       {/* ── Main content ── */}
-      <main className="flex-1 min-w-0 overflow-y-auto">
-        <div className="dashboard-main max-w-3xl mx-auto px-4 pt-6 space-y-6">
+      <main className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <PullToRefresh onRefresh={loadDashboardData}>
 
-          {/* Page title + language toggle */}
-          <div className="flex items-center justify-between flex-wrap gap-3">
+        {/* ── Mobile-only horizontal tab strip (replaces sidebar) ── */}
+        <div
+          className="sm:hidden"
+          style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(255,255,255,0.97)", backdropFilter: "blur(12px)", borderBottom: "1px solid #e2e8f0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}
+        >
+          {/* Header row: logo + greeting + upgrade nudge */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px 8px" }}>
+            <Link href="/" aria-label="EasyHeals home">
+              <img src="/logo.jpg" alt="EasyHeals" width={32} height={32} style={{ borderRadius: "10px", objectFit: "contain" }} />
+            </Link>
+            <span style={{ flex: 1, fontSize: "15px", fontWeight: 700, color: "#1e293b" }}>
+              {getGreeting()}, {patientName.split(" ")[0]}
+            </span>
+            {!trial.canUsePremium && (
+              <Link href="/dashboard/upgrade" style={{ fontSize: "11px", fontWeight: 700, color: "#d97706", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "999px", padding: "3px 10px", textDecoration: "none", whiteSpace: "nowrap" }}>
+                ⭐ Upgrade
+              </Link>
+            )}
+          </div>
+          {/* Scrollable tab row */}
+          <div style={{ display: "flex", overflowX: "auto", scrollbarWidth: "none", padding: "0 12px 10px", gap: "4px" }}>
+            {NAV_ITEMS.map((n) => (
+              <button
+                key={n.tab}
+                onClick={() => switchTab(n.tab)}
+                style={{
+                  flex: "0 0 auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "8px 12px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: activeTab === n.tab ? "#1B8A4A" : "transparent",
+                  color: activeTab === n.tab ? "#fff" : "#64748b",
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  WebkitTapHighlightColor: "transparent",
+                } as React.CSSProperties}
+              >
+                <span style={{ fontSize: "18px", lineHeight: 1 }}>{n.icon}</span>
+                {n.label.replace("My ", "").replace("AI ", "")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="dashboard-main max-w-3xl mx-auto px-4 pt-4 sm:pt-6 space-y-6">
+
+          {/* Page title + language toggle — hidden on mobile (title shown in sticky strip) */}
+          <div className="hidden sm:flex items-center justify-between flex-wrap gap-3">
             <div>
               <h1 className="text-xl font-bold text-slate-800">
                 {activeTab === "home"         ? `${getGreeting()}, ${patientName.split(" ")[0]}` :
@@ -3657,6 +3711,7 @@ export default function DashboardClient() {
           )}
 
         </div>
+      </PullToRefresh>
       </main>
     </div>
   );

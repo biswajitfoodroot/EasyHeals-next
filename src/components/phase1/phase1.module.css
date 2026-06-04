@@ -599,78 +599,135 @@
 }
 
 .resultCard {
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.06);
-  padding: 14px;
+  border-radius: 14px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  padding: 12px;
 }
 
 .resultHead {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  margin-bottom: 10px;
 }
 
-.resultIcon {
-  width: 40px;
-  height: 40px;
+.resultAvatar {
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(0, 184, 150, 0.3), rgba(0, 184, 150, 0.1));
-  display: inline-flex;
+  background: linear-gradient(135deg, #e6f5ec, #d4f0e0);
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 22px;
   flex-shrink: 0;
+  color: #111;
 }
 
-.resultHead h4 {
-  margin: 0;
-  color: #fff;
-  font-family: var(--font-bricolage), sans-serif;
+.resultInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.resultInfo h4 {
+  margin: 0 0 2px 0;
   font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  font-family: var(--font-bricolage), sans-serif;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.resultHead p {
-  margin: 2px 0 0;
-  color: rgba(255, 255, 255, 0.44);
+.resultCity {
+  margin: 0 0 2px 0;
   font-size: 12px;
+  color: #888;
 }
 
-.verifiedPill {
-  margin-left: auto;
-  border-radius: 999px;
-  background: rgba(0, 184, 150, 0.15);
+.resultMeta {
+  margin: 0 0 2px 0;
+  font-size: 11px;
   color: #1B8A4A;
-  padding: 3px 8px;
+  font-weight: 600;
+}
+
+.resultRating {
+  margin: 0;
+  font-size: 12px;
+  color: #F59E0B;
+  font-weight: 600;
+}
+
+.badgeRow {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.badgeVerified {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563EB;
+  background: #DBEAFE;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.badgePremium {
   font-size: 10px;
   font-weight: 700;
+  color: #7C3AED;
+  background: #F5EAFF;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.badgePartner {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0369A1;
+  background: #E0F2FE;
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.badgeCommunity {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1B8A4A;
+  background: #DCFCE7;
+  border-radius: 5px;
+  padding: 2px 7px;
 }
 
 .tagRow {
-  margin-top: 10px;
+  margin: 0 0 10px 0;
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
 }
 
 .tagRow span {
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.58);
-  padding: 3px 8px;
-  font-size: 11px;
-}
-
-.tagHighlight {
-  background: rgba(0, 184, 150, 0.15) !important;
-  color: #1B8A4A !important;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1B8A4A;
+  background: #E6F5EC;
+  border-radius: 5px;
+  padding: 2px 7px;
 }
 
 .resultFoot {
   margin-top: 10px;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .ratingBlock {
@@ -696,9 +753,49 @@
 
 .resultActions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
+/* Wireframe: View Profile — outline green */
+.resultBtnView {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  border: 1.5px solid #1B8A4A;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1B8A4A;
+  background: #fff;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s, color 0.15s;
+}
+.resultBtnView:hover {
+  background: #E6F5EC;
+}
+
+/* Match Homepage: Book Now — solid orange */
+.resultBtnBook {
+  flex: 1;
+  text-align: center;
+  padding: 8px;
+  background: #E8401C;
+  border: 1.5px solid #E8401C;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s, border-color 0.15s;
+}
+.resultBtnBook:hover {
+  background: #c73516;
+  border-color: #c73516;
+}
+
+/* Keep legacy resultActions button/a styles for backward compat */
 .resultActions button,
 .resultActions a {
   border-radius: 999px;
@@ -1502,3 +1599,595 @@
   padding: 10px 14px;
   line-height: 1.4;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   MOBILE WIREFRAME ALIGNMENT (≤ 767px)
+   Matches: wireframes/easyheals-mobile-desktop.html — Screen 2 (/ask page)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+
+  /* 1. Hide mode tabs — wireframe shows a single unified chat interface */
+  .chatTabs {
+    display: none;
+  }
+
+  /* 2. Prompt chips — single horizontal scrollable row (not wrapped grid) */
+  .quickPromptRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    padding: 8px 14px 10px;
+    gap: 7px;
+  }
+  .quickPromptRow::-webkit-scrollbar { display: none; }
+
+  .quickPromptRow button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    border: 1.5px solid #c8e6d4;
+    background: #f0f9f4;
+    color: #1B8A4A;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 99px;
+  }
+  .quickPromptRow button:hover {
+    background: #e0f4ea;
+    border-color: #1B8A4A;
+    color: #136836;
+  }
+
+  /* 3. Chat window — unconstrained height, tighter padding */
+  .chatWindow {
+    max-height: none;
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  /* 4. Message bubbles — wireframe border-radius: 14 14 14 4 / 14 14 4 14 */
+  .messageRow p {
+    border-radius: 14px 14px 14px 4px;
+    font-size: 13px;
+    padding: 10px 13px;
+    line-height: 1.55;
+  }
+  .userRow p {
+    border-radius: 14px 14px 4px 14px;
+  }
+
+  /* 5. Avatar — slightly smaller on mobile */
+  .messageAvatar {
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
+  }
+
+  /* 6. Input row — hide language switcher, clean up layout */
+  .chatInputRow {
+    padding: 10px 12px;
+    gap: 7px;
+    align-items: center;
+  }
+  /* Hide the language toggle button (nth-last-child(2) = button before send) */
+  .chatInputRow button:nth-last-child(2) {
+    display: none;
+  }
+  .chatInputRow textarea {
+    border-radius: 12px;
+    min-height: 42px;
+    padding: 10px 13px;
+    font-size: 13px;
+  }
+  /* Mic button */
+  .voiceMicBtn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+  }
+  /* Send button — solid green like wireframe */
+  .chatInputRow button:last-child {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+
+  /* 7. "Powered by Gemini" footer bar */
+  .modelText {
+    font-size: 10px;
+    padding: 6px 14px;
+    text-align: center;
+  }
+
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — applied when a parent has data-theme="light"
+   Used by the /ask page to override the default dark glass-morphism styles.
+   Attribute selectors are global, scoped child classes still match correctly.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.chatCard.lightTheme {
+  background: #fff;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 12px;
+  backdrop-filter: none;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chat window: content-sized, scrolls when messages overflow */
+.chatCard.lightTheme .chatWindow {
+  flex: none;
+  min-height: 200px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+@media (min-width: 768px) {
+  .chatCard.lightTheme .chatWindow {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    max-height: 560px;
+  }
+
+  .chatCard.lightTheme .lightInputField textarea {
+    height: auto;
+    min-height: 0;
+    max-height: 120px;
+    padding: 10px 4px 10px 14px;
+  }
+
+  .chatCard.lightTheme .lightInputField {
+    align-items: flex-end;
+    padding-bottom: 4px;
+    padding-top: 4px;
+  }
+}
+
+.lightTheme .chatTabs {
+  border-bottom: 2px solid #e8e8e8;
+}
+
+.lightTheme .chatTabs button {
+  color: #888;
+}
+
+.lightTheme .tabActive {
+  color: #1B8A4A !important;
+  border-bottom-color: #1B8A4A !important;
+  background: transparent !important;
+}
+
+.lightTheme .chatWindow {
+  background: #f8f8f8;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.lightTheme .messageRow p {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  color: #333;
+  border-radius: 12px 12px 12px 4px;
+}
+
+.lightTheme .userRow p {
+  background: #1B8A4A;
+  border: none;
+  color: #fff;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.lightTheme .userRow .messageAvatar {
+  background: linear-gradient(135deg, #5A7367, #8FA39A);
+}
+
+.lightTheme .quickPromptRow {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-top: 12px;
+}
+
+.lightTheme .quickPromptRow::-webkit-scrollbar { display: none; }
+
+.lightTheme .quickPromptRow button {
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: #f0f9f4;
+  border: 1px solid #d0e8da;
+  color: #1B8A4A;
+}
+
+.lightTheme .quickPromptRow button:hover {
+  background: #e6f5ec;
+  border-color: #1B8A4A;
+}
+
+/* ── Light theme input pill wrapper (textarea + mic inside one border) ──── */
+
+.lightInputField {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  background: #f5f5f5;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.lightInputField textarea {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  outline: none;
+  padding: 9px 4px 9px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: #333;
+  resize: none;
+  min-height: 40px;
+  max-height: 80px;
+}
+
+.lightInputField textarea::placeholder { color: #aaa; }
+
+.lightInputField .voiceMicBtn {
+  border: none !important;
+  background: transparent !important;
+  color: #aaa;
+  padding: 0 10px;
+  min-height: 40px;
+  flex-shrink: 0;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.lightInputField .voiceMicBtn:hover { color: #555; }
+
+/* ── Light theme input row ─────────────────────────────────────────────── */
+
+.lightTheme .chatInputRow {
+  border-top: 1.5px solid #e8e8e8;
+  background: #fff;
+  padding: 10px 12px;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Textarea + mic styling now handled by .lightInputField wrapper above */
+
+/* Other mid buttons (language picker etc.) */
+.lightTheme .chatInputRow button {
+  background: #f5f5f5;
+  border: 1.5px solid #e8e8e8;
+  color: #555;
+  border-radius: 8px;
+  padding: 6px 10px;
+  height: 36px;
+}
+
+/* Send button — green 40×40 rounded square matching wireframe */
+.lightTheme .chatInputRow button:last-child {
+  background: #1B8A4A;
+  border-color: transparent;
+  color: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.lightTheme .chatInputRow button:last-child:hover {
+  background: #136836;
+}
+
+.lightTheme .modelText {
+  background: #fafafa;
+  border-top: 1px solid #e8e8e8;
+  color: #aaa;
+}
+
+.lightTheme .loadingDots span {
+  background: #1B8A4A;
+}
+
+/* Results panel light theme */
+.resultsPanel.lightTheme {
+  background: #fff;
+  border: none;
+  border-radius: 0;
+  backdrop-filter: none;
+  min-height: auto;
+}
+
+/* ── Header row ── */
+.lightTheme .resultsHead {
+  border-bottom: 1px solid #e8e8e8;
+  padding: 8px 14px;
+  gap: 7px;
+}
+
+.lightTheme .resultsHead h3 {
+  color: #111;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.lightTheme .resultsHead span {
+  background: #1B8A4A;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 2px 7px;
+}
+
+.lightTheme .resultsHead button {
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  color: #555;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 7px;
+  padding: 3px 8px;
+}
+
+.lightTheme .resultsHead button:hover {
+  background: #f5f5f5;
+}
+
+/* ── Tabs ── */
+.lightTheme .resultTabs {
+  border-bottom: 1px solid #e8e8e8;
+  background: #fff;
+  padding: 0 8px;
+  gap: 0;
+}
+
+.lightTheme .resultTab {
+  background: transparent;
+  color: #888;
+  border-color: transparent;
+  border-radius: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.lightTheme .resultTab:hover {
+  background: transparent;
+  color: #333;
+}
+
+.lightTheme .resultTabActive {
+  background: transparent;
+  color: #1B8A4A;
+  border-color: transparent;
+  border-radius: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  border-bottom: 2px solid #1B8A4A;
+  margin-bottom: -1px;
+}
+
+/* ── Intent badge ── */
+.lightTheme .intentBadge {
+  margin: 5px 12px;
+  border: 1px solid #e6f5ec;
+  background: #f0f9f4;
+  color: #555;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  gap: 5px;
+}
+
+.lightTheme .intentBadge strong {
+  color: #1B8A4A;
+  font-weight: 700;
+}
+
+.lightTheme .langPill {
+  background: #1B8A4A;
+  color: #fff;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+.lightTheme .emptyState {
+  padding: 16px 14px 10px;
+  gap: 4px;
+  text-align: left;
+  align-items: flex-start;
+}
+
+.lightTheme .emptyState h4 {
+  color: #111;
+  font-size: 14px;
+  font-family: var(--font-bricolage), sans-serif;
+  font-weight: 700;
+}
+
+.lightTheme .emptyState p {
+  color: #888;
+  font-size: 12px;
+}
+
+/* Suggestion prompts — stacked vertically on desktop */
+.lightTheme .promptStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.lightTheme .promptStack button {
+  border: 1.5px solid #d0e8da;
+  background: #f0f9f4;
+  color: #1B8A4A;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  white-space: normal;
+}
+
+.lightTheme .promptStack button:hover {
+  background: #e6f5ec;
+  border-color: #1B8A4A;
+  color: #136836;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — Mobile overrides (≤ 767px)
+   Matches wireframe: no card border, no avatar, full-width bubbles, grey bg
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  /* Card: auto-height (shrinks to content), capped by parent max-height */
+  .chatCard.lightTheme {
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    background: transparent;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Hide built-in input on mobile — fixed bar at bottom takes over */
+  .chatCard.lightTheme .chatInputRow,
+  .chatCard.lightTheme .modelText {
+    display: none !important;
+  }
+
+  /* Tabs: tighter padding on mobile */
+  .lightTheme .chatTabs button {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  /* Chat window: flat grey area, no inner border or radius */
+  .lightTheme .chatWindow {
+    border: none !important;
+    border-radius: 0 !important;
+    background: #f8f8f8;
+    padding: 14px 14px 8px;
+    /* Scroll when content exceeds cap; shrink when content is small */
+    flex: none;
+    min-height: 80px;
+    max-height: 55dvh;
+    overflow-y: auto;
+  }
+
+  /* Hide avatar — wireframe shows bubbles only, no avatar on mobile */
+  .lightTheme .messageAvatar {
+    display: none;
+  }
+
+  /* Bot bubble: full available width without avatar offset */
+  .lightTheme .messageRow {
+    gap: 0;
+  }
+
+  .lightTheme .messageRow p {
+    max-width: 90%;
+    border-radius: 14px 14px 14px 4px;
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1.5px solid #e8e8e8;
+  }
+
+  /* User bubble: pushed to the right */
+  .lightTheme .userRow p {
+    max-width: 82%;
+    margin-left: auto;
+    border-radius: 14px 14px 4px 14px;
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+
+  /* Prompt chips: horizontal scroll strip */
+  .lightTheme .quickPromptRow {
+    padding: 0 14px 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 7px;
+  }
+
+  .lightTheme .quickPromptRow button {
+    flex-shrink: 0;
+    font-size: 10px !important;
+    font-weight: 600 !important;
+    padding: 5px 10px !important;
+    background: #f0f9f4 !important;
+    border: 1.5px solid #d0e8da !important;
+    color: #1B8A4A !important;
+    border-radius: 99px !important;
+  }
+
+  /* Suggestion prompts — horizontal scroll on mobile */
+  .lightTheme .promptStack {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .lightTheme .promptStack::-webkit-scrollbar { display: none; }
+  .lightTheme .promptStack button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    border-radius: 99px;
+    padding: 6px 14px;
+    font-size: 12px;
+  }
+
+  /* Input bar: flush to page edges */
+  .lightTheme .chatInputRow {
+    padding: 10px 14px;
+  }
+
+  /* Model text footer */
+  .lightTheme .modelText {
+    font-size: 10px;
+    padding: 6px 14px;
+    text-align: center;
+    background: #fff;
+    border-top: 1px solid #f0f0f0;
+    color: #bbb;
+  }
+}
+

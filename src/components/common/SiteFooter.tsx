@@ -3,82 +3,124 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { easyHealsPublicData } from "@/data/easyhealsPublicData";
+import styles from "./footer.module.css";
 
-/**
- * Global Site Footer.
- * Hidden on admin, portal, and provider management endpoints.
- */
+const HIDDEN_PREFIXES = [
+  "/admin", "/portal", "/provider-management",
+  "/dashboard", "/login", "/unauthorized",
+];
+
 export function SiteFooter() {
   const pathname = usePathname();
+  if (HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
 
-  // Hide on admin/portal routes
-  if (
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/portal") ||
-    pathname.startsWith("/provider-management") ||
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/unauthorized")
-  ) {
-    return null;
-  }
+  const phone = easyHealsPublicData.contact.phone;
+  const phoneTel = phone.replace(/-/g, "");
 
   return (
-    <footer style={{ background: "#F8FAF9", borderTop: "1px solid #D0E4D8", padding: "60px 20px 30px", marginTop: "auto" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "40px", marginBottom: "40px" }}>
-          
-          {/* Brand & Contact */}
-          <div>
-            <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", color: "#1A2B23", marginBottom: "16px" }}>
-              <img src="/logo.jpg" alt="EasyHeals" style={{ width: 28, height: 28, borderRadius: 6, objectFit: "contain" }} />
-              <strong style={{ fontSize: "20px", fontFamily: "var(--font-bricolage), sans-serif", fontWeight: 800, letterSpacing: "-0.02em" }}>
-                Easy<b style={{ color: "#1B8A4A" }}>Heals</b>
-              </strong>
+    <footer className={styles.footer}>
+      <div className={styles.inner}>
+
+        {/* ── Top grid ── */}
+        <div className={styles.grid}>
+
+          {/* ① Brand + contact + social */}
+          <div className={styles.brandCol}>
+            <div className={styles.brandLeft}>
+              <Link href="/" className={styles.brandLink}>
+                <img src="/logo.jpg" alt="EasyHeals" />
+                <span className={styles.brandName}>Easy<span>Heals</span></span>
+              </Link>
+              <p className={styles.tagline}>
+                India's AI-powered healthcare discovery platform. Find verified hospitals, specialist doctors and book appointments — free for patients.
+              </p>
+            </div>
+
+            <div className={styles.contact}>
+              <a href={`tel:${phoneTel}`} className={styles.contactItem}>
+                <span className={styles.contactIcon}>📞</span>{phone}
+              </a>
+              <a href={`mailto:${easyHealsPublicData.contact.email}`} className={styles.contactItem}>
+                <span className={styles.contactIcon}>✉️</span>{easyHealsPublicData.contact.email}
+              </a>
+              <span className={styles.contactItem}>
+                <span className={styles.contactIcon}>📍</span>{easyHealsPublicData.contact.address}
+              </span>
+            </div>
+
+            <div className={styles.social}>
+              {/* LinkedIn */}
+              <a href="https://linkedin.com/company/easyheals" target="_blank" rel="noopener noreferrer" className={styles.socialBtn} aria-label="LinkedIn">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z"/>
+                  <circle cx="4" cy="4" r="2"/>
+                </svg>
+              </a>
+              {/* Twitter / X */}
+              <a href="https://twitter.com/easyheals" target="_blank" rel="noopener noreferrer" className={styles.socialBtn} aria-label="Twitter">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+              </a>
+              {/* Instagram */}
+              <a href="https://instagram.com/easyheals" target="_blank" rel="noopener noreferrer" className={styles.socialBtn} aria-label="Instagram">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+                  <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/>
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                </svg>
+              </a>
+              {/* WhatsApp */}
+              <a href={`https://wa.me/919175576299`} target="_blank" rel="noopener noreferrer" className={styles.socialBtn} aria-label="WhatsApp">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          {/* ② Platform links */}
+          <div className={styles.linkCol}>
+            <h4 className={styles.colHeading}>Platform</h4>
+            <Link href="/hospitals" className={styles.link}>Hospitals</Link>
+            <Link href="/doctors" className={styles.link}>Doctors</Link>
+            <Link href="/treatments" className={styles.link}>Treatments</Link>
+            <Link href="/diagnostics" className={styles.link}>Diagnostics</Link>
+            <Link href="/ask" className={styles.link}>AI Health Assistant</Link>
+          </div>
+
+          {/* ③ Legal */}
+          <div className={styles.linkCol}>
+            <h4 className={styles.colHeading}>Legal</h4>
+            <Link href="/privacy-policy" className={styles.link}>Privacy Policy</Link>
+            <Link href="/terms" className={styles.link}>Terms &amp; Conditions</Link>
+            <Link href="/register" className={styles.ctaLink}>
+              List Hospital Free →
             </Link>
-            <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#5A7367", margin: "0 0 16px" }}>
-              EasyHeals Technologies Pvt. Ltd.<br />
-              India's AI-powered healthcare platform.
-            </p>
-            <p style={{ fontSize: "14px", lineHeight: 1.6, color: "#5A7367", margin: 0 }}>
-              {easyHealsPublicData.contact.phone} <br />
-              {easyHealsPublicData.contact.email} <br />
-              {easyHealsPublicData.contact.address}
-            </p>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 style={{ color: "#1A2B23", fontSize: "15px", fontWeight: 700, marginBottom: "16px", fontFamily: "var(--font-bricolage), sans-serif" }}>Platform</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <Link href="/hospitals" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Hospitals</Link>
-              <Link href="/doctors" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Doctors</Link>
-              <Link href="/treatments" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Treatments</Link>
-              <Link href="/diagnostics" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Diagnostics</Link>
-            </div>
+          {/* ④ Company */}
+          <div className={styles.linkCol}>
+            <h4 className={styles.colHeading}>Company</h4>
+            <Link href="/ask" className={styles.link}>About EasyHeals</Link>
+            <Link href="/hospitals" className={styles.link}>Browse Hospitals</Link>
+            <Link href="/doctors" className={styles.link}>Find Doctors</Link>
+            <a href="mailto:sales@easyheals.com" className={styles.link}>Partner with Us</a>
           </div>
 
-          {/* Legal & Providers */}
-          <div>
-            <h4 style={{ color: "#1A2B23", fontSize: "15px", fontWeight: 700, marginBottom: "16px", fontFamily: "var(--font-bricolage), sans-serif" }}>Legal &amp; Providers</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <Link href="/privacy-policy" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Privacy Policy</Link>
-              <Link href="/terms" style={{ color: "#5A7367", textDecoration: "none", fontSize: "14px", transition: "color 0.2s" }} onMouseOver={(e) => e.currentTarget.style.color = "#1B8A4A"} onMouseOut={(e) => e.currentTarget.style.color = "#5A7367"}>Terms &amp; Conditions</Link>
-              <Link href="/register" style={{ display: "inline-block", background: "#1B8A4A", color: "#fff", padding: "8px 16px", borderRadius: "8px", fontWeight: 700, textDecoration: "none", fontSize: "13px", marginTop: "8px", alignSelf: "flex-start", transition: "background 0.2s" }} onMouseOver={(e) => e.currentTarget.style.background = "#136836"} onMouseOut={(e) => e.currentTarget.style.background = "#1B8A4A"}>List Hospital Free &rarr;</Link>
-            </div>
-          </div>
         </div>
 
-        <div style={{ borderTop: "1px solid #D0E4D8", paddingTop: "24px", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
-          <p style={{ margin: 0, fontSize: "13px", color: "#5A7367" }}>
+        {/* ── Bottom bar ── */}
+        <div className={styles.bottomBar}>
+          <p className={styles.copyright}>
             © {new Date().getFullYear()} EasyHeals Technologies Pvt. Ltd. All rights reserved.
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "12px", color: "#8FA39A", flexWrap: "wrap" }}>
-            <span>Supported by IIM Lucknow, IIT Mandi &amp; IIHMR</span>
-            <span style={{ display: "inline-block", backgroundColor: "#D0E4D8", width: 4, height: 4, borderRadius: "50%" }}></span>
-            <span>Incubated at Deshpande Foundation &amp; MSMF</span>
+          <div className={styles.incubation}>
+            <b>Supported &amp; Incubated at</b>
+            <span>IIM Lucknow · IIT Mandi · IIHMR · Deshpande Foundation · MSMF</span>
           </div>
         </div>
+
       </div>
     </footer>
   );

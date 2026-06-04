@@ -1,11 +1,11 @@
 import { createHash } from "crypto";
-import { and, asc, eq, like, or, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, like, or, type SQL } from "drizzle-orm";
 import { getGeminiClient } from "@/lib/ai/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { doctors, hospitals, leads, searchLogs, type SymptomKnowledgeData, type ReportKnowledgeData } from "@/db/schema";
+import { doctors, hospitals, leads, searchLogs, providerAgreements, type SymptomKnowledgeData, type ReportKnowledgeData } from "@/db/schema";
 import { env } from "@/lib/env";
 import { extractSearchIntent, heuristicIntent } from "@/lib/gemini";
 import { lookupBestMatch, buildGuidanceBlock, lookupFewShots, type KnowledgeMatch } from "@/lib/chatbot-knowledge";
@@ -51,6 +51,9 @@ type SearchResultItem = {
   description: string | null;
   profileUrl: string;
   phone: string | null;
+  networkTierCode?: string | null;
+  yearsOfExperience?: number | null;
+  qualifications?: string[] | null;
 };
 
 type PatientContextData = {
@@ -884,6 +887,8 @@ export async function POST(req: NextRequest) {
           specialties: doctors.specialties,
           description: doctors.bio,
           phone: doctors.phone,
+          yearsOfExperience: doctors.yearsOfExperience,
+          qualifications: doctors.qualifications,
         })
         .from(doctors)
         .where(
@@ -965,6 +970,8 @@ export async function POST(req: NextRequest) {
               specialties: doctors.specialties,
               description: doctors.bio,
               phone: doctors.phone,
+              yearsOfExperience: doctors.yearsOfExperience,
+              qualifications: doctors.qualifications,
             })
             .from(doctors)
             .where(
@@ -1060,6 +1067,8 @@ export async function POST(req: NextRequest) {
         score: 0,
         profileUrl: `/doctors/${row.slug}`,
         phone: row.phone,
+        yearsOfExperience: row.yearsOfExperience ?? null,
+        qualifications: (row.qualifications as string[] | null) ?? null,
       })),
     ].map((row) => ({
       ...row,
@@ -1081,6 +1090,19 @@ export async function POST(req: NextRequest) {
     }));
 
     ranked.sort((a, b) => b.score - a.score || b.rating - a.rating);
+
+    // Attach network tier codes for hospital results
+    const hospitalIds = ranked.filter(r => r.type === "hospital").map(r => r.id);
+    if (hospitalIds.length > 0) {
+      const tiers = await db
+        .select({ hospitalId: providerAgreements.hospitalId, tierCode: providerAgreements.tierCode })
+        .from(providerAgreements)
+        .where(inArray(providerAgreements.hospitalId, hospitalIds));
+      const tierMap = new Map(tiers.map(t => [t.hospitalId, t.tierCode]));
+      for (const r of ranked) {
+        if (r.type === "hospital") r.networkTierCode = tierMap.get(r.id) ?? null;
+      }
+    }
 
     if (!ranked.length && cityFilter) {
       const cityBackfillHospitalRows = await db

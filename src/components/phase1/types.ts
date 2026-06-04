@@ -21,6 +21,9 @@ export type SearchResult = {
   rating: number;
   verified: boolean;
   communityVerified: boolean;
+  networkTierCode?: string | null;
+  yearsOfExperience?: number | null;
+  qualifications?: string[] | null;
   specialties: string[];
   source: string;
   score: number;

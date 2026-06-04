@@ -2,7 +2,7 @@ export const easyHealsPublicData = {
   scrapedOn: "2026-03-08",
   source: "https://easyheals.com",
   contact: {
-    phone: "+91-7510818108",
+    phone: "+91-9175576299",
     email: "sales@easyheals.com",
     address: "Pimple Saudagar, Pune 411027",
   },

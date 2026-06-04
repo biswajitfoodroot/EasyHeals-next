@@ -167,6 +167,7 @@
   font-family: var(--font-bricolage), sans-serif;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
 .tabs button:hover {
@@ -177,6 +178,47 @@
 .tabs .tabActive {
   background: #1B8A4A;
   color: #fff;
+}
+
+/* Mobile: sticky, single-row, horizontally scrollable */
+@media (max-width: 640px) {
+  .tabs {
+    position: sticky;
+    /* 76px page top-padding puts content below the fixed SiteNav.
+       Adding 0px offset keeps tabs flush at the content top edge. */
+    top: 62px;
+    z-index: 100;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    /* Extend full bleed to page edges */
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 6px 12px;
+    border-top: 1px solid #D0E4D8;
+    border-bottom: 1px solid #D0E4D8;
+    border-left: none;
+    border-right: none;
+    background: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs button {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
 }
 
 /* ── Content Panels ─────────────────────────────────────────────────────────── */
@@ -723,6 +765,72 @@
   font-weight: 700 !important;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   Treatments page — mobile list view
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Desktop card grid shown by default */
+.treatmentGridDesktop {
+  display: grid;
+}
+
+/* Mobile list — hidden on desktop */
+.treatmentListMobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Swap: hide card grid, show compact list */
+  .treatmentGridDesktop {
+    display: none !important;
+  }
+
+  .treatmentListMobile {
+    display: flex;
+    flex-direction: column;
+    border: 1.5px solid #D0E4D8;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  .treatmentListRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid #EAF2EC;
+    text-decoration: none;
+    color: inherit;
+    min-height: 56px;
+    transition: background 0.12s;
+  }
+
+  .treatmentListRow:last-child {
+    border-bottom: none;
+  }
+
+  .treatmentListRow:active {
+    background: #F0F9F4;
+  }
+}
+
+/* ── Mobile list body — hidden on desktop, shown only in mobile list rows ──────── */
+
+.directoryListBody {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .directoryListBody {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 /* ── Avatar (initials circle — RN-ready, maps to <View><Text> in React Native) ── */
 
 .avatar {
@@ -856,6 +964,441 @@
   margin: 0;
   font-size: 12px;
   color: #5A7367;
+}
+
+/* ── Touch tap feedback ─────────────────────────────────────────────────────── */
+
+@media (hover: none) and (pointer: coarse) {
+  .directoryCard:active {
+    background: #F4FAF6;
+    transition: background 0.1s;
+  }
+
+  .relatedCard:active,
+  .profileCard:active,
+  .whereCard:active {
+    background: #F4FAF6;
+    transition: background 0.1s;
+  }
+
+  .directoryCardView:active,
+  .directoryCardBook:active,
+  .btnPrimary:active,
+  .btnSecondary:active,
+  .loadMoreBtn:active,
+  .filterPill:active,
+  .filterPillActive:active {
+    transform: scale(0.96);
+    transition: transform 0.1s;
+  }
+
+  .mobileBar .mobilePrimary:active {
+    background: #136836;
+    transition: background 0.1s;
+  }
+
+  .treatmentListRow:active {
+    background: #F0F9F4;
+    transition: background 0.1s;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Mobile list view — transforms card grid to compact rows below 640px
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  /* Grid becomes a bordered vertical list */
+  .directoryGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border: 1.5px solid #D0E4D8;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+  }
+
+  /* Each card: two-row flex layout
+     Row 1: [avatar] [name / city / stars]
+     Row 2: [View Profile] [Book Appointment]  — indented to align with text */
+  .directoryCard {
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid #EAF2EC;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px;
+    transform: none !important;
+  }
+
+  .directoryCard:last-child {
+    border-bottom: none;
+  }
+
+  .directoryCard:hover {
+    box-shadow: none;
+    border-color: #EAF2EC;
+    transform: none;
+  }
+
+  /* Avatar: row-1 left, fixed size */
+  .directoryCard .cardHeader {
+    flex: 0 0 auto;
+    align-self: center;
+  }
+
+  .directoryCard .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  /* Desktop name + type badge: hidden — replaced by directoryListBody */
+  .directoryCard .cardHeaderText { display: none; }
+  .directoryCard .typeBadge      { display: none; }
+
+  /* Mobile list body: row-1 right, fills remaining space */
+  .directoryCard .directoryListBody {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-self: center;
+  }
+
+  /* Hide desktop-only elements that would break the row layout */
+  .directoryCard [data-testid="card-subtitle"] { display: none; }
+  .directoryCard .tagRow      { display: none; }
+  .directoryCard .cardMeta    { display: none; }
+  .directoryCard .cardExtraRow { display: none; }
+
+  /* Footer: row-2, full width, buttons side-by-side
+     Left-indent of 54px (avatar 44px + gap 10px) aligns with the text */
+  .directoryCard .directoryCardFooter {
+    flex: 0 0 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    margin-top: 2px;
+    gap: 8px;
+    padding-left: 54px;
+  }
+
+  /* Both buttons visible, equal width, compact */
+  .directoryCard .directoryCardView,
+  .directoryCard .directoryCardBook {
+    flex: 1;
+    display: block;
+    padding: 8px 6px;
+    font-size: 11px;
+    border-radius: 10px;
+    text-align: center;
+    min-height: 36px;
+    line-height: 1.2;
+  }
+
+  /* Network badge: hide the full-size card badge — shown as compact chip in listBody instead */
+  .directoryCard .networkBadgeWrap {
+    display: none;
+  }
+}
+
+/* ── View mode toggle bar (List / Map) ─────────────────────────────────────── */
+
+.viewToggleBar {
+  width: min(1180px, 100%);
+  margin: 10px auto 0;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0 0;
+}
+
+.viewToggle,
+.viewToggleActive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  border: 1.5px solid #D0E4D8;
+}
+
+.viewToggle {
+  background: #fff;
+  color: #5A7367;
+}
+
+.viewToggle:hover {
+  border-color: #1B8A4A;
+  color: #1B8A4A;
+}
+
+.viewToggleActive {
+  background: #1B8A4A;
+  color: #fff;
+  border-color: #1B8A4A;
+}
+
+/* ── Map view panel ─────────────────────────────────────────────────────────── */
+
+.mapViewPanel {
+  width: min(1180px, 100%);
+  margin: 14px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mapOpenBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: #1B8A4A;
+  color: #fff;
+  border-radius: 14px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  transition: background 0.15s;
+}
+
+.mapOpenBtn:hover {
+  background: #136836;
+}
+
+.mapEmbedWrap {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1.5px solid #D0E4D8;
+  height: 480px;
+}
+
+.mapEmbed {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.mapNote {
+  margin: 0;
+  font-size: 11px;
+  color: #8FA39A;
+  text-align: center;
+}
+
+/* On mobile: make the map full-viewport height */
+@media (max-width: 640px) {
+  .mapEmbedWrap {
+    height: calc(100dvh - 280px);
+    min-height: 340px;
+  }
+
+  .mapOpenBtn {
+    /* Sticky at top on mobile so it's always reachable */
+    position: sticky;
+    top: 76px;
+    z-index: 10;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(27, 138, 74, 0.25);
+  }
+}
+
+/* ── Mobile filter button (visible only below 640px) ────────────────────────── */
+
+.mobileFilterBtn {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mobileFilterBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    border: 1.5px solid #D0E4D8;
+    background: #fff;
+    color: #1A2B23;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-bricolage), sans-serif;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .mobileFilterBtn[data-active="true"] {
+    background: #1B8A4A;
+    border-color: #1B8A4A;
+    color: #fff;
+  }
+
+  /* Hide city + sort selects on very small screens; shown via filter sheet */
+  .searchBarSelectHideMobile {
+    display: none;
+  }
+}
+
+/* ── Mobile filter bottom sheet ─────────────────────────────────────────────── */
+
+.filterSheetOverlay {
+  display: none;
+}
+
+.filterSheet {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .filterSheetOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 31, 21, 0.45);
+    z-index: 9985;
+    backdrop-filter: blur(4px);
+    animation: fadeOverlay 0.2s ease-out;
+  }
+
+  .filterSheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9990;
+    background: #fff;
+    border-radius: 24px 24px 0 0;
+    box-shadow: 0 -8px 40px rgba(13, 31, 21, 0.16);
+    max-height: 88dvh;
+    overflow-y: auto;
+    animation: slideUpSheet 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  @keyframes fadeOverlay {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes slideUpSheet {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+}
+
+.filterSheetHandle {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+  flex-shrink: 0;
+}
+
+.filterSheetHandle div {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #D0E4D8;
+}
+
+.filterSheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px 14px;
+  border-bottom: 1px solid #E8F0EC;
+  flex-shrink: 0;
+}
+
+.filterSheetHeader h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  color: #1A2B23;
+}
+
+.filterSheetHeader button {
+  background: #F8FAF9;
+  border: 1px solid #D0E4D8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #5A7367;
+  cursor: pointer;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.filterSheetBody {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+}
+
+.filterSheetSection h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8FA39A;
+  font-family: var(--font-bricolage), sans-serif;
+}
+
+.filterSheetPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filterSheetFooter {
+  padding: 16px 20px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #E8F0EC;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.filterSheetApply {
+  flex: 1;
+  border-radius: 12px;
+  border: none;
+  background: #1B8A4A;
+  color: #fff;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
+}
+
+.filterSheetReset {
+  border-radius: 12px;
+  border: 1.5px solid #D0E4D8;
+  background: #fff;
+  color: #5A7367;
+  padding: 14px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-bricolage), sans-serif;
+  cursor: pointer;
 }
 
 /* ── Load More ──────────────────────────────────────────────────────────────── */
@@ -1200,8 +1743,9 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
-    z-index: 120;
+    /* Sit above the 64px MobileBottomNav so it's always visible */
+    bottom: var(--mobile-nav-height, 64px);
+    z-index: 9980;
     display: flex;
     gap: 8px;
     padding: 10px 12px;
@@ -1220,10 +1764,15 @@
     color: #1A2B23;
     text-decoration: none;
     text-align: center;
+    /* 48px min touch target */
     padding: 10px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobileBar .mobilePrimary {
@@ -1234,6 +1783,7 @@
 
   .page,
   .directoryPage {
-    padding-bottom: 80px;
+    /* mobileBar height (~68px) + bottom nav (64px) */
+    padding-bottom: calc(68px + var(--mobile-nav-height, 64px));
   }
 }

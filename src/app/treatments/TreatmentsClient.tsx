@@ -237,13 +237,12 @@ export function TreatmentsClient({
           if (!sectionItems.length) return null;
           return (
             <section key={type}>
-              <h2
-                className={styles.sectionHeading}
-                data-type={type}
-              >
+              <h2 className={styles.sectionHeading} data-type={type}>
                 {typeLabel[type] ?? type}
               </h2>
-              <div className={styles.directoryGrid} style={{ margin: 0, width: "100%" }}>
+
+              {/* Desktop: card grid */}
+              <div className={`${styles.directoryGrid} ${styles.treatmentGridDesktop}`} style={{ margin: 0, width: "100%" }}>
                 {sectionItems.map((item) => {
                   const med = getMedicalIcon(item.title);
                   const desc = cleanDesc(item.description);
@@ -256,52 +255,46 @@ export function TreatmentsClient({
                       data-treatment-id={item.id}
                       data-treatment-type={type}
                     >
-                      {/* Icon + badge row — RN: <View row> */}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                        <div
-                          style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "14px",
-                            background: med.color,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
-                            fontSize: "24px",
-                            lineHeight: 1,
-                          }}
-                          aria-hidden="true"
-                          data-testid="treatment-icon"
-                        >
+                        <div style={{ width: "48px", height: "48px", borderRadius: "14px", background: med.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "24px", lineHeight: 1 }} aria-hidden="true" data-testid="treatment-icon">
                           {med.emoji}
                         </div>
-                        <span className={styles.typeBadge} data-type={type} data-testid="treatment-type-badge">
-                          {typeLabel[type] ?? type}
-                        </span>
+                        <span className={styles.typeBadge} data-type={type} data-testid="treatment-type-badge">{typeLabel[type] ?? type}</span>
                       </div>
-
-                      <h2 style={{ fontSize: "15px", margin: "6px 0 0" }} data-testid="treatment-title">
-                        {displayTitle}
-                      </h2>
-
-                      {desc ? (
-                        <p style={{ fontSize: "13px" }} data-testid="treatment-desc">
-                          {desc.length > 100 ? `${desc.slice(0, 100)}…` : desc}
-                        </p>
-                      ) : null}
-
+                      <h2 style={{ fontSize: "15px", margin: "6px 0 0" }} data-testid="treatment-title">{displayTitle}</h2>
+                      {desc ? <p style={{ fontSize: "13px" }} data-testid="treatment-desc">{desc.length > 100 ? `${desc.slice(0, 100)}…` : desc}</p> : null}
                       <div className={styles.directoryCardFooter} style={{ marginTop: "auto" }}>
-                        <Link
-                          href={`/treatments/${item.slug}`}
-                          className={styles.directoryCardView}
-                          data-testid="btn-explore"
-                          style={{ flex: 1, textAlign: "center" }}
-                        >
+                        <Link href={`/treatments/${item.slug}`} className={styles.directoryCardView} data-testid="btn-explore" style={{ flex: 1, textAlign: "center" }}>
                           {t("treatment.exploreMore")}
                         </Link>
                       </div>
                     </article>
+                  );
+                })}
+              </div>
+
+              {/* Mobile: compact list */}
+              <div className={styles.treatmentListMobile}>
+                {sectionItems.map((item) => {
+                  const med = getMedicalIcon(item.title);
+                  const displayTitle = getTreatmentName(item.slug, locale) ?? item.title;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/treatments/${item.slug}`}
+                      className={styles.treatmentListRow}
+                      data-testid="treatment-row"
+                    >
+                      <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: med.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "20px", lineHeight: 1 }}>
+                        {med.emoji}
+                      </div>
+                      <span style={{ flex: 1, fontSize: "14px", fontWeight: 600, color: "#1A2B23", fontFamily: "var(--font-bricolage),sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {displayTitle}
+                      </span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8FA39A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </Link>
                   );
                 })}
               </div>

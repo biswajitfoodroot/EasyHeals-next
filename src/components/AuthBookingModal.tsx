@@ -2,6 +2,7 @@
 
 import { FormEvent, useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/toast/ToastContext";
 
 export type BookingHospital = { id: string; name: string; city?: string | null };
 export type BookingDoctor   = { id: string; name: string; specialty?: string | null; avatarUrl?: string | null };
@@ -42,6 +43,7 @@ export default function AuthBookingModal({
   hospitalPhone,
 }: Props) {
   const router = useRouter();
+  const { toast } = useToast();
 
   // ── Doctor booking path: choose which hospital ──────────────────────────────
   const needsHospitalPick = !hospitalIdProp && doctorHospitals && doctorHospitals.length > 1;
@@ -149,12 +151,18 @@ export default function AuthBookingModal({
         error?: { message: string };
       };
       if (!res.ok) {
+        const errMsg = json?.error?.message ?? "Booking failed. Please try again.";
         setStatus("error");
-        setErrorMsg(json?.error?.message ?? "Booking failed. Please try again.");
+        setErrorMsg(errMsg);
+        toast(errMsg, "error");
         return;
       }
       setAppointmentId(json.data?.appointmentId ?? null);
       setStatus("success");
+      toast("Appointment requested successfully!", "success");
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate([50, 30, 80]);
+      }
     } catch {
       setStatus("error");
       setErrorMsg("Network error. Please check your connection.");
@@ -165,13 +173,16 @@ export default function AuthBookingModal({
   if (!isNetworkPartner) {
     return (
       <div
-        className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-[9999] flex items-end sm:items-center sm:justify-center sm:p-4 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       >
         <div
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+          className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-sm overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
+          <div className="flex justify-center pt-3 pb-1 sm:hidden">
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: "#D0E4D8" }} />
+          </div>
           <div className="px-6 py-4 flex justify-between items-start" style={{ background: "#1B8A4A" }}>
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-green-200">EasyHeals</p>
@@ -210,13 +221,19 @@ export default function AuthBookingModal({
 
   return (
     <div
-      className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center sm:justify-center sm:p-4 bg-black/60 backdrop-blur-sm"
       onClick={handleClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
+        style={{ maxHeight: "92dvh", overflowY: "auto" }}
       >
+        {/* Drag handle — mobile only */}
+        <div className="flex justify-center pt-3 pb-1 sm:hidden">
+          <div style={{ width: 36, height: 4, borderRadius: 999, background: "#D0E4D8" }} />
+        </div>
+
         {/* Header */}
         <div className="px-6 py-4 flex justify-between items-start" style={{ background: "#1B8A4A" }}>
           <div>
@@ -232,7 +249,7 @@ export default function AuthBookingModal({
         </div>
 
         {/* Body */}
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-6">
 
           {/* ── Step 1 (doctor path): Pick hospital ──────────────────────────── */}
           {needsHospitalPick && !selectedHospital && (

@@ -30,6 +30,8 @@ type ChatSearchProps = {
   queuedPrompt?: string | null;
   onQueuedPromptHandled?: () => void;
   isLoggedIn?: boolean;
+  lightTheme?: boolean;
+  hideInput?: boolean;
 };
 
 const modes = [
@@ -157,6 +159,8 @@ export function ChatSearch({
   queuedPrompt,
   onQueuedPromptHandled,
   isLoggedIn = false,
+  lightTheme = false,
+  hideInput = false,
 }: ChatSearchProps) {
   const { locale, t } = useTranslations();
   const [activeMode, setActiveMode] = useState<(typeof modes)[number]["key"]>("chat");
@@ -387,7 +391,7 @@ export function ChatSearch({
   const showLoginGate = !isLoggedIn && guestQuestions > GUEST_QUESTION_LIMIT;
 
   return (
-    <section className={styles.chatCard}>
+    <section className={`${styles.chatCard} ${lightTheme ? styles.lightTheme : ""}`}>
       <div className={styles.chatTabs} role="tablist" aria-label="Search mode">
         {modes.map((mode) => (
           <button
@@ -454,34 +458,60 @@ export function ChatSearch({
         )}
       </div>
 
-      <form className={styles.chatInputRow} onSubmit={onSubmit}>
-        <textarea
-          rows={1}
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder={localizedPlaceholder}
-          required
-          disabled={showLoginGate}
-        />
-        <button
-          type="button"
-          className={`${styles.voiceMicBtn} ${listening ? styles.voiceActive : ""}`}
-          onClick={toggleVoice}
-          aria-label={listening ? "Stop voice input" : "Start voice input"}
-          title={listening ? "Listening… click to stop" : "Voice input"}
-          disabled={showLoginGate}
-        >
-          {listening ? "🔴" : "🎤"}
-        </button>
+      {!hideInput && <form className={styles.chatInputRow} onSubmit={onSubmit}>
+        {lightTheme ? (
+          /* Light theme: wrap textarea + mic in one pill */
+          <div className={styles.lightInputField}>
+            <textarea
+              rows={1}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder={lightTheme ? "Describe your concern…" : localizedPlaceholder}
+              required
+              disabled={showLoginGate}
+            />
+            <button
+              type="button"
+              className={`${styles.voiceMicBtn} ${listening ? styles.voiceActive : ""}`}
+              onClick={toggleVoice}
+              aria-label={listening ? "Stop voice input" : "Start voice input"}
+              title={listening ? "Listening… click to stop" : "Voice input"}
+              disabled={showLoginGate}
+            >
+              {listening ? "🔴" : "🎤"}
+            </button>
+          </div>
+        ) : (
+          <>
+            <textarea
+              rows={1}
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder={localizedPlaceholder}
+              required
+              disabled={showLoginGate}
+            />
+            <button
+              type="button"
+              className={`${styles.voiceMicBtn} ${listening ? styles.voiceActive : ""}`}
+              onClick={toggleVoice}
+              aria-label={listening ? "Stop voice input" : "Start voice input"}
+              title={listening ? "Listening… click to stop" : "Voice input"}
+              disabled={showLoginGate}
+            >
+              {listening ? "🔴" : "🎤"}
+            </button>
+          </>
+        )}
         <button type="button" onClick={() => setLangIndex((prev) => (prev + 1) % languages.length)}>
           {languageLabel}
         </button>
         <button type="submit" disabled={loading || showLoginGate}>
           {loading ? "..." : "➤"}
         </button>
-      </form>
+      </form>}
 
-      {!isLoggedIn && !showLoginGate && (
+      {!hideInput && !isLoggedIn && !showLoginGate && (
         <p style={{ margin: 0, fontSize: "0.73rem", color: "#8FA39A", textAlign: "center", padding: "0 0.5rem 0.25rem" }}>
           {GUEST_QUESTION_LIMIT - guestQuestions} {t("chatSearch.freeQuestionsRemaining")}
           {GUEST_QUESTION_LIMIT - guestQuestions !== 1 ? (locale === "en" ? "s" : "") : ""} {t("chatSearch.freeQuestionsRemainingSuffix")} ·{" "}
@@ -489,7 +519,7 @@ export function ChatSearch({
         </p>
       )}
 
-      <p className={styles.modelText}>{t("chatSearch.poweredBy")} {modelLabel}</p>
+      {!hideInput && <p className={styles.modelText}>{t("chatSearch.poweredBy")} {modelLabel}</p>}
     </section>
   );
 }
