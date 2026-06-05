@@ -245,7 +245,7 @@ export function buildOrganizationJsonLd() {
     "@type": "Organization",
     name: "EasyHeals Technologies Pvt. Ltd.",
     url: absoluteUrl("/"),
-    logo: absoluteUrl("/logo.jpg"),
+    logo: absoluteUrl("/logo.svg"),
     sameAs: [],
     contactPoint: {
       "@type": "ContactPoint",

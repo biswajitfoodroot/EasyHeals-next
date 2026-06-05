@@ -49,7 +49,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: absoluteUrl("/logo.jpg"),
+        url: absoluteUrl("/logo.svg"),
         width: 512,
         height: 512,
         alt: "EasyHeals Logo",

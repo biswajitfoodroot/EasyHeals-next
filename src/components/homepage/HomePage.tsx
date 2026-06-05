@@ -49,6 +49,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
   const router = useRouter();
   const { locale, setLocale, t } = useTranslations();
   const [langOpen, setLangOpen] = useState(false);
+  const [mobileLangOpen, setMobileLangOpen] = useState(false);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [citySearch, setCitySearch] = useState("");
@@ -194,7 +195,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
       <header className={styles.topNav} role="banner">
         <div className={styles.topNavInner}>
           <Link href="/" className={styles.brand} aria-label="EasyHeals — Home">
-            <Image src="/logo.jpg" alt="EasyHeals logo" width={36} height={36} style={{ borderRadius: "10px", objectFit: "contain" }} />
+            <Image src="/logo.svg" alt="EasyHeals logo" width={36} height={36} style={{ borderRadius: "10px", objectFit: "contain" }} />
             <strong>Easy<b>Heals</b></strong>
           </Link>
 
@@ -286,6 +287,25 @@ export default function HomePage({ topHospitals }: HomePageProps) {
             <Link href="/diagnostics" onClick={() => setMenuOpen(false)}>🔬 {t("nav.diagnostics")}</Link>
             <Link href="/hospitals" onClick={() => setMenuOpen(false)}>🏥 {t("nav.hospitals")}</Link>
             <Link href="/doctors" onClick={() => setMenuOpen(false)}>👨‍⚕️ {t("nav.doctors")}</Link>
+
+            {/* Language selector in mobile menu */}
+            <div style={{ position: "relative", paddingTop: "8px" }}>
+              <button type="button" className={styles.mobileMenuLangBtn} onClick={() => setMobileLangOpen((v) => !v)}>
+                <span>🌐 {currentLocale?.nativeLabel ?? "EN"}</span>
+                <span style={{ fontSize: "0.55rem", opacity: 0.6 }}>▼</span>
+              </button>
+              {mobileLangOpen && (
+                <div className={styles.mobileMenuLangDrop}>
+                  {LOCALES.map((loc) => (
+                    <button key={loc.code} type="button" onClick={() => { setLocale(loc.code); setMobileLangOpen(false); setMenuOpen(false); }} style={{ background: loc.code === locale ? "#E6F5EC" : "transparent", color: loc.code === locale ? "#1B8A4A" : "#5A7367", fontWeight: loc.code === locale ? "700" : "600" }}>
+                      <span>{loc.nativeLabel}</span>
+                      <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className={styles.mobileMenuDivider} />
             {isLoggedIn === true ? (
               <Link href="/dashboard" onClick={() => setMenuOpen(false)}>
@@ -525,11 +545,11 @@ export default function HomePage({ topHospitals }: HomePageProps) {
 
           {/* All screens: logo + subtitle badges, 1-col on mobile → 5-col on desktop */}
           <div className={styles.trustLogos}>
-            <div className={styles.trustBadge}><img src="/logos/iim-lucknow.svg" alt="IIM Lucknow" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIM Lucknow</strong><small>{t("trust.iimLucknowSub")}</small></div></div>
-            <div className={styles.trustBadge}><img src="/logos/iit-mandi.svg" alt="IIT Mandi" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIT Mandi</strong><small>{t("trust.iitMandiSub")}</small></div></div>
-            <div className={styles.trustBadge}><img src="/logos/iihmr.svg" alt="IIHMR" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIHMR</strong><small>{t("trust.iihmrSub")}</small></div></div>
-            <div className={styles.trustBadge}><img src="/logos/deshpande.svg" alt="Deshpande Foundation" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>Deshpande Foundation</strong><small>{t("trust.deshpandeSub")}</small></div></div>
-            <div className={styles.trustBadge}><img src="/logos/msmf.svg" alt="MSMF" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>MSMF</strong><small>{t("trust.msmfSub")}</small></div></div>
+            <div className={styles.trustBadge}><img src="/logos/iiml.png" alt="IIM Lucknow" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIM Lucknow</strong><small>{t("trust.iimLucknowSub")}</small></div></div>
+            <div className={styles.trustBadge}><img src="/logos/iitmandi.png" alt="IIT Mandi" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIT Mandi</strong><small>{t("trust.iitMandiSub")}</small></div></div>
+            <div className={styles.trustBadge}><img src="/logos/iihmr.png" alt="IIHMR" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>IIHMR</strong><small>{t("trust.iihmrSub")}</small></div></div>
+            <div className={styles.trustBadge}><img src="/logos/deshpande-foundation.png" alt="Deshpande Foundation" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>Deshpande Foundation</strong><small>{t("trust.deshpandeSub")}</small></div></div>
+            <div className={styles.trustBadge}><img src="/logos/msmf.png" alt="MSMF" className={styles.trustLogo} /><div className={styles.trustBadgeText}><strong>MSMF</strong><small>{t("trust.msmfSub")}</small></div></div>
           </div>
 
           <div className={styles.trustSignals}>

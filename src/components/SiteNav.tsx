@@ -156,7 +156,7 @@ export function SiteNav() {
           }}
         >
           <Image
-            src="/logo.jpg"
+            src="/logo.svg"
             alt="EasyHeals"
             width={34}
             height={34}

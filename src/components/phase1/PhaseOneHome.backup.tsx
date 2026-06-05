@@ -189,7 +189,7 @@ export default function PhaseOneHome() {
       <header className={styles.topNav}>
         <div className={styles.topNavInner}>
           <Link href="/" className={styles.brand}>
-            <Image src="/logo.jpg" alt="EasyHeals logo" width={34} height={34} style={{ borderRadius: "9px", objectFit: "contain" }} />
+            <Image src="/logo.svg" alt="EasyHeals logo" width={34} height={34} style={{ borderRadius: "9px", objectFit: "contain" }} />
             <strong>
               Easy<b>Heals</b>
             </strong>

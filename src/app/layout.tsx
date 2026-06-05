@@ -144,11 +144,9 @@ export const metadata: Metadata = {
     description: "Find the right hospitals, doctors & treatments across India with AI-powered search.",
   },
   icons: {
-    icon: [
-      { url: "/logo.jpg", type: "image/jpeg" },
-    ],
-    apple: "/logo.jpg",
-    shortcut: "/logo.jpg",
+    icon: "/favicon.png",
+    apple: "/favicon.png",
+    shortcut: "/favicon.png",
   },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION || undefined,

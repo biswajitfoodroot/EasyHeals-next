@@ -28,7 +28,7 @@ export function SiteFooter() {
           <div className={styles.brandCol}>
             <div className={styles.brandLeft}>
               <Link href="/" className={styles.brandLink}>
-                <img src="/logo.jpg" alt="EasyHeals" />
+                <img src="/logo.svg" alt="EasyHeals" />
                 <span className={styles.brandName}>Easy<span>Heals</span></span>
               </Link>
               <p className={styles.tagline}>

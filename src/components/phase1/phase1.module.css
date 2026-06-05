@@ -2141,7 +2141,7 @@
 
   /* Prompt chips: horizontal scroll strip */
   .lightTheme .quickPromptRow {
-    padding: 0 14px 10px;
+    padding: 5px 14px 10px;
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
@@ -2161,7 +2161,7 @@
 
   /* Suggestion prompts — horizontal scroll on mobile */
   .lightTheme .promptStack {
-    flex-direction: row;
+    /*flex-direction: row;*/
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
