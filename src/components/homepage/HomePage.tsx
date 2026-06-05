@@ -39,10 +39,10 @@ const CITY_GROUPS = [
 ];
 
 /* ── How it works steps ── */
-const HOW_STEPS = [
-  { num: "1", icon: "💬", title: "Describe your concern", sub: "Type symptoms, doctor name, or hospital. Use voice in 10 languages." },
-  { num: "2", icon: "🤖", title: "AI finds the right care", sub: "Gemini AI matches you to verified hospitals and specialist doctors near you." },
-  { num: "3", icon: "📅", title: "Book your appointment", sub: "One tap to book in-person, audio, or video consultation. Free for patients." },
+const getHowSteps = (t: any) => [
+  { num: "1", icon: "💬", title: t("home.step1Title"), sub: t("home.step1Sub") },
+  { num: "2", icon: "🤖", title: t("home.step2Title"), sub: t("home.step2Sub") },
+  { num: "3", icon: "📅", title: t("home.step3Title"), sub: t("home.step3Sub") },
 ];
 
 export default function HomePage({ topHospitals }: HomePageProps) {
@@ -213,16 +213,16 @@ export default function HomePage({ topHospitals }: HomePageProps) {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="11" r="3"/><path d="M12 2a9 9 0 00-9 9c0 5.25 9 13 9 13s9-7.75 9-13a9 9 0 00-9-9z"/>
               </svg>
-              <span style={{ maxWidth: "72px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.8rem" }}>{city ?? t("homepage.setCity")}</span>
+              <span style={{ maxWidth: "72px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.8rem" }}>{city ?? t("home.setCity")}</span>
               <span style={{ fontSize: "0.55rem", opacity: 0.6 }}>▼</span>
             </button>
             {cityPickerOpen && (
               <div className={styles.langDrop} style={{ width: "240px", maxHeight: "360px", overflowY: "auto", padding: "0.5rem" }}>
                 <button type="button" style={{ width:"100%",textAlign:"left",padding:"0.45rem 0.6rem",borderRadius:"0.5rem",background:"rgba(27,138,74,0.07)",border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:"0.4rem",fontSize:"0.82rem",color:"#136836",marginBottom:"0.4rem" }} onClick={detectGpsCity} disabled={gpsLoading}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="9" strokeDasharray="2 3"/></svg>
-                  {gpsLoading ? t("homepage.detecting") : t("homepage.useMyLocation")}
+                  {gpsLoading ? t("home.detecting") : t("home.useMyLocation")}
                 </button>
-                <input type="text" placeholder={t("homepage.searchCity")} value={citySearch} onChange={(e) => setCitySearch(e.target.value)}
+                <input type="text" placeholder={t("home.searchCity")} value={citySearch} onChange={(e) => setCitySearch(e.target.value)}
                   style={{ width:"100%",padding:"0.35rem 0.5rem",borderRadius:"0.4rem",border:"1px solid #d0e4d8",fontSize:"0.8rem",outline:"none",marginBottom:"0.5rem",boxSizing:"border-box" }} autoFocus />
                 {filteredCityGroups.map((group) => (
                   <div key={group.region}>
@@ -234,7 +234,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
                     </div>
                   </div>
                 ))}
-                {filteredCityGroups.length === 0 && <p style={{ fontSize:"0.78rem",color:"#8FA39A",textAlign:"center",padding:"0.5rem" }}>{t("homepage.noCitiesFound")}</p>}
+                {filteredCityGroups.length === 0 && <p style={{ fontSize:"0.78rem",color:"#8FA39A",textAlign:"center",padding:"0.5rem" }}>{t("home.noCitiesFound")}</p>}
               </div>
             )}
           </div>
@@ -329,18 +329,18 @@ export default function HomePage({ topHospitals }: HomePageProps) {
       <section className={styles.heroSection} aria-labelledby="hero-title">
 
         <div className={styles.heroInner}>
-          <span className={styles.heroBadge}>✦ AI-Powered Healthcare Discovery</span>
+          <span className={styles.heroBadge}>✦ {t("home.heroLabel")}</span>
           <h1 id="hero-title" className={styles.heroTitle}>
-            Find the right care. <em>Fast.</em>
+            {t("home.heroTitle")} <em>{t("home.heroTitleSecondary")}</em>
           </h1>
           <p className={styles.heroSubtitle}>
-            AI-powered · Multilingual · Free for patients
+            {t("home.heroSubtitle")}
           </p>
 
           {/* ── Prominent Search Bar — the primary CTA ── */}
           <div className={styles.heroSearchSection}>
             <p className={styles.heroSearchLabel}>
-              <span>🤖</span> Ask about symptoms, hospitals or doctors
+              <span>🤖</span> {t("home.searchLabel")}
             </p>
           <form className={styles.heroSearchForm} onSubmit={handleSearchSubmit} role="search">
             <div className={styles.heroSearchBar} onClick={() => searchInputRef.current?.focus()}>
@@ -352,7 +352,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Describe symptoms or search…"
+                placeholder={t("home.searchPlaceholder")}
                 className={styles.heroSearchInput}
                 aria-label="Search hospitals, doctors or describe symptoms"
               />
@@ -362,13 +362,13 @@ export default function HomePage({ topHospitals }: HomePageProps) {
               {/* Desktop: divider + "Ask AI →" button */}
               <span className={styles.heroSearchDivider} aria-hidden="true" />
               <button type="submit" className={styles.heroSearchBtn} aria-label="Ask AI">
-                Ask AI →
+                {t("home.searchButton")} →
               </button>
             </div>
             <p className={styles.heroSearchHint}>
-              Try: <button type="button" onClick={() => router.push("/ask?q=chest+pain+cardiologist")}>chest pain</button> ·{" "}
-              <button type="button" onClick={() => router.push("/ask?q=knee+replacement+hospital")}>knee replacement</button> ·{" "}
-              <button type="button" onClick={() => router.push("/ask?q=Apollo+Hospitals+Pune")}>Apollo Hospitals</button>
+              {t("home.searchHintLabel")}: <button type="button" onClick={() => router.push("/ask?q=chest+pain+cardiologist")}>{t("home.searchHint1")}</button> ·{" "}
+              <button type="button" onClick={() => router.push("/ask?q=knee+replacement+hospital")}>{t("home.searchHint2")}</button> ·{" "}
+              <button type="button" onClick={() => router.push("/ask?q=Apollo+Hospitals+Pune")}>{t("home.searchHint3")}</button>
             </p>
           </form>
           </div>
@@ -376,11 +376,11 @@ export default function HomePage({ topHospitals }: HomePageProps) {
           {/* ── Quick browse chips ── */}
           <div className={styles.heroBrowseChips}>
             {([
-              { href: "/ask?q=book+appointment", icon: "📅", full: "Book Appointment", short: "Book" },
-              { href: "/hospitals",              icon: "🏥", full: "Browse Hospitals",  short: "Hospitals" },
-              { href: "/doctors",                icon: "👨‍⚕️", full: "Find Doctors",     short: "Doctors" },
-              { href: "/diagnostics",            icon: "🔬", full: "Lab Tests",         short: "Lab Tests" },
-              { href: "/treatments",             icon: "💊", full: "Treatments",        short: "Treatments" },
+              { href: "/ask?q=book+appointment", icon: "📅", full: t("home.quickLinkAppointment"), short: t("home.quickLinkAppointment") },
+              { href: "/hospitals",              icon: "🏥", full: t("home.quickLinkHospitals"), short: t("home.quickLinkHospitals") },
+              { href: "/doctors",                icon: "👨‍⚕️", full: t("home.quickLinkDoctors"), short: t("home.quickLinkDoctors") },
+              { href: "/diagnostics",            icon: "🔬", full: t("home.quickLinkDiagnostics"), short: t("home.quickLinkDiagnostics") },
+              { href: "/treatments",             icon: "💊", full: t("home.quickLinkTreatments"), short: t("home.quickLinkTreatments") },
             ] as { href: string; icon: string; full: string; short: string }[]).map((chip) => (
               <Link key={chip.href} href={chip.href} className={styles.heroBrowseChip}>
                 <span className={styles.chipIcon}>{chip.icon}</span>
@@ -433,10 +433,10 @@ export default function HomePage({ topHospitals }: HomePageProps) {
           <div className={styles.popularInner}>
             <div className={styles.popularHeader}>
               <h2 className={styles.popularTitle}>
-                Popular in {city ?? "India"}
+                {t("home.popularIn").replace("{n}", city ?? "India")} 
               </h2>
               <Link href={city ? `/hospitals?city=${encodeURIComponent(city)}` : "/hospitals"} className={styles.popularSeeAll}>
-                See all →
+                {t("home.seeAll")} →
               </Link>
             </div>
 
@@ -444,9 +444,9 @@ export default function HomePage({ topHospitals }: HomePageProps) {
               {popularHospitals.map((h) => {
                 const effectiveRating = h.reviewCount === 0 ? 4.0 : h.rating;
                 const tierBadge = h.networkTierCode === "premium"
-                  ? { label: "Premium Partner", color: "#7C3AED", bg: "#F5EAFF" }
+                  ? { label: t("home.premiumPartner"), color: "#7C3AED", bg: "#F5EAFF" }
                   : h.networkTierCode
-                  ? { label: "Network Partner", color: "#0369A1", bg: "#E0F2FE" }
+                  ? { label: t("home.networkPartner"), color: "#0369A1", bg: "#E0F2FE" }
                   : null;
 
                 return (
@@ -466,7 +466,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
                     {/* Badges row */}
                     <div className={styles.popularCardBadges}>
                       {h.verified && (
-                        <span className={styles.popularCardBadgeVerified}>✅ Verified</span>
+                        <span className={styles.popularCardBadgeVerified}>✅ {t("home.verified")}</span>
                       )}
                       {tierBadge && (
                         <span
@@ -490,10 +490,10 @@ export default function HomePage({ topHospitals }: HomePageProps) {
                     {/* Action buttons */}
                     <div className={styles.popularCardBtns}>
                       <Link href={`/hospitals/${h.slug}`} className={styles.popularCardBtnView}>
-                        View
+                        {t("home.view")}
                       </Link>
                       <Link href={`/hospitals/${h.slug}?book=1`} className={styles.popularCardBtnBook}>
-                        Book →
+                        {t("home.book")} →
                       </Link>
                     </div>
                   </div>
@@ -510,11 +510,11 @@ export default function HomePage({ topHospitals }: HomePageProps) {
       <section className={styles.howSection} aria-labelledby="how-title">
         <div className={styles.howInner}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionLabel}>Simple · Fast · Free</span>
-            <h2 id="how-title" className={styles.sectionTitle}>How EasyHeals works</h2>
+            <span className={styles.sectionLabel}>{t("home.howItWorksLabel")}</span>
+            <h2 id="how-title" className={styles.sectionTitle}>{t("home.howItWorks")}</h2>
           </div>
           <div className={styles.howGrid}>
-            {HOW_STEPS.map((step) => (
+            {getHowSteps(t).map((step) => (
               <div key={step.num} className={styles.howStep}>
                 <div className={styles.howStepNum}>{step.num}</div>
                 <div className={styles.howStepIcon}>{step.icon}</div>
@@ -530,7 +530,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
               </svg>
-              Ask AI Health Assistant
+             {t("home.askAIAssistant")}
             </Link>
           </div>
         </div>
@@ -541,7 +541,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <section className={styles.trustSection} aria-label="Institutional support">
         <div className={styles.trustInner}>
-          <h2 className={styles.trustLabel}>Supported by &amp; Incubated at</h2>
+          <h2 className={styles.trustLabel}>{t("home.supportedBy")}</h2>
 
           {/* All screens: logo + subtitle badges, 1-col on mobile → 5-col on desktop */}
           <div className={styles.trustLogos}>
