@@ -22,6 +22,7 @@ type HospitalCard = {
   rating: number;
   reviewCount: number;
   verified: boolean;
+  communityVerified: boolean;
   networkTierCode: string | null;
 };
 
@@ -59,6 +60,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [stats, setStats] = useState({ hospitalLabel: "12k+", cityLabel: "50+", languageLabel: "9+", doctorLabel: "5k+" });
+  const [cityHospitals, setCityHospitals] = useState<HospitalCard[]>([]);
 
   const currentLocale = LOCALES.find((l) => l.code === locale);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -161,12 +163,27 @@ export default function HomePage({ topHospitals }: HomePageProps) {
     router.push(q ? `/ask?q=${encodeURIComponent(q)}` : "/ask");
   }
 
-  /* ── Popular hospitals filtered by city ── */
-  const popularHospitals = useMemo(() => {
-    if (!city) return topHospitals.slice(0, 8);
-    const byCity = topHospitals.filter((h) => h.city.toLowerCase() === city.toLowerCase());
-    return byCity.length >= 3 ? byCity.slice(0, 8) : topHospitals.slice(0, 8);
-  }, [topHospitals, city]);
+  /* ── Fetch hospitals for selected city ── */
+  useEffect(() => {
+    if (!city) {
+      setCityHospitals([]);
+      return;
+    }
+
+    fetch(`/api/public/hospitals-by-city?city=${encodeURIComponent(city)}&limit=8`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { data?: HospitalCard[] } | null) => {
+        if (data?.data && data.data.length > 0) {
+          setCityHospitals(data.data);
+        } else {
+          setCityHospitals([]);
+        }
+      })
+      .catch(() => setCityHospitals([]));
+  }, [city]);
+
+  /* ── Popular hospitals: use city results, fall back to global top ── */
+  const popularHospitals = cityHospitals.length >= 3 ? cityHospitals : topHospitals.slice(0, 8);
 
   return (
     <main className={styles.page}>

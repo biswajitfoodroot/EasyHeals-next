@@ -217,6 +217,7 @@ export default async function Home() {
     rating: h.rating,
     reviewCount: h.reviewCount,
     verified: h.verified,
+    communityVerified: h.communityVerified,
     networkTierCode: h.networkTierCode,
   }));
 

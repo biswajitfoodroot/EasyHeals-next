@@ -16,6 +16,7 @@ export async function listHospitalsDirectory(limit = 300) {
       specialties: hospitals.specialties,
       rating: hospitals.rating,
       verified: hospitals.verified,
+      communityVerified: hospitals.communityVerified,
       reviewCount: hospitals.reviewCount,
       description: hospitals.description,
       isPrivate: hospitals.isPrivate,
@@ -39,6 +40,7 @@ export async function listHospitalsDirectory(limit = 300) {
     specialties: parseStringArray(row.specialties),
     rating: row.rating ?? 0,
     verified: Boolean(row.verified),
+    communityVerified: Boolean(row.communityVerified),
     reviewCount: row.reviewCount ?? 0,
     networkTierCode: networkMap.get(row.id) ?? null,
   }));
