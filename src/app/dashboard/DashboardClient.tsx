@@ -3410,7 +3410,7 @@ export default function DashboardClient() {
         {/* Logo */}
         <Link href="/" className="px-3 py-4 border-b border-slate-100 flex items-center gap-2.5 hover:bg-slate-50 transition" aria-label="EasyHeals home">
           <img
-            src="/logo.jpg"
+            src="/logo.svg"
             alt="EasyHeals"
             width={36}
             height={36}
@@ -3495,7 +3495,7 @@ export default function DashboardClient() {
           {/* Header row: logo + greeting + upgrade nudge */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px 8px" }}>
             <Link href="/" aria-label="EasyHeals home">
-              <img src="/logo.jpg" alt="EasyHeals" width={32} height={32} style={{ borderRadius: "10px", objectFit: "contain" }} />
+              <img src="/logo.svg" alt="EasyHeals" width={32} height={32} style={{ borderRadius: "10px", objectFit: "contain" }} />
             </Link>
             <span style={{ flex: 1, fontSize: "15px", fontWeight: 700, color: "#1e293b" }}>
               {getGreeting()}, {patientName.split(" ")[0]}
