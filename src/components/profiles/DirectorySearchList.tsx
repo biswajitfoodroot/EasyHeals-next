@@ -174,12 +174,17 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
         <p>{description}</p>
 
         <div className={styles.searchBar}>
-          <input
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); resetPage(); }}
-            placeholder={kind === "hospital" ? t("hospital.searchPlaceholder") : t("doctor.searchPlaceholder")}
-            aria-label={t("common.search")}
-          />
+          <div className={styles.searchInputWrap}>
+            <svg className={styles.searchInputIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); resetPage(); }}
+              placeholder={kind === "hospital" ? t("hospital.searchPlaceholder") : t("doctor.searchPlaceholder")}
+              aria-label={t("common.search")}
+            />
+          </div>
           <select
             value={city}
             onChange={(e) => {
@@ -289,6 +294,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
       {/* ── Specialty filter pills ── */}
       {viewMode === "list" && allSpecialties.length > 0 && (
         <div className={styles.directoryControls}>
+          <p className={styles.filterScrollLabel}>Browse by Department</p>
           <div className={styles.filterScroll}>
             <button
               type="button"
@@ -318,8 +324,17 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
       {/* ── List mode: result count + card grid ── */}
       {viewMode === "list" && (<>
-      <p style={{ width: "min(1180px,100%)", margin: "8px auto 0", fontSize: "12px", color: "#8FA39A", fontFamily: "var(--font-bricolage),sans-serif" }}>
+      <p className={styles.resultCount}>
         {(kind === "hospital" ? t("common.hospitalsFound") : t("common.doctorsFound")).replace("{n}", String(filtered.length))}
+        {activeFilterCount > 0 && (
+          <button
+            type="button"
+            onClick={() => { setCity("all"); setSpecialty("all"); setSort("rating"); setPage(1); }}
+            style={{ fontSize: "11px", fontWeight: 700, color: "#1B8A4A", background: "transparent", border: "none", cursor: "pointer", fontFamily: "var(--font-bricolage),sans-serif", textDecoration: "underline" }}
+          >
+            Clear filters
+          </button>
+        )}
       </p>
 
       {/* ── Card grid ── */}
@@ -343,7 +358,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
                 {initials(item.name)}
               </div>
               <div className={styles.cardHeaderText}>
-                <h2 style={{ margin: 0, fontSize: "15px" }} data-testid="card-name">{item.name}</h2>
+                <h3 style={{ margin: 0, fontSize: "15px" }} data-testid="card-name">{item.name}</h3>
                 <p style={{ margin: "2px 0 0" }} data-testid="card-location">
                   {item.city}{item.state ? `, ${item.state}` : ""}
                 </p>
@@ -470,14 +485,23 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             <div className={styles.filterSheetHandle}><div /></div>
 
             <div className={styles.filterSheetHeader}>
-              <h3>Filters</h3>
-              <button type="button" onClick={() => setFilterSheetOpen(false)}>✕ Close</button>
+              <h3>
+                🎚 Filters
+                {activeFilterCount > 0 && (
+                  <span className={styles.filterActiveChip}>{activeFilterCount}</span>
+                )}
+              </h3>
+              <button type="button" onClick={() => setFilterSheetOpen(false)} aria-label="Close filters">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
             </div>
 
             <div className={styles.filterSheetBody}>
               {/* City */}
               <div className={styles.filterSheetSection}>
-                <h4>City</h4>
+                <h4>📍 City</h4>
                 <div className={styles.filterSheetPills}>
                   <button
                     type="button"
@@ -502,7 +526,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               {/* Specialty */}
               {allSpecialties.length > 0 && (
                 <div className={styles.filterSheetSection}>
-                  <h4>Specialty</h4>
+                  <h4>🏥 Specialty</h4>
                   <div className={styles.filterSheetPills}>
                     <button
                       type="button"
@@ -527,7 +551,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
               {/* Sort */}
               <div className={styles.filterSheetSection}>
-                <h4>Sort by</h4>
+                <h4>↕ Sort by</h4>
                 <div className={styles.filterSheetPills}>
                   {[
                     { value: "rating" as const, label: `★ ${t("common.rating")}` },

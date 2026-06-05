@@ -89,6 +89,6 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/api/:path*",
-    "/((?!_next/static|_next/image|favicon.ico|logo.jpg|robots.txt|sitemap.xml).*)",
+    "/((?!_next/static|_next/image|favicon.png|logo.svg|robots.txt|sitemap.xml).*)",
   ],
 };

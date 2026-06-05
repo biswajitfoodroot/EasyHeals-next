@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 import { useTranslations } from "@/i18n/LocaleContext";
 import AuthBookingModal, { type BookingDoctor } from "@/components/AuthBookingModal";
@@ -105,7 +106,7 @@ type HospitalProfileClientProps = {
   };
 };
 
-const TABS = ["overview", "doctors", "packages", "services", "reviews", "location"] as const;
+const TABS = ["doctors", "packages", "reviews"] as const;
 type TabKey = (typeof TABS)[number];
 
 function ratingText(rating: number, count: number) {
@@ -121,11 +122,65 @@ function objectSummary(value: Record<string, unknown> | null, notUpdatedLabel = 
     .join(" | ");
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function docAvatarColor(name: string): string {
+  return String(name.charCodeAt(0) % 8);
+}
+
+const facilityIcons: Record<string, string> = {
+  emergency: "🚑",
+  "24x7 emergency": "🚑",
+  icu: "🛏️",
+  pharmacy: "💊",
+  "blood bank": "🩸",
+  parking: "🅿️",
+  wifi: "📶",
+  ambulance: "🚑",
+  cafeteria: "☕",
+  canteen: "☕",
+  atm: "🏧",
+  laboratory: "🔬",
+  lab: "🔬",
+  "x-ray": "🩻",
+  mri: "🧲",
+  wheelchair: "♿",
+  lift: "🛗",
+};
+
+const accreditationIcons: Record<string, string> = {
+  nabh: "🥇",
+  nabl: "🔬",
+  jci: "🌎",
+  iso: "🎖️",
+};
+
+function PictorialListItem({ text, type }: { text: string; type: "facility" | "accreditation" }) {
+  const lower = text.toLowerCase();
+  const map = type === "facility" ? facilityIcons : accreditationIcons;
+  // Match key by substring if exact match fails
+  const iconKey = Object.keys(map).find(k => lower.includes(k));
+  const icon = iconKey ? map[iconKey] : "✔️";
+
+  return (
+    <div className={styles.pictorialItem}>
+      <div className={styles.pictorialIcon}>{icon}</div>
+      <span className={styles.pictorialText}>{text}</span>
+    </div>
+  );
+}
+
 export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   const { t } = useTranslations();
-  const [tab, setTab] = useState<TabKey>("overview");
   const [modalOpen, setModalOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState(false);
+  const [showAllSpecialties, setShowAllSpecialties] = useState(false);
+  const [expandedDoctors, setExpandedDoctors] = useState(false);
+  const [expandedPackages, setExpandedPackages] = useState(false);
 
   // Review submission form state
   const [reviewName, setReviewName] = useState("");
@@ -142,29 +197,17 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
     const params = new URLSearchParams(window.location.search);
     if (params.has("book") || params.has("contact")) setModalOpen(true);
   }, []);
-  const [doctorDept, setDoctorDept] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-
-  const doctorDepts = useMemo(() => {
-    const seen = new Set<string>();
-    const depts: string[] = [];
-    for (const d of data.doctors) {
-      const dept = d.specialization?.trim();
-      if (dept && !seen.has(dept)) { seen.add(dept); depts.push(dept); }
-    }
-    return depts.sort();
-  }, [data.doctors]);
 
   const visibleDoctors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const byDept = doctorDept === "all" ? data.doctors : data.doctors.filter((d) => d.specialization === doctorDept);
-    if (!q) return byDept;
-    return byDept.filter((d) =>
+    if (!q) return data.doctors;
+    return data.doctors.filter((d) =>
       d.name.toLowerCase().includes(q) ||
       (d.specialization ?? "").toLowerCase().includes(q) ||
       d.specialties.some((s) => s.toLowerCase().includes(q))
     );
-  }, [data.doctors, doctorDept, searchQuery]);
+  }, [data.doctors, searchQuery]);
 
   const visiblePackages = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -207,18 +250,21 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   };
 
   const tabLabels: Record<TabKey, string> = {
-    overview: t("hospital.tabOverview"),
     doctors: t("hospital.tabDoctors"),
     packages: t("hospital.tabPackages"),
-    services: t("hospital.tabServices"),
     reviews: t("hospital.tabReviews"),
-    location: t("hospital.tabLocation"),
+  };
+
+  const tabIcons: Record<TabKey, string> = {
+    doctors: "👨‍⚕️",
+    packages: "📦",
+    reviews: "⭐",
   };
 
   return (
     <main className={styles.page}>
-      <section className={styles.container}>
-        <nav className={styles.breadcrumb}>
+      <div className={styles.container}>
+        <nav className={styles.breadcrumb} aria-label="Breadcrumb">
           <Link href="/">{t("common.home")}</Link>
           <span>/</span>
           <Link href="/hospitals">{t("nav.hospitals")}</Link>
@@ -226,189 +272,214 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
           <span>{data.hospital.name}</span>
         </nav>
 
+        {/* ── Photo Gallery ── */}
+        {data.hospital.photos && data.hospital.photos.length > 0 && (
+          <div className={styles.galleryWrap}>
+            <div className={styles.galleryScroll}>
+              {data.hospital.photos.map((photo, index) => (
+                <div key={index} className={styles.galleryItem}>
+                  <Image 
+                    src={photo} 
+                    alt={`${data.hospital.name} facility photo ${index + 1}`} 
+                    fill 
+                    className={styles.galleryImage} 
+                    sizes="(max-width: 640px) 100vw, 80vw"
+                    priority={index === 0}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
         <header className={styles.hero}>
           <div className={styles.heroTop}>
-            <div>
-              <span className={styles.kicker}>{t("hospital.kicker")}</span>
+            {/* Identity Column */}
+            <div className={styles.heroInfo}>
+              <div className={styles.heroMeta}>
+                {data.networkTierCode && (
+                  <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
+                )}
+                <span className={styles.heroVerified}>✅ {t("common.verified")}</span>
+              </div>
               <h1 className={styles.title}>{data.hospital.name}</h1>
-              <p className={styles.subtitle}>{titleMeta}</p>
-              <div className={styles.heroBadges}>
-                <span>✅ {t("common.verified")}</span>
-                {data.hospital.specialties.slice(0, 3).map((s) => (
-                  <span key={s}>{s}</span>
-                ))}
-                {data.doctors.length > 0 && (
-                  <span>{data.doctors.length} {t("hospital.tabDoctors")}</span>
+              <p className={styles.subtitle}>
+                📍 {data.hospital.city}{data.hospital.state ? `, ${data.hospital.state}` : ""}
+                &nbsp;·&nbsp;⭐ {ratingText(data.hospital.rating, data.hospital.reviewCount)}
+              </p>
+
+              {/* Quick facts strip */}
+              <div className={styles.heroFacts}>
+                {data.hospital.phone && (
+                  <a href={`tel:${data.hospital.phone}`} className={styles.heroFact}>
+                    <span className={styles.heroFactIcon}>📞</span>
+                    <span>{data.hospital.phone}</span>
+                  </a>
+                )}
+                {data.hospital.website && (
+                  <a href={data.hospital.website} target="_blank" rel="noreferrer" className={styles.heroFact}>
+                    <span className={styles.heroFactIcon}>🌐</span>
+                    <span>Website</span>
+                  </a>
+                )}
+                {data.hospital.addressLine1 && (
+                  <span className={styles.heroFact}>
+                    <span className={styles.heroFactIcon}>🏢</span>
+                    <span>{data.hospital.addressLine1}</span>
+                  </span>
+                )}
+                {data.hospital.workingHours && (
+                  <span className={styles.heroFact}>
+                    <span className={styles.heroFactIcon}>🕐</span>
+                    <span>{objectSummary(data.hospital.workingHours, "").split("|")[0]?.trim() || "Open"}</span>
+                  </span>
                 )}
               </div>
-              {data.networkTierCode && (
-                <div className="mt-3">
-                  <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
+              
+              {/* About merged into header */}
+              <p className={styles.heroDescription}>
+                {data.hospital.description ?? t("hospital.descriptionPending")}
+              </p>
+              
+              {/* Facilities and Accreditations merged into header */}
+              {(data.hospital.facilities.length > 0 || data.hospital.accreditations.length > 0) && (
+                <div className={styles.heroPillRow}>
+                  {data.hospital.facilities.slice(0, 8).map((f) => (
+                    <span key={f} className={styles.heroPill}>🏥 {f}</span>
+                  ))}
+                  {data.hospital.accreditations.map((a) => (
+                    <span key={a} className={styles.heroPill}>🏅 {a}</span>
+                  ))}
                 </div>
               )}
             </div>
 
-            <div className={styles.actions}>
-              <button type="button" className={styles.primaryAction} onClick={() => setModalOpen(true)}>
-                {t("common.bookAppointment")}
-              </button>
-              {data.hospital.phone ? (
-                <a href={`tel:${data.hospital.phone}`}>
-                  {t("common.callNow")}
+            {/* Action Card */}
+            <div className={styles.actionCard}>
+              <div className={styles.actionsMain}>
+                <button type="button" className={styles.primaryAction} onClick={() => setModalOpen(true)}>
+                  📅 {t("common.bookAppointment")}
+                </button>
+                {data.hospital.phone ? (
+                  <a href={`tel:${data.hospital.phone}`} className={styles.secondaryAction}>
+                    📞 {t("common.callNow")}
+                  </a>
+                ) : null}
+              </div>
+              <div className={styles.actionsTertiary}>
+                <a href={data.hospital.map.directionsUrl} target="_blank" rel="noreferrer">
+                  📍 {t("common.getDirections")}
                 </a>
-              ) : null}
-              <a href={data.hospital.map.directionsUrl} target="_blank" rel="noreferrer">
-                {t("common.getDirections")}
-              </a>
-              <button type="button" onClick={() => setContributeOpen(true)}>{t("common.suggestEdit")}</button>
+                <button type="button" onClick={() => setContributeOpen(true)}>
+                  ✏️ {t("common.suggestEdit")}
+                </button>
+              </div>
             </div>
           </div>
-        </header>
 
-        <div className={styles.tabs} role="tablist" aria-label="Hospital profile tabs">
-          {TABS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? styles.tabActive : ""}
-              onClick={() => setTab(key)}
-            >
-              {tabLabels[key]}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Search bar — shown on doctors/packages tabs ── */}
-        {(tab === "doctors" || tab === "packages") && (
-          <div className={styles.profileSearch}>
-            <svg className={styles.profileSearchIcon} width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
-            <input
-              type="text"
-              className={styles.profileSearchInput}
-              placeholder={tab === "doctors" ? `Search doctors, specialties…` : `Search packages, procedures…`}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Search within hospital"
-            />
-            {searchQuery && (
-              <button type="button" className={styles.profileSearchClear} onClick={() => setSearchQuery("")} aria-label="Clear search">×</button>
+          {/* ── Stats + Specialties meta bar ── */}
+          <div className={styles.heroBottom}>
+            <div className={styles.heroStats}>
+              {data.doctors.length > 0 && (
+                <div className={styles.heroStat}>
+                  <span className={styles.heroStatVal}>{data.doctors.length}</span>
+                  <span className={styles.heroStatLab}>Doctors</span>
+                </div>
+              )}
+              <div className={styles.heroStat}>
+                <span className={styles.heroStatVal}>{data.hospital.specialties.length || "—"}</span>
+                <span className={styles.heroStatLab}>Specialties</span>
+              </div>
+              <div className={styles.heroStat}>
+                <span className={styles.heroStatVal}>{ratingText(data.hospital.rating, data.hospital.reviewCount).split(" ")[0]}</span>
+                <span className={styles.heroStatLab}>★ Rating</span>
+              </div>
+              {data.packages.length > 0 && (
+                <div className={styles.heroStat}>
+                  <span className={styles.heroStatVal}>{data.packages.length}</span>
+                  <span className={styles.heroStatLab}>Packages</span>
+                </div>
+              )}
+            </div>
+            {data.hospital.specialties.length > 0 && (
+              <div className={styles.heroSpecialties}>
+                {(showAllSpecialties ? data.hospital.specialties : data.hospital.specialties.slice(0, 6)).map((s) => (
+                  <span key={s} className={styles.heroSpecialtyPill}>{s}</span>
+                ))}
+                {!showAllSpecialties && data.hospital.specialties.length > 6 && (
+                  <button type="button" onClick={() => setShowAllSpecialties(true)} className={styles.heroSpecialtyMore}>
+                    +{data.hospital.specialties.length - 6} more
+                  </button>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </header>
+      </div>
 
-        {tab === "overview" ? (
-          <section className={styles.contentGrid}>
-            <article className={styles.panel}>
-              <h2>{t("hospital.profileOverview")}</h2>
-              <p>{data.hospital.description ?? t("hospital.descriptionPending")}</p>
+      {/* ══ STICKY NAVIGATION BAR ══════════════════════════════════════════════ */}
+      <div className={styles.container}>
+        <nav className={styles.anchorNav} aria-label="Hospital profile sections">
+          {TABS.map((key) => (
+            <a key={key} href={`#${key}`} className={styles.anchorLink}>
+              {tabIcons[key]} {tabLabels[key]}
+            </a>
+          ))}
+        </nav>
+      </div>
 
-              <InlineFieldEditor
-                targetType="hospital"
-                targetId={data.hospital.id}
-                field="phone"
-                label={t("common.phone")}
-                value={data.hospital.phone ?? ""}
-
-              />
-              <InlineFieldEditor
-                targetType="hospital"
-                targetId={data.hospital.id}
-                field="addressLine1"
-                label={t("common.address")}
-                value={data.hospital.addressLabel}
-                multiline
-
-              />
-              <InlineFieldEditor
-                targetType="hospital"
-                targetId={data.hospital.id}
-                field="website"
-                label={t("common.website")}
-                value={data.hospital.website ?? ""}
-
-              />
-              <InlineFieldEditor
-                targetType="hospital"
-                targetId={data.hospital.id}
-                field="workingHours"
-                label={t("common.workingHours")}
-                value={objectSummary(data.hospital.workingHours, t("common.notUpdated"))}
-                multiline
-
-              />
-            </article>
-
-            <aside className={styles.panel}>
-              <h3>{t("hospital.hospitalData")}</h3>
-              <div className={styles.tagRow}>
-                {data.hospital.specialties.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
-              <p>{t("hospital.facilities")}: {data.hospital.facilities.length ? data.hospital.facilities.join(", ") : t("common.pending")}</p>
-              <p>
-                {t("hospital.accreditations")}: {data.hospital.accreditations.length ? data.hospital.accreditations.join(", ") : t("common.pending")}
-              </p>
-              <p>{t("common.feeRange")}: {objectSummary(data.hospital.feesRange, t("common.notUpdated"))}</p>
-            </aside>
-          </section>
-        ) : null}
-
-        {tab === "doctors" ? (
-          <section className={styles.panel}>
+      <section id="doctors" className={styles.pageSection}>
+        <div className={styles.container}>
+          <div className={styles.panel}>
             <h2>{t("hospital.affiliatedDoctors")}</h2>
             <p>{t("hospital.affiliatedDoctorsHint")}</p>
 
-            {doctorDepts.length > 0 && (
-              <div className={styles.tagRow} style={{ marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
-                <button
-                  type="button"
-                  onClick={() => setDoctorDept("all")}
-                  className={doctorDept === "all" ? styles.filterPillActive : styles.filterPill}
-                >
-                  {t("common.allDepartments")}
-                  <span className={styles.filterPillCount}>{data.doctors.length}</span>
-                </button>
-                {doctorDepts.map((dept) => (
-                  <button
-                    key={dept}
-                    type="button"
-                    onClick={() => setDoctorDept(dept)}
-                    className={doctorDept === dept ? styles.filterPillActive : styles.filterPill}
-                  >
-                    {dept}
-                    <span className={styles.filterPillCount}>
-                      {data.doctors.filter((d) => d.specialization === dept).length}
-                    </span>
-                  </button>
-                ))}
+            <div className={styles.tabSearchControl}>
+              <div className={styles.tabSearchRow}>
+                <svg className={styles.tabSearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search doctors, specialties…"
+                  className={styles.tabSearchInput}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search doctors"
+                />
+                {searchQuery && (
+                  <button type="button" className={styles.tabSearchClear} onClick={() => setSearchQuery("")}>✕</button>
+                )}
               </div>
-            )}
+            </div>
 
             <div className={styles.cardGrid}>
-              {visibleDoctors.map((doctor) => (
+              {(expandedDoctors || searchQuery ? visibleDoctors : visibleDoctors.slice(0, 8)).map((doctor) => (
                 <article key={doctor.id} className={styles.profileCard}>
-                  <h4>{doctor.name}</h4>
-                  <p>
-                    {doctor.specialization ?? t("common.specialist")} · {doctor.role}
-                  </p>
+                  <div className={styles.docCardHeader}>
+                    <div className={styles.avatar} data-color={docAvatarColor(doctor.name)} aria-hidden="true">
+                      {initials(doctor.name)}
+                    </div>
+                    <div>
+                      <h3 className={styles.docCardName}>{doctor.name}</h3>
+                      <p className={styles.docCardSpec}>{doctor.specialization ?? t("common.specialist")} · {doctor.role}</p>
+                    </div>
+                  </div>
                   <div className={styles.tagRow}>
-                    {doctor.specialties.slice(0, 4).map((item) => (
+                    {doctor.specialties.slice(0, 3).map((item) => (
                       <span key={`${doctor.id}-${item}`}>{item}</span>
                     ))}
+                    {doctor.specialties.length > 3 && (
+                      <span className={styles.tagMore}>+{doctor.specialties.length - 3}</span>
+                    )}
                   </div>
                   <div className={styles.profileCardFooter}>
                     <small>
                       {doctor.yearsOfExperience ? (
-                        `${doctor.yearsOfExperience}+ yrs`
+                        <span style={{ fontWeight: 600, color: "#1B8A4A" }}>{doctor.yearsOfExperience}+ {t("common.yearsExp")}</span>
                       ) : (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontStyle: "italic" }}>
-                          ⏳ {t("common.updating")}
-                        </span>
+                        <span style={{ color: "#8FA39A", fontStyle: "italic" }}>⏳ {t("common.updating")}</span>
                       )}
                     </small>
                     <Link href={doctor.profileUrl}>{t("common.viewProfile")}</Link>
@@ -416,43 +487,78 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 </article>
               ))}
               {visibleDoctors.length === 0 && (
-                <p>{t("common.noResults")}</p>
+                <div className={styles.emptyStateCard}>
+                  <div className={styles.emptyStateIcon}>👨‍⚕️</div>
+                  <h3 className={styles.emptyStateTitle}>{t("common.noResults")}</h3>
+                  <p className={styles.emptyStateBody}>Try a different search term or clear the department filter.</p>
+                </div>
               )}
             </div>
-          </section>
-        ) : null}
+            
+            {!expandedDoctors && !searchQuery && visibleDoctors.length > 8 && (
+              <div className={styles.expandRow}>
+                <button type="button" className={styles.expandBtn} onClick={() => setExpandedDoctors(true)}>
+                  View all {visibleDoctors.length} doctors ▾
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-        {tab === "packages" ? (
-          <section className={styles.panel}>
+      <section id="packages" className={styles.pageSection}>
+        <div className={styles.container}>
+          <div className={styles.panel}>
             <h2>{t("hospital.tabPackages")}</h2>
+            
+            <div className={styles.tabSearchControl}>
+              <div className={styles.tabSearchRow}>
+                <svg className={styles.tabSearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search packages, procedures…"
+                  className={styles.tabSearchInput}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search packages"
+                />
+                {searchQuery && (
+                  <button type="button" className={styles.tabSearchClear} onClick={() => setSearchQuery("")}>✕</button>
+                )}
+              </div>
+            </div>
             {visiblePackages.length === 0 ? (
-              <p className="text-slate-500">{searchQuery ? `No packages match "${searchQuery}"` : t("hospital.noPackages")}</p>
+              <div className={styles.emptyStateCard}>
+                <div className={styles.emptyStateIcon}>📦</div>
+                <h3 className={styles.emptyStateTitle}>{searchQuery ? "No matching packages" : "No packages yet"}</h3>
+                <p className={styles.emptyStateBody}>
+                  {searchQuery ? `No packages match "${searchQuery}"` : t("hospital.noPackages")}
+                </p>
+              </div>
             ) : (
               <div className={styles.cardGrid}>
-                {visiblePackages.map((pkg) => (
-                  <article key={pkg.id} className={styles.profileCard}>
-                    <h4>{pkg.packageName}</h4>
-                    {pkg.procedureName && <p className="text-slate-500 text-sm">{pkg.procedureName}</p>}
-                    {pkg.department && <p className="text-xs text-teal-700 font-medium">{pkg.department}</p>}
-                    <p className="text-slate-700 font-semibold text-sm mt-1">
+                {(expandedPackages || searchQuery ? visiblePackages : visiblePackages.slice(0, 6)).map((pkg) => (
+                  <article key={pkg.id} className={styles.packageCard}>
+                    <h3 className={styles.packageName}>{pkg.packageName}</h3>
+                    {pkg.procedureName && <p className={styles.packageProcedure}>{pkg.procedureName}</p>}
+                    {pkg.department && <span className={styles.packageDept}>{pkg.department}</span>}
+                    <p className={styles.packagePrice}>
                       {pkg.priceMin || pkg.priceMax
-                        ? `₹${pkg.priceMin?.toLocaleString("en-IN") ?? "–"} – ₹${pkg.priceMax?.toLocaleString("en-IN") ?? "–"} ${pkg.currency !== "INR" ? pkg.currency : ""}`
+                        ? `₹${pkg.priceMin?.toLocaleString("en-IN") ?? "–"} – ₹${pkg.priceMax?.toLocaleString("en-IN") ?? "–"}${pkg.currency !== "INR" ? ` ${pkg.currency}` : ""}`
                         : t("common.priceOnRequest")}
                     </p>
-                    {pkg.lengthOfStay && <p className="text-xs text-slate-500">{t("common.stay")}: {pkg.lengthOfStay}</p>}
+                    {pkg.lengthOfStay && <p className={styles.packageStay}>🛏 {t("common.stay")}: {pkg.lengthOfStay}</p>}
                     {pkg.inclusions.length > 0 && (
-                      <ul className="mt-2 text-xs text-slate-600 space-y-0.5 list-disc list-inside">
+                      <ul className={styles.packageInclusions}>
                         {pkg.inclusions.slice(0, 4).map((inc) => (
-                          <li key={inc}>{inc}</li>
+                          <li key={inc} className={styles.packageInclusionItem}>{inc}</li>
                         ))}
                       </ul>
                     )}
                     <div className={styles.profileCardFooter}>
-                      <button
-                        type="button"
-                        onClick={() => setModalOpen(true)}
-                        className="text-teal-700 font-semibold text-sm hover:underline"
-                      >
+                      <button type="button" onClick={() => setModalOpen(true)} className={styles.directoryCardBook}>
                         {t("common.bookPackage")}
                       </button>
                     </div>
@@ -460,91 +566,73 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 ))}
               </div>
             )}
-          </section>
-        ) : null}
-
-        {tab === "services" ? (
-          <section className={styles.split}>
-            <article className={styles.panel}>
-              <h2>{t("hospital.departmentsServices")}</h2>
-              <div className={styles.tagRow}>
-                {data.hospital.specialties.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
+            
+            {!expandedPackages && !searchQuery && visiblePackages.length > 6 && (
+              <div className={styles.expandRow}>
+                <button type="button" className={styles.expandBtn} onClick={() => setExpandedPackages(true)}>
+                  View all {visiblePackages.length} packages ▾
+                </button>
               </div>
-            </article>
+            )}
+          </div>
+        </div>
+      </section>
 
-            <article className={styles.panel}>
-              <h2>{t("hospital.nearby")}</h2>
-              <div className={styles.cardGrid}>
-                {data.nearbyHospitals.map((item) => (
-                  <article key={item.id} className={styles.profileCard}>
-                    <h4>{item.name}</h4>
-                    <p>
-                      {item.city}
-                      {item.state ? `, ${item.state}` : ""}
-                    </p>
-                    <div className={styles.tagRow}>
-                      {item.specialties.slice(0, 3).map((tag) => (
-                        <span key={`${item.id}-${tag}`}>{tag}</span>
-                      ))}
-                    </div>
-                    <div className={styles.profileCardFooter}>
-                      <Link href={item.profileUrl}>{t("common.open")}</Link>
-                      <a href={item.mapUrl} target="_blank" rel="noreferrer">
-                        {t("common.directions")}
-                      </a>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </article>
-          </section>
-        ) : null}
 
-        {tab === "reviews" ? (
-          <section className={styles.panel}>
+
+      <section id="reviews" className={styles.pageSection}>
+        <div className={styles.container}>
+          <div className={styles.panel}>
             <h2>{t("hospital.ratingsTitle")}</h2>
-            <p style={{ marginBottom: "0.5rem" }}>
+            <p className={styles.reviewScore}>
               {t("common.currentScore")}: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
             </p>
 
             {/* Approved reviews list */}
-            {data.reviews.length > 0 ? (
-              <div style={{ marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {data.reviews.length > 0 && (
+              <div className={styles.reviewList}>
                 {data.reviews.map((review) => (
-                  <div key={review.id} style={{ border: "1px solid #e2e8f0", borderRadius: "0.75rem", padding: "1rem", background: "#fff" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      <div>
-                        <span style={{ fontWeight: 700, color: "#1e293b" }}>{review.patientName}</span>
-                        {review.visitDate && (
-                          <span style={{ marginLeft: "0.75rem", fontSize: "0.75rem", color: "#94a3b8" }}>
-                            Visited {new Date(review.visitDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
-                          </span>
-                        )}
+                  <article key={review.id} className={styles.reviewCard}
+                    itemScope itemType="https://schema.org/Review">
+                    <meta itemProp="itemReviewed" content={data.hospital.name} />
+                    <div className={styles.reviewCardHeader}>
+                      <div className={styles.reviewAuthorRow}>
+                        <div className={styles.reviewAvatar} aria-hidden="true">
+                          {review.patientName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className={styles.reviewAuthorName} itemProp="author" itemScope itemType="https://schema.org/Person">
+                            <span itemProp="name">{review.patientName}</span>
+                          </div>
+                          {review.visitDate && (
+                            <div className={styles.reviewVisitDate}>
+                              Visited {new Date(review.visitDate).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ color: "#f59e0b", fontWeight: 700, fontSize: "1rem" }}>
+                      <div className={styles.reviewStars} itemProp="reviewRating" itemScope itemType="https://schema.org/Rating">
+                        <meta itemProp="bestRating" content="5" />
+                        <meta itemProp="worstRating" content="1" />
                         {"★".repeat(Math.round(review.rating))}{"☆".repeat(5 - Math.round(review.rating))}
-                        <span style={{ color: "#64748b", fontWeight: 500, marginLeft: "0.25rem", fontSize: "0.85rem" }}>{review.rating.toFixed(1)}</span>
+                        <span className={styles.reviewStarValue} itemProp="ratingValue">{review.rating.toFixed(1)}</span>
                       </div>
                     </div>
-                    {review.title && <p style={{ fontWeight: 600, marginTop: "0.5rem", color: "#334155" }}>{review.title}</p>}
-                    {review.body && <p style={{ marginTop: "0.25rem", color: "#475569", fontSize: "0.9rem", lineHeight: 1.6 }}>{review.body}</p>}
-                  </div>
+                    {review.title && <p className={styles.reviewTitle}>{review.title}</p>}
+                    {review.body && <p className={styles.reviewBodyText} itemProp="reviewBody">{review.body}</p>}
+                  </article>
                 ))}
               </div>
-            ) : (
-              <p style={{ color: "#64748b", marginTop: "1rem", fontStyle: "italic" }}>
-                No reviews yet. Be the first to share your experience!
-              </p>
             )}
 
             {/* Review submission form */}
-            <div style={{ marginTop: "2rem", padding: "1.25rem", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "0.75rem" }}>
-              <h3 style={{ fontWeight: 700, marginBottom: "1rem", color: "#1e293b" }}>Write a Review</h3>
+            <div className={styles.reviewForm}>
+              <h3 className={styles.reviewFormTitle}>
+                {data.reviews.length > 0 ? "Write a Review" : "Be the first to share your experience!"}
+              </h3>
               {reviewSubmitted ? (
-                <p style={{ color: "#16a34a", fontWeight: 600 }}>
-                  ✓ Thank you! Your review has been submitted and will appear after moderation.
+                <p className={styles.reviewSuccess}>
+                  ✅ Thank you! Your review has been submitted and will appear after moderation.
                 </p>
               ) : (
                 <form
@@ -577,20 +665,20 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                       setReviewSubmitting(false);
                     }
                   }}
-                  style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+                  className={styles.reviewFormBody}
                 >
-                  <div style={{ display: "flex", gap: "0.75rem" }}>
+                  <div className={styles.reviewFormRow}>
                     <input
                       required
                       value={reviewName}
                       onChange={(e) => setReviewName(e.target.value)}
                       placeholder="Your name *"
-                      style={{ flex: 1, padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem" }}
+                      className={styles.reviewInput}
                     />
                     <select
                       value={reviewRating}
                       onChange={(e) => setReviewRating(Number(e.target.value))}
-                      style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", background: "#fff" }}
+                      className={styles.reviewSelect}
                     >
                       {[5, 4, 3, 2, 1].map((r) => (
                         <option key={r} value={r}>{"★".repeat(r)} {r}/5</option>
@@ -601,7 +689,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                     value={reviewTitle}
                     onChange={(e) => setReviewTitle(e.target.value)}
                     placeholder="Review title (optional)"
-                    style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem" }}
+                    className={styles.reviewInput}
                   />
                   <textarea
                     required
@@ -609,79 +697,65 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                     onChange={(e) => setReviewBody(e.target.value)}
                     placeholder="Share your experience (min 10 characters) *"
                     rows={4}
-                    style={{ padding: "0.5rem 0.75rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", fontSize: "0.9rem", resize: "vertical" }}
+                    className={styles.reviewTextarea}
                   />
-                  {reviewError && <p style={{ color: "#dc2626", fontSize: "0.85rem" }}>{reviewError}</p>}
-                  <button
-                    type="submit"
-                    disabled={reviewSubmitting}
-                    style={{ alignSelf: "flex-start", padding: "0.5rem 1.25rem", background: "#0d9488", color: "#fff", border: "none", borderRadius: "0.5rem", fontWeight: 600, cursor: "pointer", opacity: reviewSubmitting ? 0.7 : 1 }}
-                  >
+                  {reviewError && <p className={styles.reviewError}>{reviewError}</p>}
+                  <button type="submit" disabled={reviewSubmitting} className={styles.reviewSubmitBtn}>
                     {reviewSubmitting ? "Submitting…" : "Submit Review"}
                   </button>
                 </form>
               )}
             </div>
-          </section>
-        ) : null}
-
-        {tab === "location" ? (
-          <section className={styles.split}>
-            <article className={styles.panel}>
-              <h2>{t("hospital.locationTitle")}</h2>
-              <p>{data.hospital.addressLabel || t("hospital.addressNotAvailable")}</p>
-              <div className={styles.actions}>
-                <a className={styles.primaryAction} href={data.hospital.map.directionsUrl} target="_blank" rel="noreferrer">
-                  {t("common.getDirections")}
-                </a>
-                <a href={data.hospital.map.directionsUrl} target="_blank" rel="noreferrer">
-                  {t("hospital.largerMap")}
-                </a>
-              </div>
-            </article>
-            <div className={styles.mapWrap}>
-              <iframe
-                src={data.hospital.map.embedUrl}
-                loading="lazy"
-                allowFullScreen
-                referrerPolicy="no-referrer-when-downgrade"
-                title={`${data.hospital.name} map`}
-              />
-            </div>
-          </section>
-        ) : null}
-
-        {/* ── Related: Affiliated Doctors ── */}
-        {data.doctors.length > 0 && (
-          <div className={styles.relatedSection}>
-            <h3 className={styles.relatedTitle}>👨‍⚕️ Doctors at this Hospital</h3>
-            <div className={styles.relatedScroll}>
-              {data.doctors.slice(0, 10).map((doc) => (
-                <Link key={doc.id} href={doc.profileUrl} className={styles.relatedCard}>
-                  <span className={styles.relatedCardName}>{doc.name}</span>
-                  <span className={styles.relatedCardSub}>{doc.specialization ?? "Specialist"}</span>
-                  <span className={styles.relatedCardBadge}>★ {doc.reviewCount === 0 ? "4.0" : doc.rating.toFixed(1)}</span>
-                </Link>
-              ))}
-            </div>
           </div>
-        )}
+        </div>
+      </section>
+
+      <section className={styles.pageSection}>
+        <div className={styles.container}>
 
         {/* ── Related: Similar Hospitals ── */}
         {data.nearbyHospitals.length > 0 && (
           <div className={styles.relatedSection}>
             <h3 className={styles.relatedTitle}>🏥 Similar Hospitals You May Consider</h3>
             <div className={styles.relatedScroll}>
-              {data.nearbyHospitals.slice(0, 8).map((item) => (
-                <Link key={item.id} href={item.profileUrl} className={styles.relatedCard}>
-                  <span className={styles.relatedCardName}>{item.name}</span>
-                  <span className={styles.relatedCardSub}>{item.city}{item.state ? `, ${item.state}` : ""}</span>
-                  <span className={styles.relatedCardBadge}>★ {item.rating > 0 ? item.rating.toFixed(1) : "4.0"}</span>
-                </Link>
-              ))}
+              {data.nearbyHospitals.slice(0, 8).map((item) => {
+                const effectiveRating = item.rating > 0 ? item.rating : 4.0;
+                return (
+                  <div key={item.id} className={styles.hospitalCard}>
+                    <div className={styles.hospitalCardTop}>
+                      <div className={styles.hospitalCardAvatar}>🏥</div>
+                      <div className={styles.hospitalCardInfo}>
+                        <p className={styles.hospitalCardName}>{item.name}</p>
+                        <p className={styles.hospitalCardCity}>
+                          {item.city}{item.state ? `, ${item.state}` : ""}
+                        </p>
+                        <p className={styles.hospitalCardRating}>★ {effectiveRating.toFixed(1)}</p>
+                      </div>
+                    </div>
+
+                    {item.specialties && item.specialties.length > 0 && (
+                      <div className={styles.hospitalCardTags}>
+                        {item.specialties.slice(0, 3).map((s) => (
+                          <span key={s}>{s}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className={styles.hospitalCardBtns}>
+                      <Link href={item.profileUrl} className={styles.hospitalCardBtnView}>
+                        View
+                      </Link>
+                      <Link href={`${item.profileUrl}?book=1`} className={styles.hospitalCardBtnBook}>
+                        Book →
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
+        </div>
       </section>
 
       <div className={styles.mobileBar}>
