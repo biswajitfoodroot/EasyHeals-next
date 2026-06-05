@@ -1,0 +1,322 @@
+/* ── Consistent content wrapper ─────────────────────────────────────── */
+.wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ── Section spacing ─────────────────────────────────────────────────── */
+.section {
+  padding: 64px 0;
+}
+
+.sectionSm {
+  padding: 48px 0;
+}
+
+/* ── Section label + heading ─────────────────────────────────────────── */
+.sectionLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1B8A4A;
+  margin-bottom: 8px;
+}
+
+.sectionHeading {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 800;
+  color: #0F2118;
+  margin: 0 0 32px;
+  line-height: 1.2;
+}
+
+/* ── Stats row ───────────────────────────────────────────────────────── */
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  background: #fff;
+  border-bottom: 1px solid #e8f0ec;
+}
+
+.statItem {
+  text-align: center;
+  padding: 32px 16px;
+  border-right: 1px solid #e8f0ec;
+}
+
+.statItem:last-child {
+  border-right: none;
+}
+
+.statValue {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: 38px;
+  font-weight: 800;
+  color: #1B8A4A;
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: 13px;
+  color: #667;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+/* ── Mission 2-col ───────────────────────────────────────────────────── */
+.missionGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.missionText p {
+  color: #555;
+  line-height: 1.75;
+  font-size: 15px;
+  margin-top: 14px;
+}
+
+.missionCard {
+  background: linear-gradient(135deg, #f0f9f4, #e6f5ec);
+  border: 1.5px solid #d0e8da;
+  border-radius: 20px;
+  padding: 36px 32px;
+}
+
+.missionCardItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(27,138,74,0.1);
+}
+
+.missionCardItem:last-child {
+  border-bottom: none;
+}
+
+.missionCardIcon {
+  font-size: 22px;
+  flex-shrink: 0;
+  width: 36px;
+  text-align: center;
+}
+
+.missionCardText {
+  font-weight: 600;
+  color: #1a2b23;
+  font-size: 15px;
+}
+
+/* ── Cards grid (Values & Team) ──────────────────────────────────────── */
+.cardsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.teamGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.card {
+  background: #fff;
+  border: 1.5px solid #e8f0ec;
+  border-radius: 16px;
+  padding: 24px 20px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 6px 24px rgba(27,138,74,0.08);
+  transform: translateY(-2px);
+}
+
+.cardIcon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  font-family: var(--font-bricolage), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  color: #0F2118;
+  margin-bottom: 8px;
+}
+
+.cardDesc {
+  font-size: 13px;
+  color: #667;
+  line-height: 1.6;
+}
+
+/* ── Team card ───────────────────────────────────────────────────────── */
+.teamAvatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  font-family: var(--font-bricolage), sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.teamName {
+  font-family: var(--font-bricolage), sans-serif;
+  font-weight: 800;
+  font-size: 16px;
+  color: #0F2118;
+}
+
+.teamRole {
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+
+.teamBio {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.65;
+}
+
+/* ── Contact card ────────────────────────────────────────────────────── */
+.contactCard {
+  background: #fff;
+  border: 1.5px solid #e8f0ec;
+  border-radius: 20px;
+  padding: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.contactLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.contactLink {
+  color: #1B8A4A;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.contactAddress {
+  color: #667;
+  font-size: 14px;
+}
+
+.ctaRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ctaPrimary {
+  background: #1B8A4A;
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.ctaPrimary:hover {
+  background: #136836;
+}
+
+.ctaSecondary {
+  background: transparent;
+  color: #1B8A4A;
+  border: 1.5px solid #1B8A4A;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+
+.ctaSecondary:hover {
+  background: #f0f9f4;
+}
+
+/* ── Mobile ──────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .wrap {
+    padding: 0 16px;
+  }
+
+  .section {
+    padding: 48px 0;
+  }
+
+  .sectionSm {
+    padding: 36px 0;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .statItem:nth-child(2) {
+    border-right: none;
+  }
+
+  .statItem:nth-child(1),
+  .statItem:nth-child(2) {
+    border-bottom: 1px solid #e8f0ec;
+  }
+
+  .missionGrid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .missionCard {
+    padding: 24px 20px;
+  }
+
+  .cardsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .teamGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .contactCard {
+    flex-direction: column;
+    padding: 28px 20px;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cardsGrid {
+    grid-template-columns: 1fr;
+  }
+}
