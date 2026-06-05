@@ -493,7 +493,7 @@ export default function DocumentsClient() {
         <div className="bg-blue-50 rounded-2xl p-4">
           <p className="text-xs text-blue-700">
             <span className="font-semibold">How it works:</span> Documents are stored securely and processed by AI to extract diagnoses, lab results, medications, and vitals into your Health Timeline. You control who sees this data.{" "}
-            <Link href="/dashboard/privacy" className="underline font-semibold">Manage privacy settings →</Link>
+            <Link href="/dashboard/consent" className="underline font-semibold">Manage privacy settings →</Link>
           </p>
         </div>
       </div>

@@ -346,7 +346,7 @@ export default function HealthCoachClient() {
             </div>
             <p className="text-xs text-slate-400 mt-2 text-center">
               AI can make mistakes. Always consult a doctor for medical decisions.{" "}
-              <Link href="/dashboard/privacy" className="underline">Manage data consent →</Link>
+              <Link href="/dashboard/consent" className="underline">Manage data consent →</Link>
             </p>
           </div>
         </div>

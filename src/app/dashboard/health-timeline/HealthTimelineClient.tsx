@@ -292,7 +292,7 @@ export default function HealthTimelineClient() {
           <p className="text-xs text-blue-700">
             <span className="font-semibold">Your data is encrypted.</span>{" "}
             All health events are stored with AES-256 encryption. You can export or delete your data at any time.{" "}
-            <Link href="/dashboard/privacy" className="underline font-semibold">Manage privacy →</Link>
+            <Link href="/dashboard/consent" className="underline font-semibold">Manage privacy →</Link>
           </p>
         </div>
       </div>

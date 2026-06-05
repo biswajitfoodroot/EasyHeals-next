@@ -1,0 +1,237 @@
+/* ── Shared layout ────────────────────────────────────────────────────── */
+.page {
+  min-height: 100vh;
+  background: #f8faf9;
+}
+
+.hero {
+  background: linear-gradient(135deg, #0F2118 0%, #1a3d28 60%, #1B8A4A 100%);
+  color: #fff;
+  /* 64px fixed SiteNav + 24px breathing room */
+  padding: 88px 24px 48px;
+}
+
+.heroInner {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 24px;
+  transition: color 0.15s;
+}
+
+.backLink:hover { color: #fff; }
+
+.heroLabel {
+  display: inline-block;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 99px;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.heroTitle {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: clamp(26px, 4vw, 40px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+
+.heroMeta {
+  color: rgba(255,255,255,0.65);
+  font-size: 13px;
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+/* ── Body layout ──────────────────────────────────────────────────────── */
+.body {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 48px;
+  align-items: start;
+}
+
+/* ── Sticky TOC (desktop) ─────────────────────────────────────────────── */
+.toc {
+  position: sticky;
+  top: 80px;
+}
+
+.tocHeading {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #1B8A4A;
+  margin-bottom: 12px;
+}
+
+.tocList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tocList a {
+  display: block;
+  font-size: 12px;
+  color: #667;
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border-left: 2px solid transparent;
+  line-height: 1.4;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.tocList a:hover {
+  color: #1B8A4A;
+  background: #f0f9f4;
+  border-left-color: #1B8A4A;
+}
+
+/* ── Content ──────────────────────────────────────────────────────────── */
+.content {
+  min-width: 0;
+}
+
+.content h2 {
+  font-family: var(--font-bricolage), sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F2118;
+  margin: 40px 0 12px;
+  padding-top: 8px;
+  border-top: 1.5px solid #e8f0ec;
+  scroll-margin-top: 90px;
+}
+
+.content h2:first-child {
+  margin-top: 0;
+  border-top: none;
+}
+
+.content h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a2b23;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 24px 0 10px;
+}
+
+.content p {
+  font-size: 15px;
+  color: #444;
+  line-height: 1.75;
+  margin: 0 0 16px;
+}
+
+.content ol {
+  padding-left: 20px;
+  margin: 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.content ol ol {
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.content li {
+  font-size: 15px;
+  color: #444;
+  line-height: 1.7;
+}
+
+.content a {
+  color: #1B8A4A;
+  font-weight: 500;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(27,138,74,0.3);
+  transition: border-color 0.15s;
+}
+
+.content a:hover {
+  border-bottom-color: #1B8A4A;
+}
+
+/* ── Contact card ─────────────────────────────────────────────────────── */
+.contactCard {
+  background: linear-gradient(135deg, #f0f9f4, #e6f5ec);
+  border: 1.5px solid #d0e8da;
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.contactCard p {
+  margin: 0;
+  font-size: 14px;
+  color: #1a2b23;
+  font-weight: 600;
+}
+
+.contactCard a {
+  background: #1B8A4A;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  border: none;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.contactCard a:hover {
+  background: #136836;
+  border-bottom: none;
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .hero { padding: 80px 20px 36px; }
+
+  .body {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 24px 20px 64px;
+  }
+
+  .toc { display: none; }
+
+  .content h2 { font-size: 16px; }
+  .content p, .content li { font-size: 14px; }
+}

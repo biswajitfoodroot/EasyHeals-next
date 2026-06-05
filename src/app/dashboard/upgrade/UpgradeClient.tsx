@@ -264,7 +264,7 @@ export default function UpgradeClient() {
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-xs text-blue-700 text-center">
           <strong>Your data is safe.</strong> All health records are encrypted with AES-256-GCM. We comply with the
           Digital Personal Data Protection (DPDP) Act 2023. You can export or delete your data at any time
-          from <Link href="/dashboard/privacy" className="underline">Privacy Settings</Link>.
+          from <Link href="/dashboard/consent" className="underline">Privacy Settings</Link>.
         </div>
 
         {/* Contact */}

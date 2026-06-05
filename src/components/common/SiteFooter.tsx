@@ -91,8 +91,8 @@ export function SiteFooter() {
           {/* ③ Legal */}
           <div className={styles.linkCol}>
             <h4 className={styles.colHeading}>{t("footer.legalHeading")}</h4>
-            <Link href="/privacy-policy" className={styles.link}>{t("footer.privacyPolicy")}</Link>
-            <Link href="/terms" className={styles.link}>{t("footer.termsConditions")}</Link>
+            <Link href="/privacy" className={styles.link}>{t("footer.privacyPolicy")}</Link>
+            <Link href="/terms-and-conditions" className={styles.link}>{t("footer.termsConditions")}</Link>
             <Link href="/register" className={styles.ctaLink}>
               {t("footer.listHospitalFree")}
             </Link>
