@@ -552,6 +552,20 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                     </div>
                   )}
 
+                  {/* Rating + badge row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span className={styles.starRow}>
+                      {(() => {
+                        const effective = doctor.reviewCount === 0 && doctor.rating === 0 ? 4.0 : doctor.rating;
+                        const full = Math.min(5, Math.round(effective));
+                        return <>{"★".repeat(full)}{"☆".repeat(5 - full)}<span>{effective.toFixed(1)}{doctor.reviewCount > 0 ? ` (${doctor.reviewCount.toLocaleString("en-IN")})` : " (New)"}</span></>;
+                      })()}
+                    </span>
+                    <span className={styles.verifiedBadge}>
+                      {doctor.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
+                    </span>
+                  </div>
+
                   {/* Footer */}
                   <div className={styles.docCardFooter}>
                     {doctor.yearsOfExperience ? (

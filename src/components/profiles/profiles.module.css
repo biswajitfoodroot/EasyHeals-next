@@ -1049,6 +1049,8 @@ a.contactValue:hover {
   display: grid;
   gap: 14px;
   grid-template-columns: 1fr;
+  align-items: start;
+  grid-auto-rows: auto;
 }
 
 @media (min-width: 640px) {
@@ -3359,6 +3361,8 @@ a.contactValue:hover {
   flex-direction: column;
   gap: 10px;
   transition: box-shadow 0.2s, border-color 0.2s;
+  width: 100%;
+  min-width: 0;
 }
 
 .docCard[data-color="0"] { border-top-color: #1B8A4A; }
