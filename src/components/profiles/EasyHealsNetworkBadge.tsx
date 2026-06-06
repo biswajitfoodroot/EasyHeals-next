@@ -28,7 +28,7 @@ export default function EasyHealsNetworkBadge({ tierCode, compact = false }: Pro
         style={{ background: tier.color }}
       >
         <span className="text-[11px]">{tier.icon}</span>
-        EasyHeals {tier.label}
+        {tier.label}
       </span>
     );
   }
@@ -46,7 +46,7 @@ export default function EasyHealsNetworkBadge({ tierCode, compact = false }: Pro
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold" style={{ color: tier.color }}>
-          {tier.icon} EasyHeals {tier.label}
+          {tier.icon} {tier.label}
         </p>
         <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
           Verified on the EasyHeals referral network. Book online with confidence.

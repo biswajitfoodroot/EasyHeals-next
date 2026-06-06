@@ -98,6 +98,7 @@ export async function getHospitalProfileBySlug(slug: string) {
       doctorSpecialization: doctors.specialization,
       doctorSpecialties: doctors.specialties,
       doctorQualifications: doctors.qualifications,
+      doctorQualification: doctors.qualification,
       doctorAvatarUrl: doctors.avatarUrl,
       doctorExperience: doctors.yearsOfExperience,
       doctorRating: doctors.rating,
@@ -218,25 +219,32 @@ export async function getHospitalProfileBySlug(slug: string) {
       lengthOfStay: row.lengthOfStay,
       inclusions: Array.isArray((row.inclusions as unknown)) ? (row.inclusions as unknown as string[]) : [],
     })),
-    doctors: affiliations.map((row) => ({
-      id: row.doctorId,
-      slug: row.doctorSlug,
-      name: row.doctorName,
-      specialization: row.doctorSpecialization,
-      specialties: parseStringArray(row.doctorSpecialties),
-      qualifications: parseStringArray(row.doctorQualifications),
-      avatarUrl: row.doctorAvatarUrl,
-      yearsOfExperience: row.doctorExperience,
-      rating: row.doctorRating ?? 0,
-      reviewCount: row.doctorReviewCount ?? 0,
-      verified: Boolean(row.doctorVerified),
-      role: row.role,
-      schedule: parseJsonRecord(row.schedule),
-      feeMin: row.feeMin,
-      feeMax: row.feeMax,
-      isPrimary: Boolean(row.isPrimary),
-      profileUrl: `/doctors/${row.doctorSlug}`,
-    })),
+    doctors: affiliations.map((row) => {
+      const qualificationCandidates = [
+        ...parseStringArray(row.doctorQualifications),
+        ...parseStringArray(row.doctorQualification),
+      ];
+      const qualifications = Array.from(new Set(qualificationCandidates));
+      return {
+        id: row.doctorId,
+        slug: row.doctorSlug,
+        name: row.doctorName,
+        specialization: row.doctorSpecialization,
+        specialties: parseStringArray(row.doctorSpecialties),
+        qualifications,
+        avatarUrl: row.doctorAvatarUrl,
+        yearsOfExperience: row.doctorExperience,
+        rating: row.doctorRating ?? 0,
+        reviewCount: row.doctorReviewCount ?? 0,
+        verified: Boolean(row.doctorVerified),
+        role: row.role,
+        schedule: parseJsonRecord(row.schedule),
+        feeMin: row.feeMin,
+        feeMax: row.feeMax,
+        isPrimary: Boolean(row.isPrimary),
+        profileUrl: `/doctors/${row.doctorSlug}`,
+      };
+    }),
     nearbyHospitals: relatedRows.slice(0, 6).map((row) => ({
       ...row,
       rating: row.rating ?? 0,
@@ -370,11 +378,16 @@ export async function getDoctorProfileBySlug(slug: string) {
         .limit(8)
     : [];
 
+  const doctorQualifications = Array.from(new Set([
+    ...parseStringArray(doctor.qualifications),
+    ...parseStringArray(doctor.qualification),
+  ]));
+
   return {
     doctor: {
       ...doctor,
       specialties: parseStringArray(doctor.specialties),
-      qualifications: parseStringArray(doctor.qualifications),
+      qualifications: doctorQualifications,
       languages: parseStringArray(doctor.languages),
       consultationHours: parseJsonRecord(doctor.consultationHours),
       locationLabel: [doctor.city, doctor.state].filter(Boolean).join(", "),

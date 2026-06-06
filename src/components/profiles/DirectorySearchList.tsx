@@ -108,6 +108,17 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
     return result;
   }, [city, items, query, sort, specialty]);
 
+  // Count based on draft filter state — updates live as user taps options in the sheet
+  const draftFilteredCount = useMemo(() => {
+    return items.filter((item) => {
+      if (draftCity !== "all" && item.city.toLowerCase() !== draftCity.toLowerCase()) return false;
+      if (draftSpecialty !== "all" && !item.specialties.some((s) => s.trim() === draftSpecialty)) return false;
+      if (!query.trim()) return true;
+      const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
+      return text.includes(query.trim().toLowerCase());
+    }).length;
+  }, [draftCity, draftSpecialty, items, query]);
+
   const visibleItems = filtered.slice(0, page * PAGE_SIZE);
   const hasMore = visibleItems.length < filtered.length;
 
@@ -167,11 +178,14 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
     <main className={styles.directoryPage}>
       {/* ── Hero + search ── */}
       <section className={styles.directoryHero}>
-        <span className={styles.kicker}>
-          {kind === "hospital" ? t("hospital.kicker") : t("doctor.kicker")}
-        </span>
         <h1>{title}</h1>
         <p>{description}</p>
+
+        <div className={styles.heroStatsBanner}>
+          <span className={styles.heroStatPill}>🏥 {items.length} {kind === "hospital" ? t("common.hospitals") : t("common.doctors")}</span>
+          <span className={styles.heroStatPill}>📍 {cityOptions.length} {t("common.cities")}</span>
+          <span className={styles.heroStatPill}>🩺 {allSpecialties.length} {t("common.specialties")}</span>
+        </div>
 
         <div className={styles.searchBar}>
           <div className={styles.searchInputWrap}>
@@ -215,12 +229,12 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             className={styles.mobileFilterBtn}
             data-active={activeFilterCount > 0 ? "true" : "false"}
             onClick={openFilterSheet}
-            aria-label="Open filters"
+            aria-label={t("common.filters")}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
             </svg>
-            Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+            {t("common.filters")}{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
         </div>
       </section>
@@ -237,7 +251,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
             <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
           </svg>
-          List
+          {t("common.listView")}
         </button>
         <button
           type="button"
@@ -249,7 +263,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/>
             <line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
           </svg>
-          Map
+          {t("common.mapView")}
         </button>
       </div>
 
@@ -294,7 +308,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
       {/* ── Specialty filter pills ── */}
       {viewMode === "list" && allSpecialties.length > 0 && (
         <div className={styles.directoryControls}>
-          <p className={styles.filterScrollLabel}>Browse by Department</p>
+          <p className={styles.filterScrollLabel}>{t("common.browseByDepartment")}</p>
           <div className={styles.filterScroll}>
             <button
               type="button"
@@ -330,9 +344,9 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
           <button
             type="button"
             onClick={() => { setCity("all"); setSpecialty("all"); setSort("rating"); setPage(1); }}
-            style={{ fontSize: "11px", fontWeight: 700, color: "#1B8A4A", background: "transparent", border: "none", cursor: "pointer", fontFamily: "var(--font-bricolage),sans-serif", textDecoration: "underline" }}
+            className={styles.clearFiltersBtn}
           >
-            Clear filters
+            {t("common.clearFilters")}
           </button>
         )}
       </p>
@@ -343,6 +357,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
           <article
             key={item.id}
             className={styles.directoryCard}
+            data-color={avatarColor(item.name)}
             data-testid="directory-card"
             data-entity-id={item.id}
             data-entity-kind={kind}
@@ -358,8 +373,8 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
                 {initials(item.name)}
               </div>
               <div className={styles.cardHeaderText}>
-                <h3 style={{ margin: 0, fontSize: "15px" }} data-testid="card-name">{item.name}</h3>
-                <p style={{ margin: "2px 0 0" }} data-testid="card-location">
+                <h3 className={styles.cardName} data-testid="card-name">{item.name}</h3>
+                <p className={styles.cardLocation} data-testid="card-location">
                   {item.city}{item.state ? `, ${item.state}` : ""}
                 </p>
               </div>
@@ -370,33 +385,31 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
             {/* Mobile list body — shows name, location, rating, experience inline beside avatar */}
             <div className={styles.directoryListBody}>
-              <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#1A2B23", fontFamily: "var(--font-bricolage),sans-serif", lineHeight: 1.3 }}>
-                {item.name}
-              </p>
-              <p style={{ margin: 0, fontSize: "12px", color: "#5A7367", lineHeight: 1.4 }}>
+              <p className={styles.listBodyName}>{item.name}</p>
+              <p className={styles.listBodyMeta}>
                 {item.city}{item.state ? `, ${item.state}` : ""}
                 {item.subtitle ? ` · ${item.subtitle.slice(0, 40)}` : ""}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: "5px", flexWrap: "wrap" }}>
                 <Stars rating={item.rating} reviewCount={item.reviewCount} />
                 {kind === "doctor" && item.yearsOfExperience ? (
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#1B8A4A", background: "#E6F5EC", borderRadius: "5px", padding: "1px 6px", lineHeight: 1.5, whiteSpace: "nowrap" }}>
+                  <span className={styles.listBodyExpBadge}>
                     {item.yearsOfExperience}+ {t("common.yearsExp")}
                   </span>
                 ) : null}
                 {kind === "doctor" && item.feeMin ? (
-                  <span style={{ fontSize: "10px", color: "#5A7367", whiteSpace: "nowrap" }}>
+                  <span className={styles.listBodyFeeBadge}>
                     ₹{item.feeMin.toLocaleString("en-IN")}
                     {item.feeMax ? `–${item.feeMax.toLocaleString("en-IN")}` : ""}
                   </span>
                 ) : null}
-                <span style={{ fontSize: "10px", fontWeight: 600, color: item.verified ? "#1B8A4A" : "#5A7367", background: item.verified ? "#E6F5EC" : "#F8FAF9", borderRadius: "5px", padding: "1px 6px", lineHeight: 1.5, whiteSpace: "nowrap" }}>
-                  {item.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
-                </span>
-                {item.networkTierCode ? (
-                  <span style={{ fontSize: "10px", fontWeight: 700, color: "#7B1FA2", background: "#F5EAFF", borderRadius: "5px", padding: "1px 6px", lineHeight: 1.5, whiteSpace: "nowrap" }}>
-                    ✦ Network
+                {!item.networkTierCode && (
+                  <span className={styles.listBodyVerifiedBadge} data-verified={item.verified ? "true" : "false"}>
+                    {item.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
                   </span>
+                )}
+                {item.networkTierCode ? (
+                  <span className={styles.listBodyNetworkChip}>✦ {t("common.network")}</span>
                 ) : null}
               </div>
             </div>
@@ -407,11 +420,13 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               </p>
             ) : null}
 
-            <div className={styles.tagRow} data-testid="card-specialties">
-              {item.specialties.slice(0, 3).map((s) => (
-                <span key={`${item.id}-${s}`}>{s}</span>
-              ))}
-            </div>
+            {item.specialties.length > 0 && (
+              <div className={styles.tagRow} data-testid="card-specialties">
+                {item.specialties.slice(0, 3).map((s) => (
+                  <span key={`${item.id}-${s}`}>{s}</span>
+                ))}
+              </div>
+            )}
 
             <div className={styles.cardMeta} data-testid="card-meta">
               <Stars rating={item.rating} reviewCount={item.reviewCount} />
@@ -420,9 +435,11 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
                   ({item.reviewCount.toLocaleString("en-IN")})
                 </span>
               ) : null}
-              <span className={styles.verifiedBadge} data-testid="card-verified">
-                {item.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
-              </span>
+              {!item.networkTierCode && (
+                <span className={styles.verifiedBadge} data-testid="card-verified">
+                  {item.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
+                </span>
+              )}
             </div>
 
             {/* EasyHeals Network badge */}
@@ -444,16 +461,16 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             {/* Action buttons */}
             <div className={styles.directoryCardFooter}>
               <Link href={item.url} className={styles.directoryCardView} data-testid="btn-view">
-                {t("common.viewProfile")}
+                {t("home.view")}
               </Link>
               {kind === "hospital" && !item.networkTierCode ? (
                 <Link href={`${item.url}?contact=1`} className={styles.directoryCardBook} data-testid="btn-contact"
                   style={{ background: "transparent", color: "#1B8A4A", border: "1.5px solid #1B8A4A" }}>
-                  {t("common.contactToBook")}
+                  {t("common.contact")}
                 </Link>
               ) : (
                 <Link href={`${item.url}?book=1`} className={styles.directoryCardBook} data-testid="btn-book">
-                  {t("common.bookAppointment")}
+                  {t("home.book")}
                 </Link>
               )}
             </div>
@@ -486,29 +503,51 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
             <div className={styles.filterSheetHeader}>
               <h3>
-                🎚 Filters
+                {t("common.filters")}
                 {activeFilterCount > 0 && (
                   <span className={styles.filterActiveChip}>{activeFilterCount}</span>
                 )}
               </h3>
               <button type="button" onClick={() => setFilterSheetOpen(false)} aria-label="Close filters">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
               </button>
             </div>
 
             <div className={styles.filterSheetBody}>
-              {/* City */}
+              {/* Sort — 3-column segmented control */}
               <div className={styles.filterSheetSection}>
-                <h4>📍 City</h4>
-                <div className={styles.filterSheetPills}>
+                <h4>{t("common.sortBy")}</h4>
+                <div className={styles.filterSortGrid}>
+                  {[
+                    { value: "rating" as const, icon: "★", label: t("common.topRated") },
+                    { value: "name" as const, icon: "A→Z", label: t("common.sortAZ") },
+                    { value: "reviews" as const, icon: "💬", label: t("common.sortReviews") },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={draftSort === opt.value ? styles.filterSortBtnActive : styles.filterSortBtn}
+                      onClick={() => setDraftSort(opt.value)}
+                    >
+                      <span className={styles.filterSortBtnIcon}>{opt.icon}</span>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* City — single-line horizontal scroll */}
+              <div className={styles.filterSheetSection}>
+                <h4>{t("common.city")}</h4>
+                <div className={styles.filterCityScroll}>
                   <button
                     type="button"
                     className={draftCity === "all" ? styles.filterPillActive : styles.filterPill}
                     onClick={() => setDraftCity("all")}
                   >
-                    {t("common.allCities")}
+                    {t("common.all")}
                   </button>
                   {cityOptions.map((c) => (
                     <button
@@ -523,58 +562,39 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
                 </div>
               </div>
 
-              {/* Specialty */}
+              {/* Specialty — scrollable pill grid */}
               {allSpecialties.length > 0 && (
                 <div className={styles.filterSheetSection}>
-                  <h4>🏥 Specialty</h4>
-                  <div className={styles.filterSheetPills}>
-                    <button
-                      type="button"
-                      className={draftSpecialty === "all" ? styles.filterPillActive : styles.filterPill}
-                      onClick={() => setDraftSpecialty("all")}
-                    >
-                      {t("common.allDepartments")}
-                    </button>
-                    {allSpecialties.slice(0, 24).map((s) => (
+                  <h4>{t("common.specialty")}</h4>
+                  <div className={styles.filterSpecialtyScroll}>
+                    <div className={styles.filterSheetPills}>
                       <button
-                        key={s}
                         type="button"
-                        className={draftSpecialty === s ? styles.filterPillActive : styles.filterPill}
-                        onClick={() => setDraftSpecialty(s)}
+                        className={draftSpecialty === "all" ? styles.filterPillActive : styles.filterPill}
+                        onClick={() => setDraftSpecialty("all")}
                       >
-                        {s}
+                        {t("common.all")}
                       </button>
-                    ))}
+                      {allSpecialties.slice(0, 40).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className={draftSpecialty === s ? styles.filterPillActive : styles.filterPill}
+                          onClick={() => setDraftSpecialty(s)}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
-
-              {/* Sort */}
-              <div className={styles.filterSheetSection}>
-                <h4>↕ Sort by</h4>
-                <div className={styles.filterSheetPills}>
-                  {[
-                    { value: "rating" as const, label: `★ ${t("common.rating")}` },
-                    { value: "name" as const, label: t("common.sortAZ") },
-                    { value: "reviews" as const, label: t("common.sortReviews") },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      className={draftSort === opt.value ? styles.filterPillActive : styles.filterPill}
-                      onClick={() => setDraftSort(opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             <div className={styles.filterSheetFooter}>
-              <button type="button" className={styles.filterSheetReset} onClick={resetFilters}>Reset</button>
+              <button type="button" className={styles.filterSheetReset} onClick={resetFilters}>{t("common.reset")}</button>
               <button type="button" className={styles.filterSheetApply} onClick={applyFilters}>
-                Show {filtered.length} Results
+                {t("common.showNResults").replace("{n}", String(draftFilteredCount))}
               </button>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { useTranslations } from "@/i18n/LocaleContext";
 import { LOCALES } from "@/i18n/translations";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { RegistrationModal } from "@/components/registration/RegistrationModal";
+import HospitalMiniCard from "@/components/profiles/HospitalMiniCard";
 import styles from "@/components/homepage/homepage.module.css";
 
 /* ── Types ── */
@@ -441,64 +442,21 @@ export default function HomePage({ topHospitals }: HomePageProps) {
             </div>
 
             <div className={styles.popularScroll}>
-              {popularHospitals.map((h) => {
-                const effectiveRating = h.reviewCount === 0 ? 4.0 : h.rating;
-                const tierBadge = h.networkTierCode === "premium"
-                  ? { label: t("home.premiumPartner"), color: "#7C3AED", bg: "#F5EAFF" }
-                  : h.networkTierCode
-                  ? { label: t("home.networkPartner"), color: "#0369A1", bg: "#E0F2FE" }
-                  : null;
-
-                return (
-                  <div key={h.id} className={styles.popularCard}>
-                    {/* Top row: emoji avatar + name / city / rating */}
-                    <div className={styles.popularCardTop}>
-                      <div className={styles.popularCardAvatar}>🏥</div>
-                      <div className={styles.popularCardInfo}>
-                        <p className={styles.popularCardName}>{h.name}</p>
-                        <p className={styles.popularCardCity}>
-                          {h.city}{h.state ? `, ${h.state}` : ""}
-                        </p>
-                        <p className={styles.popularCardRating}>★ {effectiveRating.toFixed(1)}</p>
-                      </div>
-                    </div>
-
-                    {/* Badges row */}
-                    <div className={styles.popularCardBadges}>
-                      {h.verified && (
-                        <span className={styles.popularCardBadgeVerified}>✅ {t("home.verified")}</span>
-                      )}
-                      {tierBadge && (
-                        <span
-                          className={styles.popularCardBadgeNetwork}
-                          style={{ color: tierBadge.color, background: tierBadge.bg }}
-                        >
-                          ✦ {tierBadge.label}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Specialty tags */}
-                    {h.specialties.length > 0 && (
-                      <div className={styles.popularCardTags}>
-                        {h.specialties.slice(0, 3).map((s) => (
-                          <span key={s}>{s}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Action buttons */}
-                    <div className={styles.popularCardBtns}>
-                      <Link href={`/hospitals/${h.slug}`} className={styles.popularCardBtnView}>
-                        {t("home.view")}
-                      </Link>
-                      <Link href={`/hospitals/${h.slug}?book=1`} className={styles.popularCardBtnBook}>
-                        {t("home.book")} →
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
+              {popularHospitals.map((h) => (
+                <HospitalMiniCard
+                  key={h.id}
+                  id={h.id}
+                  name={h.name}
+                  profileUrl={`/hospitals/${h.slug}`}
+                  city={h.city}
+                  state={h.state}
+                  rating={h.rating}
+                  reviewCount={h.reviewCount}
+                  specialties={h.specialties}
+                  verified={h.verified}
+                  networkTierCode={h.networkTierCode}
+                />
+              ))}
             </div>
           </div>
         </section>

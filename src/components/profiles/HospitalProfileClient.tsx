@@ -9,6 +9,7 @@ import AuthBookingModal, { type BookingDoctor } from "@/components/AuthBookingMo
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
+import HospitalMiniCard from "@/components/profiles/HospitalMiniCard";
 import styles from "@/components/profiles/profiles.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -128,6 +129,15 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+const HOSPITAL_STOP_WORDS = new Set(["hospital", "care", "clinic", "centre", "center", "medical", "multi", "speciality", "specialty", "and", "the", "a"]);
+
+function hospitalEmblemText(name: string): string {
+  const words = name.trim().split(/\s+/).filter(w => !HOSPITAL_STOP_WORDS.has(w.toLowerCase()) && w.length > 1);
+  if (words.length === 0) return name.slice(0, 2).toUpperCase();
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 function docAvatarColor(name: string): string {
   return String(name.charCodeAt(0) % 8);
 }
@@ -179,8 +189,6 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState(false);
   const [showAllSpecialties, setShowAllSpecialties] = useState(false);
-  const [expandedDoctors, setExpandedDoctors] = useState(false);
-  const [expandedPackages, setExpandedPackages] = useState(false);
 
   // Review submission form state
   const [reviewName, setReviewName] = useState("");
@@ -197,27 +205,28 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
     const params = new URLSearchParams(window.location.search);
     if (params.has("book") || params.has("contact")) setModalOpen(true);
   }, []);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [doctorSearch, setDoctorSearch] = useState("");
+  const [packageSearch, setPackageSearch] = useState("");
 
   const visibleDoctors = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = doctorSearch.trim().toLowerCase();
     if (!q) return data.doctors;
     return data.doctors.filter((d) =>
       d.name.toLowerCase().includes(q) ||
       (d.specialization ?? "").toLowerCase().includes(q) ||
       d.specialties.some((s) => s.toLowerCase().includes(q))
     );
-  }, [data.doctors, searchQuery]);
+  }, [data.doctors, doctorSearch]);
 
   const visiblePackages = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = packageSearch.trim().toLowerCase();
     if (!q) return data.packages;
     return data.packages.filter((p) =>
       p.packageName.toLowerCase().includes(q) ||
       (p.procedureName ?? "").toLowerCase().includes(q) ||
       (p.department ?? "").toLowerCase().includes(q)
     );
-  }, [data.packages, searchQuery]);
+  }, [data.packages, packageSearch]);
 
   const titleMeta = useMemo(
     () =>
@@ -251,7 +260,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
 
   const tabLabels: Record<TabKey, string> = {
     doctors: t("hospital.tabDoctors"),
-    packages: t("hospital.tabPackages"),
+    packages: t("hospital.tabPackagesShort"),
     reviews: t("hospital.tabReviews"),
   };
 
@@ -297,17 +306,30 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
           <div className={styles.heroTop}>
             {/* Identity Column */}
             <div className={styles.heroInfo}>
-              <div className={styles.heroMeta}>
-                {data.networkTierCode && (
-                  <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
-                )}
-                <span className={styles.heroVerified}>✅ {t("common.verified")}</span>
+
+              {/* Emblem + name group */}
+              <div className={styles.heroProfile}>
+                <div className={styles.hospitalEmblem} aria-hidden="true">
+                  {hospitalEmblemText(data.hospital.name)}
+                </div>
+                <div className={styles.heroProfileText}>
+                  <div className={styles.heroMeta}>
+                    {data.networkTierCode && (
+                      <EasyHealsNetworkBadge tierCode={data.networkTierCode} compact />
+                    )}
+                    {!data.networkTierCode && (
+                      <span className={styles.heroVerifiedBadge}>✓ {t("common.verified")}</span>
+                    )}
+                    <span className={styles.heroRatingBadge}>
+                      ★ {ratingText(data.hospital.rating, data.hospital.reviewCount)}
+                    </span>
+                  </div>
+                  <h1 className={styles.title}>{data.hospital.name}</h1>
+                  <p className={styles.subtitle}>
+                    📍 {data.hospital.city}{data.hospital.state ? `, ${data.hospital.state}` : ""}
+                  </p>
+                </div>
               </div>
-              <h1 className={styles.title}>{data.hospital.name}</h1>
-              <p className={styles.subtitle}>
-                📍 {data.hospital.city}{data.hospital.state ? `, ${data.hospital.state}` : ""}
-                &nbsp;·&nbsp;⭐ {ratingText(data.hospital.rating, data.hospital.reviewCount)}
-              </p>
 
               {/* Quick facts strip */}
               <div className={styles.heroFacts}>
@@ -325,7 +347,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 )}
                 {data.hospital.addressLine1 && (
                   <span className={styles.heroFact}>
-                    <span className={styles.heroFactIcon}>🏢</span>
+                    <span className={styles.heroFactIcon}>📌</span>
                     <span>{data.hospital.addressLine1}</span>
                   </span>
                 )}
@@ -336,20 +358,28 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                   </span>
                 )}
               </div>
-              
-              {/* About merged into header */}
+
+              {/* About */}
               <p className={styles.heroDescription}>
                 {data.hospital.description ?? t("hospital.descriptionPending")}
               </p>
-              
-              {/* Facilities and Accreditations merged into header */}
-              {(data.hospital.facilities.length > 0 || data.hospital.accreditations.length > 0) && (
+
+              {/* Facilities */}
+              {data.hospital.facilities.length > 0 && (
                 <div className={styles.heroPillRow}>
+                  <span className={styles.heroPillRowLabel}>Facilities</span>
                   {data.hospital.facilities.slice(0, 8).map((f) => (
-                    <span key={f} className={styles.heroPill}>🏥 {f}</span>
+                    <span key={f} className={styles.heroPill}>{f}</span>
                   ))}
+                </div>
+              )}
+
+              {/* Accreditations */}
+              {data.hospital.accreditations.length > 0 && (
+                <div className={styles.heroPillRow}>
+                  <span className={styles.heroPillRowLabel}>Accreditations</span>
                   {data.hospital.accreditations.map((a) => (
-                    <span key={a} className={styles.heroPill}>🏅 {a}</span>
+                    <span key={a} className={`${styles.heroPill} ${styles.heroPillAccred}`}>🏅 {a}</span>
                   ))}
                 </div>
               )}
@@ -357,6 +387,19 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
 
             {/* Action Card */}
             <div className={styles.actionCard}>
+              <div className={styles.actionCardRating}>
+                <span className={styles.actionCardRatingVal}>
+                  {ratingText(data.hospital.rating, data.hospital.reviewCount).split(" ")[0]}
+                </span>
+                <div className={styles.actionCardRatingMeta}>
+                  <span className={styles.actionCardStars}>
+                    {"★".repeat(Math.round(data.hospital.rating))}{"☆".repeat(5 - Math.round(data.hospital.rating))}
+                  </span>
+                  <span className={styles.actionCardRatingCount}>
+                    {data.hospital.reviewCount > 0 ? `${data.hospital.reviewCount.toLocaleString("en-IN")} reviews` : "New"}
+                  </span>
+                </div>
+              </div>
               <div className={styles.actionsMain}>
                 <button type="button" className={styles.primaryAction} onClick={() => setModalOpen(true)}>
                   📅 {t("common.bookAppointment")}
@@ -432,8 +475,13 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
       <section id="doctors" className={styles.pageSection}>
         <div className={styles.container}>
           <div className={styles.panel}>
-            <h2>{t("hospital.affiliatedDoctors")}</h2>
-            <p>{t("hospital.affiliatedDoctorsHint")}</p>
+            <div className={styles.panelHeader}>
+              <div className={styles.panelHeaderIcon}>👨‍⚕️</div>
+              <div>
+                <h2 className={styles.panelTitle}>{t("hospital.affiliatedDoctors")}</h2>
+                <p className={styles.panelHint}>{t("hospital.affiliatedDoctorsHint")}</p>
+              </div>
+            </div>
 
             <div className={styles.tabSearchControl}>
               <div className={styles.tabSearchRow}>
@@ -442,47 +490,78 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search doctors, specialties…"
+                  placeholder={t("hospital.searchDoctors")}
                   className={styles.tabSearchInput}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search doctors"
+                  value={doctorSearch}
+                  onChange={(e) => setDoctorSearch(e.target.value)}
+                  aria-label={t("hospital.searchDoctors")}
                 />
-                {searchQuery && (
-                  <button type="button" className={styles.tabSearchClear} onClick={() => setSearchQuery("")}>✕</button>
+                {doctorSearch && (
+                  <button type="button" className={styles.tabSearchClear} onClick={() => setDoctorSearch("")}>✕</button>
                 )}
               </div>
             </div>
 
+            <div className={styles.sectionScrollBox}>
             <div className={styles.cardGrid}>
-              {(expandedDoctors || searchQuery ? visibleDoctors : visibleDoctors.slice(0, 8)).map((doctor) => (
-                <article key={doctor.id} className={styles.profileCard}>
+              {visibleDoctors.map((doctor) => (
+                <article key={doctor.id} className={styles.docCard} data-color={docAvatarColor(doctor.name)}>
+                  {/* Header: avatar + identity */}
                   <div className={styles.docCardHeader}>
                     <div className={styles.avatar} data-color={docAvatarColor(doctor.name)} aria-hidden="true">
                       {initials(doctor.name)}
                     </div>
-                    <div>
+                    <div className={styles.docCardIdentity}>
                       <h3 className={styles.docCardName}>{doctor.name}</h3>
-                      <p className={styles.docCardSpec}>{doctor.specialization ?? t("common.specialist")} · {doctor.role}</p>
+                      <span className={styles.docCardRole}>{doctor.role}</span>
                     </div>
                   </div>
-                  <div className={styles.tagRow}>
-                    {doctor.specialties.slice(0, 3).map((item) => (
-                      <span key={`${doctor.id}-${item}`}>{item}</span>
-                    ))}
-                    {doctor.specialties.length > 3 && (
-                      <span className={styles.tagMore}>+{doctor.specialties.length - 3}</span>
-                    )}
-                  </div>
-                  <div className={styles.profileCardFooter}>
-                    <small>
-                      {doctor.yearsOfExperience ? (
-                        <span style={{ fontWeight: 600, color: "#1B8A4A" }}>{doctor.yearsOfExperience}+ {t("common.yearsExp")}</span>
-                      ) : (
-                        <span style={{ color: "#8FA39A", fontStyle: "italic" }}>⏳ {t("common.updating")}</span>
+
+                  {/* Specialization */}
+                  {doctor.specialization && (
+                    <div className={styles.docCardSection}>
+                      <span className={styles.docCardSectionLabel}>🩺 Specialization</span>
+                      <span className={styles.docCardSpecValue}>{doctor.specialization}</span>
+                    </div>
+                  )}
+
+                  {/* Qualifications */}
+                  {doctor.qualifications.length > 0 && (
+                    <div className={styles.docCardSection}>
+                      <span className={styles.docCardSectionLabel}>🎓 {t("doctor.qualifications")}</span>
+                      <div className={styles.docCardQualPills}>
+                        {doctor.qualifications.slice(0, 3).map((q) => (
+                          <span key={q} className={styles.docCardQualPill}>{q}</span>
+                        ))}
+                        {doctor.qualifications.length > 3 && (
+                          <span className={styles.docCardQualPillMore}>+{doctor.qualifications.length - 3}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-specialties */}
+                  {doctor.specialties.length > 0 && (
+                    <div className={styles.docCardSpecialties}>
+                      {doctor.specialties.slice(0, 3).map((item) => (
+                        <span key={`${doctor.id}-${item}`} className={styles.docCardSpecialtyTag}>{item}</span>
+                      ))}
+                      {doctor.specialties.length > 3 && (
+                        <span className={styles.tagMore}>+{doctor.specialties.length - 3}</span>
                       )}
-                    </small>
-                    <Link href={doctor.profileUrl}>{t("common.viewProfile")}</Link>
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <div className={styles.docCardFooter}>
+                    {doctor.yearsOfExperience ? (
+                      <span className={styles.docCardExp}>
+                        <span className={styles.docCardExpVal}>{doctor.yearsOfExperience}+</span> {t("common.yearsExp")}
+                      </span>
+                    ) : (
+                      <span className={styles.docCardExpMuted}>⏳ {t("common.updating")}</span>
+                    )}
+                    <Link href={doctor.profileUrl} className={styles.docCardViewBtn}>{t("common.viewProfile")}</Link>
                   </div>
                 </article>
               ))}
@@ -494,14 +573,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 </div>
               )}
             </div>
-            
-            {!expandedDoctors && !searchQuery && visibleDoctors.length > 8 && (
-              <div className={styles.expandRow}>
-                <button type="button" className={styles.expandBtn} onClick={() => setExpandedDoctors(true)}>
-                  View all {visibleDoctors.length} doctors ▾
-                </button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </section>
@@ -509,7 +581,12 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
       <section id="packages" className={styles.pageSection}>
         <div className={styles.container}>
           <div className={styles.panel}>
-            <h2>{t("hospital.tabPackages")}</h2>
+            <div className={styles.panelHeader}>
+              <div className={styles.panelHeaderIcon}>📦</div>
+              <div>
+                <h2 className={styles.panelTitle}>{t("hospital.tabPackages")}</h2>
+              </div>
+            </div>
             
             <div className={styles.tabSearchControl}>
               <div className={styles.tabSearchRow}>
@@ -518,28 +595,29 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search packages, procedures…"
+                  placeholder={t("hospital.searchPackages")}
                   className={styles.tabSearchInput}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search packages"
+                  value={packageSearch}
+                  onChange={(e) => setPackageSearch(e.target.value)}
+                  aria-label={t("hospital.searchPackages")}
                 />
-                {searchQuery && (
-                  <button type="button" className={styles.tabSearchClear} onClick={() => setSearchQuery("")}>✕</button>
+                {packageSearch && (
+                  <button type="button" className={styles.tabSearchClear} onClick={() => setPackageSearch("")}>✕</button>
                 )}
               </div>
             </div>
             {visiblePackages.length === 0 ? (
               <div className={styles.emptyStateCard}>
                 <div className={styles.emptyStateIcon}>📦</div>
-                <h3 className={styles.emptyStateTitle}>{searchQuery ? "No matching packages" : "No packages yet"}</h3>
+                <h3 className={styles.emptyStateTitle}>{packageSearch ? t("hospital.noMatchingPackages") : t("hospital.noPackagesYet")}</h3>
                 <p className={styles.emptyStateBody}>
-                  {searchQuery ? `No packages match "${searchQuery}"` : t("hospital.noPackages")}
+                  {packageSearch ? t("hospital.noPackagesMatch").replace("{q}", packageSearch) : t("hospital.noPackages")}
                 </p>
               </div>
             ) : (
+              <div className={styles.sectionScrollBox}>
               <div className={styles.cardGrid}>
-                {(expandedPackages || searchQuery ? visiblePackages : visiblePackages.slice(0, 6)).map((pkg) => (
+                {visiblePackages.map((pkg) => (
                   <article key={pkg.id} className={styles.packageCard}>
                     <h3 className={styles.packageName}>{pkg.packageName}</h3>
                     {pkg.procedureName && <p className={styles.packageProcedure}>{pkg.procedureName}</p>}
@@ -565,13 +643,6 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                   </article>
                 ))}
               </div>
-            )}
-            
-            {!expandedPackages && !searchQuery && visiblePackages.length > 6 && (
-              <div className={styles.expandRow}>
-                <button type="button" className={styles.expandBtn} onClick={() => setExpandedPackages(true)}>
-                  View all {visiblePackages.length} packages ▾
-                </button>
               </div>
             )}
           </div>
@@ -583,10 +654,15 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
       <section id="reviews" className={styles.pageSection}>
         <div className={styles.container}>
           <div className={styles.panel}>
-            <h2>{t("hospital.ratingsTitle")}</h2>
-            <p className={styles.reviewScore}>
-              {t("common.currentScore")}: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
-            </p>
+            <div className={styles.panelHeader}>
+              <div className={styles.panelHeaderIcon}>⭐</div>
+              <div>
+                <h2 className={styles.panelTitle}>{t("hospital.ratingsTitle")}</h2>
+                <p className={styles.panelHint}>
+                  {t("common.currentScore")}: <strong>{ratingText(data.hospital.rating, data.hospital.reviewCount)}</strong>
+                </p>
+              </div>
+            </div>
 
             {/* Approved reviews list */}
             {data.reviews.length > 0 && (
@@ -628,11 +704,11 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
             {/* Review submission form */}
             <div className={styles.reviewForm}>
               <h3 className={styles.reviewFormTitle}>
-                {data.reviews.length > 0 ? "Write a Review" : "Be the first to share your experience!"}
+                {data.reviews.length > 0 ? t("common.writeReview") : t("common.beFirstReview")}
               </h3>
               {reviewSubmitted ? (
                 <p className={styles.reviewSuccess}>
-                  ✅ Thank you! Your review has been submitted and will appear after moderation.
+                  ✅ {t("common.reviewThankYou")}
                 </p>
               ) : (
                 <form
@@ -701,7 +777,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                   />
                   {reviewError && <p className={styles.reviewError}>{reviewError}</p>}
                   <button type="submit" disabled={reviewSubmitting} className={styles.reviewSubmitBtn}>
-                    {reviewSubmitting ? "Submitting…" : "Submit Review"}
+                    {reviewSubmitting ? t("common.submitting") : t("common.submitReview")}
                   </button>
                 </form>
               )}
@@ -716,42 +792,20 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         {/* ── Related: Similar Hospitals ── */}
         {data.nearbyHospitals.length > 0 && (
           <div className={styles.relatedSection}>
-            <h3 className={styles.relatedTitle}>🏥 Similar Hospitals You May Consider</h3>
+            <h3 className={styles.relatedTitle}>🏥 {t("hospital.nearby")}</h3>
             <div className={styles.relatedScroll}>
-              {data.nearbyHospitals.slice(0, 8).map((item) => {
-                const effectiveRating = item.rating > 0 ? item.rating : 4.0;
-                return (
-                  <div key={item.id} className={styles.hospitalCard}>
-                    <div className={styles.hospitalCardTop}>
-                      <div className={styles.hospitalCardAvatar}>🏥</div>
-                      <div className={styles.hospitalCardInfo}>
-                        <p className={styles.hospitalCardName}>{item.name}</p>
-                        <p className={styles.hospitalCardCity}>
-                          {item.city}{item.state ? `, ${item.state}` : ""}
-                        </p>
-                        <p className={styles.hospitalCardRating}>★ {effectiveRating.toFixed(1)}</p>
-                      </div>
-                    </div>
-
-                    {item.specialties && item.specialties.length > 0 && (
-                      <div className={styles.hospitalCardTags}>
-                        {item.specialties.slice(0, 3).map((s) => (
-                          <span key={s}>{s}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className={styles.hospitalCardBtns}>
-                      <Link href={item.profileUrl} className={styles.hospitalCardBtnView}>
-                        View
-                      </Link>
-                      <Link href={`${item.profileUrl}?book=1`} className={styles.hospitalCardBtnBook}>
-                        Book →
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
+              {data.nearbyHospitals.slice(0, 8).map((item) => (
+                <HospitalMiniCard
+                  key={item.id}
+                  id={item.id}
+                  name={item.name}
+                  profileUrl={item.profileUrl}
+                  city={item.city}
+                  state={item.state}
+                  rating={item.rating}
+                  specialties={item.specialties}
+                />
+              ))}
             </div>
           </div>
         )}

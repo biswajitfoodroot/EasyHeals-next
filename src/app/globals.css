@@ -80,6 +80,11 @@ body {
   display: none !important;
 }
 
+/* Mobile-only language picker: shown on mobile, hidden on desktop */
+.sitenav-mobile-lang {
+  display: flex !important;
+}
+
 /* Burger menu: shown on mobile, hidden on desktop */
 .sitenav-burger {
   display: flex !important;
@@ -89,6 +94,9 @@ body {
   .sitenav-links,
   .sitenav-lang {
     display: flex !important;
+  }
+  .sitenav-mobile-lang {
+    display: none !important;
   }
   .sitenav-burger {
     display: none !important;

@@ -32,6 +32,7 @@ export function SiteNav() {
   const pathname = usePathname();
   const { t, locale, setLocale } = useTranslations();
   const [langOpen, setLangOpen] = useState(false);
+  const [mobileLangOpen, setMobileLangOpen] = useState(false);
   const [cityOpen, setCityOpen] = useState(false);
   const [citySearch, setCitySearch] = useState("");
   const [city, setCity] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function SiteNav() {
     function onClickOutside(e: MouseEvent) {
       const target = e.target as Element;
       if (!target.closest("[data-lang-picker]")) setLangOpen(false);
+      if (!target.closest("[data-mobile-lang-picker]")) setMobileLangOpen(false);
       if (!target.closest("[data-city-picker]")) { setCityOpen(false); setCitySearch(""); }
       if (!target.closest("[data-mobile-menu]")) setMenuOpen(false);
     }
@@ -83,8 +85,6 @@ export function SiteNav() {
   }, [citySearch]);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || pathname.startsWith("/provider-management") || pathname.startsWith("/unauthorized") || pathname.startsWith("/dashboard") || pathname === "/") return null;
-
-  const currentLocale = LOCALES.find((l) => l.code === locale);
 
   const pillStyle: React.CSSProperties = {
     display: "flex",
@@ -310,15 +310,20 @@ export function SiteNav() {
           <button
             type="button"
             onClick={() => setLangOpen((v) => !v)}
-            style={pillStyle}
+            style={{
+              ...pillStyle,
+              background: langOpen ? "#E6F5EC" : "#fff",
+              color: langOpen ? "#1B8A4A" : "#5A7367",
+              borderColor: langOpen ? "#1B8A4A" : "#D0E4D8",
+            }}
             aria-label={t("nav.changeLanguage")}
           >
-            <span>{currentLocale?.nativeLabel ?? "EN"}</span>
-            <span style={{ fontSize: "0.55rem", opacity: 0.7 }}>▼</span>
+            🌐
+            <span style={{ letterSpacing: "0.04em" }}>{locale.toUpperCase()}</span>
           </button>
 
           {langOpen && (
-            <div style={{ ...dropStyle, minWidth: "150px" }}>
+            <div style={{ ...dropStyle, minWidth: "160px" }}>
               {LOCALES.map((loc) => (
                 <button
                   key={loc.code}
@@ -329,7 +334,7 @@ export function SiteNav() {
                     alignItems: "center",
                     justifyContent: "space-between",
                     width: "100%",
-                    padding: "10px 14px",
+                    padding: "11px 14px",
                     background: loc.code === locale ? "#E6F5EC" : "transparent",
                     border: "none",
                     borderBottom: "1px solid rgba(26,43,35,0.06)",
@@ -339,10 +344,11 @@ export function SiteNav() {
                     color: loc.code === locale ? "#1B8A4A" : "#5A7367",
                     fontWeight: loc.code === locale ? 700 : 400,
                     textAlign: "left",
+                    minHeight: "44px",
                   }}
                 >
                   <span>{loc.nativeLabel}</span>
-                  <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.label}</span>
+                  <span style={{ fontSize: "11px", color: "#8FA39A", fontWeight: 600 }}>{loc.code.toUpperCase()}</span>
                 </button>
               ))}
             </div>
@@ -420,6 +426,78 @@ export function SiteNav() {
             List Hospital Free
           </Link>
         )}
+
+        {/* ── Mobile language picker (mobile only, hidden >= 640px) ── */}
+        <div className="sitenav-mobile-lang" data-mobile-lang-picker style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={() => setMobileLangOpen((v) => !v)}
+            aria-label={t("nav.changeLanguage")}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              height: "36px",
+              padding: "0 10px",
+              borderRadius: "999px",
+              border: "1.5px solid #D0E4D8",
+              background: mobileLangOpen ? "#E6F5EC" : "#fff",
+              color: mobileLangOpen ? "#1B8A4A" : "#5A7367",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              letterSpacing: "0.04em",
+              flexShrink: 0,
+            }}
+          >
+            🌐
+            <span>{locale.toUpperCase()}</span>
+          </button>
+
+          {mobileLangOpen && (
+            <div style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              right: 0,
+              background: "#fff",
+              border: "1px solid #D0E4D8",
+              borderRadius: "14px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              overflow: "hidden",
+              zIndex: 400,
+              minWidth: "160px",
+            }}>
+              {LOCALES.map((loc) => (
+                <button
+                  key={loc.code}
+                  type="button"
+                  onClick={() => { setLocale(loc.code); setMobileLangOpen(false); }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    padding: "11px 14px",
+                    background: loc.code === locale ? "#E6F5EC" : "transparent",
+                    border: "none",
+                    borderBottom: "1px solid rgba(26,43,35,0.06)",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontFamily: "inherit",
+                    color: loc.code === locale ? "#1B8A4A" : "#5A7367",
+                    fontWeight: loc.code === locale ? 700 : 400,
+                    textAlign: "left",
+                    minHeight: "44px",
+                  }}
+                >
+                  <span>{loc.nativeLabel}</span>
+                  <span style={{ fontSize: "11px", color: "#8FA39A", fontWeight: 600 }}>{loc.code.toUpperCase()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* ── Hamburger (mobile only, hidden >= 640px) ── */}
         <div data-mobile-menu style={{ position: "relative" }}>
@@ -562,34 +640,6 @@ export function SiteNav() {
               })}
 
               <div style={{ height: "1px", background: "#E8F0EB", margin: "6px 0" }} />
-
-              {/* Language options */}
-              <div style={{ padding: "4px 8px 2px", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#8FA39A" }}>Language</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", padding: "6px 6px 8px" }}>
-                {LOCALES.slice(0, 6).map((loc) => (
-                  <button
-                    key={loc.code}
-                    type="button"
-                    onClick={() => { setLocale(loc.code); setMenuOpen(false); }}
-                    style={{
-                      padding: "5px 10px",
-                      borderRadius: "8px",
-                      border: "1.5px solid",
-                      borderColor: loc.code === locale ? "#1B8A4A" : "#D0E4D8",
-                      background: loc.code === locale ? "#E6F5EC" : "#fff",
-                      color: loc.code === locale ? "#1B8A4A" : "#5A7367",
-                      fontSize: "12px",
-                      fontWeight: loc.code === locale ? 700 : 500,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                  >
-                    {loc.nativeLabel}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ height: "1px", background: "#E8F0EB", margin: "2px 0 6px" }} />
 
               {!pathname.startsWith("/dashboard") && (
                 <Link
