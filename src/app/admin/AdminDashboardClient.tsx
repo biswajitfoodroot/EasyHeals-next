@@ -4900,6 +4900,7 @@ type AIReview = {
   recommendation: "approve" | "reject" | "manual_review";
   confidence: number;
   reason: string;
+  revisedValue: string | null;
 };
 
 type OutlierThresholds = {
@@ -4998,6 +4999,15 @@ function ThresholdPanel() {
   );
 }
 
+function extractValueStr(newValue: Record<string, unknown> | null): string {
+  if (!newValue) return "";
+  if (Array.isArray(newValue)) return (newValue as unknown[]).join(", ");
+  if (typeof newValue.value === "string") return newValue.value;
+  const vals = Object.values(newValue);
+  if (vals.length === 1) return String(vals[0]);
+  return JSON.stringify(newValue).slice(0, 80);
+}
+
 function ContributionsTabContent() {
   const [contributions, setContributions] = useState<ContribRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -5007,6 +5017,8 @@ function ContributionsTabContent() {
   const [applying, setApplying] = useState(false);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [toast, setToast] = useState<string | null>(null);
+  // admin-editable override value per contribution id
+  const [overrides, setOverrides] = useState<Map<string, string>>(new Map());
 
   async function loadContributions() {
     setLoading(true);
@@ -5034,22 +5046,55 @@ function ContributionsTabContent() {
         body: JSON.stringify({ ids: ids.slice(0, 30) }),
       });
       const data = (await res.json()) as { data: AIReview[] };
-      const map = new Map<string, AIReview>();
-      for (const r of data.data ?? []) map.set(r.id, r);
-      setAiReviews(map);
+      const reviewMap = new Map<string, AIReview>();
+      const overrideMap = new Map<string, string>(overrides);
+      for (const r of data.data ?? []) {
+        reviewMap.set(r.id, r);
+        // Pre-fill override with AI revised value if present
+        if (r.revisedValue !== null && r.revisedValue !== undefined) {
+          overrideMap.set(r.id, r.revisedValue);
+        }
+      }
+      setAiReviews(reviewMap);
+      setOverrides(overrideMap);
     } finally {
       setReviewLoading(false);
     }
   }
 
+  async function actSingle(id: string, action: "approve" | "reject") {
+    const overrideValue = overrides.get(id);
+    const body = {
+      actions: [{
+        id,
+        action,
+        ...(action === "approve" && overrideValue !== undefined ? { overrideValue } : {}),
+      }],
+    };
+    setApplying(true);
+    try {
+      const res = await fetch("/api/admin/contributions/ai-review", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json()) as { data: { approved: number; rejected: number } };
+      setToast(`Applied: ${data.data.approved} approved, ${data.data.rejected} rejected.`);
+      void loadContributions();
+    } finally {
+      setApplying(false);
+    }
+  }
+
   async function applyRecommendations(onlyRecommended: boolean) {
-    const actions: Array<{ id: string; action: "approve" | "reject" }> = [];
+    const actions: Array<{ id: string; action: "approve" | "reject"; overrideValue?: string }> = [];
 
     for (const [id, review] of aiReviews) {
       if (onlyRecommended && review.recommendation === "manual_review") continue;
       if (review.recommendation === "manual_review") continue;
       const action = review.recommendation;
-      actions.push({ id, action });
+      const overrideValue = overrides.get(id);
+      actions.push({ id, action, ...(action === "approve" && overrideValue !== undefined ? { overrideValue } : {}) });
     }
 
     if (!actions.length) { setToast("No AI-reviewed items to apply."); return; }
@@ -5160,21 +5205,24 @@ function ContributionsTabContent() {
                   </th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">Entity</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">Field</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">New Value</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide min-w-[200px]">Value to Apply</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">Score</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">AI Review</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">Status</th>
+                  {statusFilter === "pending" && (
+                    <th className="text-left py-2 px-3 font-semibold text-slate-500 text-xs uppercase tracking-wide">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {contributions.map((c) => {
                   const review = aiReviews.get(c.id);
-                  const newValStr = c.newValue
-                    ? Object.values(c.newValue).map(String).join(", ").slice(0, 60)
-                    : "—";
+                  const originalVal = extractValueStr(c.newValue);
+                  const currentOverride = overrides.get(c.id) ?? originalVal;
+                  const isAiRevised = review?.revisedValue !== null && review?.revisedValue !== undefined && overrides.has(c.id);
                   return (
-                    <tr key={c.id} className={`hover:bg-slate-50 ${selected.has(c.id) ? "bg-blue-50" : ""}`}>
-                      <td className="py-2 px-3">
+                    <tr key={c.id} className={`hover:bg-slate-50 align-top ${selected.has(c.id) ? "bg-blue-50" : ""}`}>
+                      <td className="py-3 px-3">
                         <input
                           type="checkbox"
                           checked={selected.has(c.id)}
@@ -5185,13 +5233,43 @@ function ContributionsTabContent() {
                           }}
                         />
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-3 px-3">
                         <p className="font-medium text-slate-800">{c.entityName}</p>
                         <p className="text-xs text-slate-400">{c.targetType}</p>
                       </td>
-                      <td className="py-2 px-3 text-slate-600 font-mono text-xs">{c.fieldChanged}</td>
-                      <td className="py-2 px-3 text-slate-700 max-w-[160px] truncate" title={newValStr}>{newValStr}</td>
-                      <td className="py-2 px-3">
+                      <td className="py-3 px-3 text-slate-600 font-mono text-xs">{c.fieldChanged}</td>
+                      <td className="py-3 px-3 min-w-[200px]">
+                        <div className="flex flex-col gap-1">
+                          {isAiRevised && (
+                            <span className="text-[10px] text-violet-600 font-semibold">✦ AI revised</span>
+                          )}
+                          <input
+                            type="text"
+                            value={currentOverride}
+                            onChange={(e) => {
+                              const next = new Map(overrides);
+                              next.set(c.id, e.target.value);
+                              setOverrides(next);
+                            }}
+                            title={originalVal !== currentOverride ? `Original: ${originalVal}` : undefined}
+                            className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-teal-400 outline-none"
+                          />
+                          {originalVal !== currentOverride && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = new Map(overrides);
+                                next.set(c.id, originalVal);
+                                setOverrides(next);
+                              }}
+                              className="text-[10px] text-slate-400 hover:text-slate-600 text-left"
+                            >
+                              ↩ Reset to original
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                           (c.outlierScore ?? 0) < 30 ? "bg-emerald-100 text-emerald-700"
                           : (c.outlierScore ?? 0) < 70 ? "bg-amber-100 text-amber-700"
@@ -5200,7 +5278,7 @@ function ContributionsTabContent() {
                           {c.outlierScore ?? "—"}
                         </span>
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-3 px-3">
                         {review ? (
                           <div>
                             <span className={`px-2 py-0.5 rounded text-xs font-bold ${
@@ -5208,7 +5286,7 @@ function ContributionsTabContent() {
                               : review.recommendation === "reject" ? "bg-red-100 text-red-700"
                               : "bg-amber-100 text-amber-700"
                             }`}>
-                              {review.recommendation} ({Math.round(review.confidence * 100)}%)
+                              {review.recommendation.replace("_", " ")} ({Math.round(review.confidence * 100)}%)
                             </span>
                             <p className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate" title={review.reason}>{review.reason}</p>
                           </div>
@@ -5216,7 +5294,7 @@ function ContributionsTabContent() {
                           <span className="text-slate-300 text-xs">—</span>
                         )}
                       </td>
-                      <td className="py-2 px-3">
+                      <td className="py-3 px-3">
                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                           c.status === "approved" ? "bg-emerald-100 text-emerald-700"
                           : c.status === "rejected" ? "bg-red-100 text-red-700"
@@ -5225,6 +5303,32 @@ function ContributionsTabContent() {
                           {c.status}
                         </span>
                       </td>
+                      {statusFilter === "pending" && (
+                        <td className="py-3 px-3">
+                          {c.status === "pending" ? (
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => void actSingle(c.id, "approve")}
+                                disabled={applying}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 disabled:opacity-50"
+                              >
+                                ✓ Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void actSingle(c.id, "reject")}
+                                disabled={applying}
+                                className="px-2 py-1.5 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600 disabled:opacity-50"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 text-xs">—</span>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

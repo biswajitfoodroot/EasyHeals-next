@@ -23,6 +23,13 @@ type ContribRow = {
   changes: unknown;
 };
 
+type AIReview = {
+  recommendation: "approve" | "reject" | "manual_review";
+  confidence: number;
+  reason: string;
+  revisedValue: string | null;
+};
+
 type Tab = "overview" | "edits" | "audit";
 
 function ScoreBadge({ score }: { score: number | null }) {
@@ -56,6 +63,18 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// Extract a human-readable string from the stored newValue for display/editing.
+function extractValueString(newVal: unknown, field: string | null): string {
+  if (!field) return "";
+  if (Array.isArray(newVal)) return (newVal as unknown[]).join(", ");
+  if (typeof newVal === "object" && newVal !== null) {
+    const obj = newVal as Record<string, unknown>;
+    if (typeof obj.value === "string") return obj.value;
+    return JSON.stringify(newVal);
+  }
+  return String(newVal ?? "");
+}
+
 function diffDisplay(oldVal: unknown, newVal: unknown, field: string | null) {
   const fmt = (v: unknown) => {
     if (v === null || v === undefined) return <em className="text-slate-400">empty</em>;
@@ -76,7 +95,12 @@ function diffDisplay(oldVal: unknown, newVal: unknown, field: string | null) {
 function EditHistoryTable({ hospitalId, canAct }: { hospitalId: string; canAct: boolean }) {
   const [rows, setRows] = useState<ContribRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // AI review results keyed by contribution id
+  const [aiReviews, setAiReviews] = useState<Record<string, AIReview>>({});
+  // Admin-editable override values keyed by contribution id
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -91,11 +115,48 @@ function EditHistoryTable({ hospitalId, canAct }: { hospitalId: string; canAct: 
 
   useEffect(() => { void load(); }, [hospitalId]);
 
+  async function runAIReview() {
+    const pending = rows.filter((r) => r.status === "pending" && r.source === "contribution");
+    if (!pending.length) return;
+    setReviewing(true);
+    try {
+      const res = await fetch("/api/admin/contributions/ai-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: pending.map((r) => r.id) }),
+      });
+      if (!res.ok) { setToast("AI review failed."); return; }
+      const data = (await res.json()) as {
+        data: Array<{ id: string; recommendation: AIReview["recommendation"]; confidence: number; reason: string; revisedValue: string | null }>;
+      };
+      const reviewMap: Record<string, AIReview> = {};
+      const overrideMap: Record<string, string> = {};
+      for (const d of data.data) {
+        reviewMap[d.id] = { recommendation: d.recommendation, confidence: d.confidence, reason: d.reason, revisedValue: d.revisedValue };
+        // Pre-fill override with AI revision if present, else original value
+        const row = pending.find((r) => r.id === d.id);
+        overrideMap[d.id] = d.revisedValue ?? (row ? extractValueString(row.newValue, row.fieldChanged) : "");
+      }
+      setAiReviews((prev) => ({ ...prev, ...reviewMap }));
+      setOverrides((prev) => ({ ...prev, ...overrideMap }));
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   async function act(id: string, action: "approve" | "reject") {
+    const override = overrides[id];
+    const body = {
+      actions: [{
+        id,
+        action,
+        ...(action === "approve" && override !== undefined ? { overrideValue: override } : {}),
+      }],
+    };
     const res = await fetch("/api/admin/contributions/ai-review", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actions: [{ id, action }] }),
+      body: JSON.stringify(body),
     });
     if (res.ok) {
       setToast(`Edit ${action}d.`);
@@ -107,6 +168,8 @@ function EditHistoryTable({ hospitalId, canAct }: { hospitalId: string; canAct: 
   if (loading) return <p className="text-sm text-slate-400 py-6 text-center">Loading edit history…</p>;
   if (!rows.length) return <p className="text-sm text-slate-400 py-6 text-center">No edits recorded for this hospital yet.</p>;
 
+  const pendingCount = rows.filter((r) => r.status === "pending" && r.source === "contribution").length;
+
   return (
     <div>
       {toast ? (
@@ -114,6 +177,21 @@ function EditHistoryTable({ hospitalId, canAct }: { hospitalId: string; canAct: 
           {toast}
         </div>
       ) : null}
+
+      {canAct && pendingCount > 0 ? (
+        <div className="mb-4 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void runAIReview()}
+            disabled={reviewing}
+            className="px-4 py-2 rounded-xl bg-violet-600 text-white text-sm font-bold hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2"
+          >
+            {reviewing ? "Reviewing…" : `✦ Run AI Review (${pendingCount} pending)`}
+          </button>
+          <span className="text-xs text-slate-400">AI suggests corrections and approvals for pending edits</span>
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -123,75 +201,114 @@ function EditHistoryTable({ hospitalId, canAct }: { hospitalId: string; canAct: 
               <th className="pb-2 pr-3">Change</th>
               <th className="pb-2 pr-3">Risk</th>
               <th className="pb-2 pr-3">Status</th>
-              {canAct ? <th className="pb-2">Actions</th> : null}
+              {canAct ? <th className="pb-2 min-w-[260px]">Review &amp; Apply</th> : null}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                <td className="py-2 pr-3 whitespace-nowrap text-slate-400 text-xs">
-                  {new Date(row.when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                </td>
-                <td className="py-2 pr-3">
-                  <div className="flex items-center gap-1.5">
-                    {row.actorAvatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={row.actorAvatar} alt="" className="w-5 h-5 rounded-full" />
-                    ) : (
-                      <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
-                        {row.actorName?.charAt(0) ?? "?"}
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-600 font-medium truncate max-w-[100px]">
-                      {row.actorName ?? "Unknown"}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-2 pr-3 max-w-xs">
-                  <span className="text-xs font-mono text-slate-700">{row.action}</span>
-                  {diffDisplay(row.oldValue, row.newValue, row.fieldChanged)}
-                  {row.outlierFlags?.length ? (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {row.outlierFlags.map((f) => (
-                        <span key={f} className="px-1.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-[10px] text-orange-700 font-mono">
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="py-2 pr-3">
-                  <ScoreBadge score={row.outlierScore} />
-                </td>
-                <td className="py-2 pr-3">
-                  <StatusBadge status={row.status} />
-                </td>
-                {canAct ? (
-                  <td className="py-2">
-                    {row.status === "pending" && row.source === "contribution" ? (
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void act(row.id, "approve")}
-                          className="px-2 py-1 rounded bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
-                        >
-                          ✓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void act(row.id, "reject")}
-                          className="px-2 py-1 rounded bg-red-500 text-white text-xs font-bold hover:bg-red-600"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-slate-300 text-xs">—</span>
-                    )}
+            {rows.map((row) => {
+              const review = aiReviews[row.id];
+              const isPending = row.status === "pending" && row.source === "contribution";
+              const overrideVal = overrides[row.id] ?? extractValueString(row.newValue, row.fieldChanged);
+
+              return (
+                <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50/60 align-top">
+                  <td className="py-3 pr-3 whitespace-nowrap text-slate-400 text-xs">
+                    {new Date(row.when).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </td>
-                ) : null}
-              </tr>
-            ))}
+                  <td className="py-3 pr-3">
+                    <div className="flex items-center gap-1.5">
+                      {row.actorAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={row.actorAvatar} alt="" className="w-5 h-5 rounded-full" />
+                      ) : (
+                        <span className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                          {row.actorName?.charAt(0) ?? "?"}
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-600 font-medium truncate max-w-[100px]">
+                        {row.actorName ?? "Unknown"}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-3 pr-3 max-w-xs">
+                    <span className="text-xs font-mono text-slate-700">{row.action}</span>
+                    {diffDisplay(row.oldValue, row.newValue, row.fieldChanged)}
+                    {row.outlierFlags?.length ? (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {row.outlierFlags.map((f) => (
+                          <span key={f} className="px-1.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-[10px] text-orange-700 font-mono">
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="py-3 pr-3">
+                    <ScoreBadge score={row.outlierScore} />
+                  </td>
+                  <td className="py-3 pr-3">
+                    <StatusBadge status={row.status} />
+                  </td>
+                  {canAct ? (
+                    <td className="py-3">
+                      {isPending ? (
+                        <div className="flex flex-col gap-2 min-w-[240px]">
+                          {/* AI review result */}
+                          {review ? (
+                            <div className={`px-2 py-1.5 rounded-lg text-xs border ${
+                              review.recommendation === "approve"
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : review.recommendation === "reject"
+                                  ? "bg-red-50 border-red-200 text-red-700"
+                                  : "bg-amber-50 border-amber-200 text-amber-700"
+                            }`}>
+                              <span className="font-bold capitalize">{review.recommendation.replace("_", " ")}</span>
+                              <span className="ml-1 opacity-70">({Math.round(review.confidence * 100)}%)</span>
+                              <p className="mt-0.5 font-normal opacity-80">{review.reason}</p>
+                            </div>
+                          ) : null}
+
+                          {/* Editable value — pre-filled with AI revision or original */}
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 mb-0.5 uppercase tracking-wide">
+                              Value to apply
+                              {review?.revisedValue ? <span className="ml-1 text-violet-500">(AI revised)</span> : null}
+                            </label>
+                            <input
+                              type="text"
+                              value={overrideVal}
+                              onChange={(e) => setOverrides((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                              className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:ring-2 focus:ring-teal-400 outline-none"
+                              placeholder="Value to apply…"
+                            />
+                          </div>
+
+                          {/* Approve / Reject buttons */}
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => void act(row.id, "approve")}
+                              className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700"
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void act(row.id, "reject")}
+                              className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-bold hover:bg-red-600"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

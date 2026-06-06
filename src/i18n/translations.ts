@@ -209,6 +209,7 @@ export type Dict = {
     reviewThankYou: string;
     network: string;
     loadMore: string;
+    reviews: string;
   };
   hospital: {
     directoryTitle: string;
@@ -269,6 +270,11 @@ export type Dict = {
     affiliationsHint: string;
     nearbyDoctors: string;
     practiceLocations: string;
+    newDoctor: string;
+    currentlyAt: string;
+    previouslyAt: string;
+    past: string;
+    noAppointments: string;
   };
   treatment: {
     directoryTitle: string;
@@ -523,6 +529,7 @@ const en: Dict = {
     reviewThankYou: "Thank you! Your review has been submitted and will appear after moderation.",
     network: "Network Partner",
     loadMore: "Load more",
+    reviews: "reviews",
   },
   hospital: {
     directoryTitle: "Private Hospitals Across India",
@@ -583,6 +590,11 @@ const en: Dict = {
     affiliationsHint: "Click a hospital to navigate to its profile page and available doctors.",
     nearbyDoctors: "Nearby Doctors",
     practiceLocations: "Practice Locations",
+    newDoctor: "New",
+    currentlyAt: "Currently Practises At",
+    previouslyAt: "Previously Practised At",
+    past: "Past",
+    noAppointments: "No appointments available",
   },
   treatment: {
     directoryTitle: "Treatments & Specialties",
@@ -940,6 +952,7 @@ const hi: Dict = {
     reviewThankYou: "धन्यवाद! आपकी समीक्षा सबमिट हो गई है और समीक्षा के बाद दिखाई देगी।",
     network: "नेटवर्क पार्टनर",
     loadMore: "और लोड करें",
+    reviews: "समीक्षाएं",
   },
   hospital: {
     directoryTitle: "भारत भर के निजी अस्पताल",
@@ -1000,6 +1013,11 @@ const hi: Dict = {
     affiliationsHint: "प्रोफ़ाइल पृष्ठ देखने के लिए किसी भी अस्पताल पर क्लिक करें।",
     nearbyDoctors: "नज़दीकी डॉक्टर",
     practiceLocations: "प्रैक्टिस स्थान",
+    newDoctor: "नया",
+    currentlyAt: "वर्तमान में कार्यरत",
+    previouslyAt: "पहले कार्यरत",
+    past: "पूर्व",
+    noAppointments: "अपॉइंटमेंट उपलब्ध नहीं",
   },
   treatment: {
     directoryTitle: "उपचार और विशेषताएं",
@@ -1359,6 +1377,7 @@ const mr: Dict = {
     reviewThankYou: "धन्यवाद! तुमचे परीक्षण सबमिट झाले आहे आणि तपासणीनंतर दिसेल।",
     network: "नेटवर्क भागीदार",
     loadMore: "अधिक लोड करा",
+    reviews: "पुनरावलोकने",
   },
   hospital: {
     directoryTitle: "भारतभरातील खाजगी रुग्णालये",
@@ -1419,6 +1438,11 @@ const mr: Dict = {
     affiliationsHint: "प्रोफाइल पृष्ठ पाहण्यासाठी कोणत्याही रुग्णालयावर क्लिक करा.",
     nearbyDoctors: "जवळचे डॉक्टर",
     practiceLocations: "सराव ठिकाणे",
+    newDoctor: "नवीन",
+    currentlyAt: "सध्या कार्यरत",
+    previouslyAt: "पूर्वी कार्यरत",
+    past: "पूर्वीचे",
+    noAppointments: "अपॉइंटमेंट उपलब्ध नाही",
   },
   treatment: {
     directoryTitle: "उपचार आणि विशेषता",
@@ -1773,6 +1797,7 @@ const ta: Dict = {
     reviewThankYou: "நன்றி! உங்கள் மதிப்பாய்வு சமர்ப்பிக்கப்பட்டது, மதிப்பாய்வுக்குப் பிறகு தோன்றும்.",
     network: "நெட்வொர்க் பார்ட்னர்",
     loadMore: "மேலும் ஏற்றவும்",
+    reviews: "விமர்சனங்கள்",
   },
   hospital: {
     directoryTitle: "இந்தியா முழுவதும் தனியார் மருத்துவமனைகள்",
@@ -1833,6 +1858,11 @@ const ta: Dict = {
     affiliationsHint: "சுயவிவர பக்கம் பார்க்க எந்த மருத்துவமனையையும் கிளிக் செய்யுங்கள்.",
     nearbyDoctors: "அருகிலுள்ள மருத்துவர்கள்",
     practiceLocations: "பணிபுரியும் இடங்கள்",
+    newDoctor: "புதிய",
+    currentlyAt: "தற்போது பணியாற்றுகிறார்",
+    previouslyAt: "முன்பு பணியாற்றினார்",
+    past: "கடந்த",
+    noAppointments: "அப்பாயிண்ட்மெண்ட் கிடைக்கவில்லை",
   },
   treatment: {
     directoryTitle: "சிகிச்சைகள் & சிறப்புகள்",
@@ -2188,6 +2218,7 @@ const bn: Dict = {
     reviewThankYou: "ধন্যবাদ! আপনার রিভিউ জমা দেওয়া হয়েছে এবং পর্যালোচনার পরে দেখাবে।",
     network: "নেটওয়ার্ক পার্টনার",
     loadMore: "আরও লোড করুন",
+    reviews: "পর্যালোচনা",
   },
   hospital: {
     directoryTitle: "ভারত জুড়ে বেসরকারি হাসপাতাল",
@@ -2248,6 +2279,11 @@ const bn: Dict = {
     affiliationsHint: "প্রোফাইল পৃষ্ঠা দেখতে যেকোনো হাসপাতালে ক্লিক করুন।",
     nearbyDoctors: "কাছের ডাক্তার",
     practiceLocations: "অনুশীলনের স্থান",
+    newDoctor: "নতুন",
+    currentlyAt: "বর্তমানে কর্মরত",
+    previouslyAt: "আগে কর্মরত ছিলেন",
+    past: "পূর্ববর্তী",
+    noAppointments: "অ্যাপয়েন্টমেন্ট পাওয়া যাচ্ছে না",
   },
   treatment: {
     directoryTitle: "চিকিৎসা ও বিশেষত্ব",
@@ -2602,6 +2638,7 @@ const ml: Dict = {
     reviewThankYou: "നന്ദി! നിങ്ങളുടെ അവലോകനം സമർപ്പിച്ചു, മോഡറേഷന് ശേഷം ദൃശ്യമാകും.",
     network: "നെറ്റ്‌വർക്ക് പാർട്ണർ",
     loadMore: "കൂടുതൽ ലോഡ് ചെയ്യുക",
+    reviews: "അഭിപ്രായങ്ങൾ",
   },
   hospital: {
     directoryTitle: "ഇന്ത്യ മുഴുവൻ സ്വകാര്യ ആശുപത്രികൾ",
@@ -2662,6 +2699,11 @@ const ml: Dict = {
     affiliationsHint: "ആശുപത്രി പ്രൊഫൈൽ കാണാൻ ഏതെങ്കിലും ആശുപത്രിയിൽ ക്ലിക്ക് ചെയ്യൂ.",
     nearbyDoctors: "അടുത്തുള്ള ഡോക്ടർമാർ",
     practiceLocations: "പ്രാക്ടീസ് ലൊക്കേഷൻ",
+    newDoctor: "പുതിയ",
+    currentlyAt: "ഇപ്പോൾ സേവനമനുഷ്ഠിക്കുന്ന",
+    previouslyAt: "മുമ്പ് സേവനമനുഷ്ഠിച്ചിരുന്ന",
+    past: "മുൻ",
+    noAppointments: "അപ്പോയ്ന്റ്മെന്റ് ലഭ്യമല്ല",
   },
   treatment: {
     directoryTitle: "ചികിത്സകളും സ്പെഷ്യൽറ്റികളും",
@@ -3016,6 +3058,7 @@ const kn: Dict = {
     reviewThankYou: "ಧನ್ಯವಾದ! ನಿಮ್ಮ ರಿವ್ಯೂ ಸಲ್ಲಿಸಲಾಗಿದೆ, ಮಾಡರೇಷನ್ ನಂತರ ಕಾಣಿಸುತ್ತದೆ.",
     network: "ನೆಟ್‌ವರ್ಕ್ ಪಾರ್ಟ್ನರ್",
     loadMore: "ಇನ್ನಷ್ಟು ಲೋಡ್ ಮಾಡಿ",
+    reviews: "ವಿಮರ್ಶೆಗಳು",
   },
   hospital: {
     directoryTitle: "ಭಾರತ ಉದ್ದಕ್ಕೂ ಖಾಸಗಿ ಆಸ್ಪತ್ರೆಗಳು",
@@ -3076,6 +3119,11 @@ const kn: Dict = {
     affiliationsHint: "ಆಸ್ಪತ್ರೆ ಪ್ರೊಫೈಲ್ ನೋಡಲು ಕ್ಲಿಕ್ ಮಾಡಿ.",
     nearbyDoctors: "ಸಮೀಪದ ವೈದ್ಯರು",
     practiceLocations: "ಪ್ರಾಕ್ಟೀಸ್ ಸ್ಥಳಗಳು",
+    newDoctor: "ಹೊಸ",
+    currentlyAt: "ಪ್ರಸ್ತುತ ಕಾರ್ಯ ನಿರ್ವಹಿಸುತ್ತಿದ್ದಾರೆ",
+    previouslyAt: "ಹಿಂದೆ ಕಾರ್ಯ ನಿರ್ವಹಿಸಿದ್ದರು",
+    past: "ಹಿಂದಿನ",
+    noAppointments: "ಅಪಾಯಿಂಟ್ಮೆಂಟ್ ಲಭ್ಯವಿಲ್ಲ",
   },
   treatment: {
     directoryTitle: "ಚಿಕಿತ್ಸೆಗಳು ಮತ್ತು ವಿಶೇಷತೆಗಳು",
@@ -3430,6 +3478,7 @@ const te: Dict = {
     reviewThankYou: "ధన్యవాదాలు! మీ రివ్యూ సమర్పించబడింది, మోడరేషన్ తర్వాత కనిపిస్తుంది.",
     network: "నెట్‌వర్క్ పార్ట్‌నర్",
     loadMore: "మరిన్ని లోడ్ చేయండి",
+    reviews: "సమీక్షలు",
   },
   hospital: {
     directoryTitle: "భారతదేశం అంతటా ప్రైవేట్ ఆసుపత్రులు",
@@ -3490,6 +3539,11 @@ const te: Dict = {
     affiliationsHint: "ఆసుపత్రి ప్రొఫైల్ చూడటానికి క్లిక్ చేయండి.",
     nearbyDoctors: "సమీపంలో వైద్యులు",
     practiceLocations: "ప్రాక్టీస్ స్థానాలు",
+    newDoctor: "కొత్త",
+    currentlyAt: "ప్రస్తుతం పని చేస్తున్నారు",
+    previouslyAt: "గతంలో పని చేశారు",
+    past: "గత",
+    noAppointments: "అపాయింట్మెంట్ అందుబాటులో లేదు",
   },
   treatment: {
     directoryTitle: "చికిత్సలు మరియు స్పెషాల్టీలు",
@@ -3844,6 +3898,7 @@ const ar: Dict = {
     reviewThankYou: "شكرًا! تم إرسال تقييمك وسيظهر بعد المراجعة.",
     network: "شريك الشبكة",
     loadMore: "تحميل المزيد",
+    reviews: "المراجعات",
   },
   hospital: {
     directoryTitle: "المستشفيات الخاصة عبر الهند",
@@ -3904,6 +3959,11 @@ const ar: Dict = {
     affiliationsHint: "انقر على مستشفى لعرض ملفه الشخصي.",
     nearbyDoctors: "أطباء قريبون",
     practiceLocations: "مواقع الممارسة",
+    newDoctor: "جديد",
+    currentlyAt: "يمارس حالياً في",
+    previouslyAt: "مارس سابقاً في",
+    past: "سابق",
+    noAppointments: "لا مواعيد متاحة",
   },
   treatment: {
     directoryTitle: "العلاجات والتخصصات",
@@ -4258,6 +4318,7 @@ const si: Dict = {
     reviewThankYou: "ස්තූතියි! ඔබේ සමාලෝචනය ඉදිරිපත් කර ඇති අතර සමාලෝකනයෙන් පසු දිස් වනු ඇත.",
     network: "ජාල හවුල්කරු",
     loadMore: "තවත් පූරණය කරන්න",
+    reviews: "සමාලෝචන",
   },
   hospital: {
     directoryTitle: "ඉන්දියාව පුරා පෞද්ගලික රෝහල්",
@@ -4318,6 +4379,11 @@ const si: Dict = {
     affiliationsHint: "රෝහල් පැතිකඩ බැලීමට ක්ලික් කරන්න.",
     nearbyDoctors: "ළඟ ඇති වෛද්‍යවරුන්",
     practiceLocations: "පරිශීලන ස්ථාන",
+    newDoctor: "නව",
+    currentlyAt: "දැනට සේවය කරයි",
+    previouslyAt: "කලින් සේවය කළේය",
+    past: "කලින්",
+    noAppointments: "හමුවීම් ලබා ගත නොහැක",
   },
   treatment: {
     directoryTitle: "ප්‍රතිකාර සහ විශේෂත්ව",

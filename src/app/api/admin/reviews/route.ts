@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { patientReviews } from "@/db/schema";
+import { patientReviews, hospitals, doctors } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { ensureRole } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
@@ -30,36 +30,76 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const entityType = url.searchParams.get("entityType") as "hospital" | "doctor" | null;
   const entityId = url.searchParams.get("entityId");
+  const status = url.searchParams.get("status") as "pending" | "approved" | "rejected" | "all" | null;
   const pending = url.searchParams.get("pending");
 
   if (pending === "1") {
-    const rows = await db
+    let rows = await db
       .select()
       .from(patientReviews)
       .where(eq(patientReviews.status, "pending"))
       .orderBy(desc(patientReviews.createdAt))
       .limit(200);
+
+    // Attach entityName for hospitals/doctors
+    const hospitalIds = Array.from(new Set(rows.filter((r) => r.entityType === "hospital").map((r) => r.entityId)));
+    const doctorIds = Array.from(new Set(rows.filter((r) => r.entityType === "doctor").map((r) => r.entityId)));
+
+    const hospitalMap = new Map<string, string>();
+    for (const id of hospitalIds) {
+      const [h] = await db.select({ id: hospitals.id, name: hospitals.name }).from(hospitals).where(eq(hospitals.id, id)).limit(1);
+      if (h) hospitalMap.set(id, h.name);
+    }
+
+    const doctorMap = new Map<string, string>();
+    for (const id of doctorIds) {
+      const [d] = await db.select({ id: doctors.id, name: doctors.fullName }).from(doctors).where(eq(doctors.id, id)).limit(1);
+      if (d) doctorMap.set(id, d.name);
+    }
+
+    rows = rows.map((r) => ({ ...r, entityName: r.entityType === "hospital" ? hospitalMap.get(r.entityId) ?? null : doctorMap.get(r.entityId) ?? null }));
+
     return NextResponse.json({ data: rows });
   }
 
-  if (!entityType || !entityId) {
+  const statusFilter = status && status !== "all" ? status : undefined;
+
+  if (!status && !entityType && !entityId) {
     return NextResponse.json(
-      { error: "Provide entityType+entityId or pending=1" },
+      { error: "Provide status, entityType, or pending=1" },
       { status: 400 },
     );
   }
 
-  const rows = await db
+  let rows = await db
     .select()
     .from(patientReviews)
     .where(
       and(
-        eq(patientReviews.entityType, entityType),
-        eq(patientReviews.entityId, entityId),
+        statusFilter ? eq(patientReviews.status, statusFilter) : undefined,
+        entityType ? eq(patientReviews.entityType, entityType) : undefined,
+        entityId ? eq(patientReviews.entityId, entityId) : undefined,
       ),
     )
     .orderBy(desc(patientReviews.createdAt))
     .limit(200);
+
+  const hospitalIds = Array.from(new Set(rows.filter((r) => r.entityType === "hospital").map((r) => r.entityId)));
+  const doctorIds = Array.from(new Set(rows.filter((r) => r.entityType === "doctor").map((r) => r.entityId)));
+
+  const hospitalMap = new Map<string, string>();
+  for (const id of hospitalIds) {
+    const [h] = await db.select({ id: hospitals.id, name: hospitals.name }).from(hospitals).where(eq(hospitals.id, id)).limit(1);
+    if (h) hospitalMap.set(id, h.name);
+  }
+
+  const doctorMap = new Map<string, string>();
+  for (const id of doctorIds) {
+    const [d] = await db.select({ id: doctors.id, name: doctors.fullName }).from(doctors).where(eq(doctors.id, id)).limit(1);
+    if (d) doctorMap.set(id, d.name);
+  }
+
+  rows = rows.map((r) => ({ ...r, entityName: r.entityType === "hospital" ? hospitalMap.get(r.entityId) ?? null : doctorMap.get(r.entityId) ?? null }));
 
   return NextResponse.json({ data: rows });
 }

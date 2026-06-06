@@ -5,7 +5,11 @@
       "Read(//tmp/**)",
       "Read(//c/tmp/**)",
       "Bash(npm run *)",
-      "Bash(npx tsx -e ' *)"
+      "Bash(npx tsx -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/)",
+      "Bash(curl -s \"http://localhost:5000/doctors\")",
+      "Bash(npx playwright *)",
+      "Read(//c/Users/raman/AppData/Local/Temp/**)"
     ]
   }
 }

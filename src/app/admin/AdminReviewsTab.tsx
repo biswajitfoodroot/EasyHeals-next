@@ -15,6 +15,7 @@ interface ReviewRow {
   id: string;
   entityType: string;
   entityId: string;
+  entityName?: string | null;
   patientName: string | null;
   patientPhone: string | null;
   rating: number;
@@ -53,18 +54,16 @@ export function AdminReviewsTab() {
       const params = new URLSearchParams();
       if (filter === "pending") {
         params.set("pending", "1");
+      } else {
+        params.set("status", filter);
+      }
+      if (entityFilter !== "all") {
+        params.set("entityType", entityFilter);
       }
       const res = await fetch(`/api/admin/reviews?${params}`);
       const json = await res.json() as { data?: ReviewRow[]; error?: string };
       if (!res.ok) throw new Error(json.error ?? "Failed to load");
-      let rows = json.data ?? [];
-      // filter by status client-side for non-pending
-      if (filter !== "pending") {
-        rows = rows.filter((r) => r.status === filter);
-      }
-      if (entityFilter !== "all") {
-        rows = rows.filter((r) => r.entityType === entityFilter);
-      }
+      const rows = json.data ?? [];
       setReviews(rows);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
@@ -206,7 +205,7 @@ export function AdminReviewsTab() {
                       }`}>
                         {review.entityType === "hospital" ? "🏥 Hospital" : "👨‍⚕️ Doctor"}
                       </span>
-                      <span className="text-xs text-slate-400 font-mono">{review.entityId.slice(0, 8)}…</span>
+                      <span className="text-xs text-slate-400 font-mono">{review.entityName ?? review.entityId.slice(0, 8) + '…'}</span>
                     </div>
                     <div className="text-sm text-slate-500 mt-1">
                       By <strong className="text-slate-700">{review.patientName ?? "Anonymous"}</strong>
