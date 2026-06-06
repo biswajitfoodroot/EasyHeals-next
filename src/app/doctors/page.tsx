@@ -13,7 +13,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default async function DoctorsPage() {
-  const rows = await listDoctorsDirectory(500);
+  const { items: rows, hasMore } = await listDoctorsDirectory(100, 0);
   const cityOptions = Array.from(new Set(rows.map((item) => item.city).filter(Boolean) as string[])).sort((a, b) =>
     a.localeCompare(b),
   );
@@ -22,6 +22,7 @@ export default async function DoctorsPage() {
     <DirectorySearchList
       kind="doctor"
       cityOptions={cityOptions}
+      hasMore={hasMore}
       items={rows.map((row) => ({
         id: row.id,
         name: row.fullName,

@@ -1,13 +1,11 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
 import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
 import styles from "@/components/profiles/profiles.module.css";
-
-const PAGE_SIZE = 20;
 
 // Color index for avatar backgrounds (0–7), deterministic from name
 function avatarColor(name: string): string {
@@ -42,6 +40,7 @@ type DirectorySearchListProps = {
   kind: "hospital" | "doctor";
   items: DirectoryItem[];
   cityOptions: string[];
+  hasMore?: boolean;
 };
 
 function Stars({ rating, reviewCount }: { rating: number; reviewCount?: number }) {
@@ -56,19 +55,24 @@ function Stars({ rating, reviewCount }: { rating: number; reviewCount?: number }
   );
 }
 
-export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearchListProps) {
+export function DirectorySearchList({ kind, items, cityOptions, hasMore: initialHasMore = false }: DirectorySearchListProps) {
   const { t } = useTranslations();
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("all");
   const [specialty, setSpecialty] = useState("all");
   const [sort, setSort] = useState<"rating" | "name" | "reviews">("rating");
-  const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   // Draft state for the filter sheet (applied only on "Show Results" tap)
   const [draftCity, setDraftCity] = useState("all");
   const [draftSpecialty, setDraftSpecialty] = useState("all");
   const [draftSort, setDraftSort] = useState<"rating" | "name" | "reviews">("rating");
+
+  // Server-side pagination state
+  const [allItems, setAllItems] = useState<DirectoryItem[]>(items);
+  const [serverHasMore, setServerHasMore] = useState(initialHasMore);
+  const [serverOffset, setServerOffset] = useState(items.length);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   function openFilterSheet() {
     setDraftCity(city);
@@ -81,7 +85,6 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
     setCity(draftCity);
     setSpecialty(draftSpecialty);
     setSort(draftSort);
-    setPage(1);
     setFilterSheetOpen(false);
   }
 
@@ -93,9 +96,8 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
   const activeFilterCount = [city !== "all", specialty !== "all", sort !== "rating"].filter(Boolean).length;
 
-  // These must be computed before the sentinel useCallback that depends on hasMore
   const filtered = useMemo(() => {
-    let result = items.filter((item) => {
+    let result = allItems.filter((item) => {
       if (city !== "all" && item.city.toLowerCase() !== city.toLowerCase()) return false;
       if (specialty !== "all" && !item.specialties.some((s) => s.trim() === specialty)) return false;
       if (!query.trim()) return true;
@@ -106,38 +108,62 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
     else if (sort === "name") result = [...result].sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === "reviews") result = [...result].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0));
     return result;
-  }, [city, items, query, sort, specialty]);
+  }, [city, allItems, query, sort, specialty]);
 
   // Count based on draft filter state — updates live as user taps options in the sheet
   const draftFilteredCount = useMemo(() => {
-    return items.filter((item) => {
+    return allItems.filter((item) => {
       if (draftCity !== "all" && item.city.toLowerCase() !== draftCity.toLowerCase()) return false;
       if (draftSpecialty !== "all" && !item.specialties.some((s) => s.trim() === draftSpecialty)) return false;
       if (!query.trim()) return true;
       const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
       return text.includes(query.trim().toLowerCase());
     }).length;
-  }, [draftCity, draftSpecialty, items, query]);
+  }, [draftCity, draftSpecialty, allItems, query]);
 
-  const visibleItems = filtered.slice(0, page * PAGE_SIZE);
-  const hasMore = visibleItems.length < filtered.length;
+  async function handleLoadMore() {
+    if (loadingMore || !serverHasMore) return;
+    setLoadingMore(true);
 
-  // Sentinel element observed by IntersectionObserver to auto-load next page
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const loadMore = useCallback(() => {
-    if (hasMore) setPage((p) => p + 1);
-  }, [hasMore]);
+    // Keep fetching batches until at least 10 new items pass the current filters,
+    // or the server runs out of data. Caps at 4 requests to avoid runaway loops.
+    const MIN_VISIBLE = 10;
+    const MAX_BATCHES = 4;
 
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore(); },
-      { rootMargin: "200px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [loadMore]);
+    function passesFilter(item: DirectoryItem) {
+      if (city !== "all" && item.city.toLowerCase() !== city.toLowerCase()) return false;
+      if (specialty !== "all" && !item.specialties.some((s) => s.trim() === specialty)) return false;
+      if (query.trim()) {
+        const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
+        if (!text.includes(query.trim().toLowerCase())) return false;
+      }
+      return true;
+    }
+
+    let currentOffset = serverOffset;
+    let accumulated: DirectoryItem[] = [];
+    let hasMoreServer = true;
+
+    try {
+      for (let batch = 0; batch < MAX_BATCHES; batch++) {
+        const apiPath = kind === "hospital"
+          ? `/api/public/hospitals?offset=${currentOffset}`
+          : `/api/public/doctors?offset=${currentOffset}`;
+        const res = await fetch(apiPath, { credentials: "include", cache: "no-store" });
+        if (!res.ok) break;
+        const json = await res.json() as { data: DirectoryItem[]; hasMore: boolean };
+        accumulated = [...accumulated, ...json.data];
+        currentOffset += json.data.length;
+        hasMoreServer = json.hasMore;
+        if (!hasMoreServer || accumulated.filter(passesFilter).length >= MIN_VISIBLE) break;
+      }
+      setAllItems((prev) => [...prev, ...accumulated]);
+      setServerOffset(currentOffset);
+      setServerHasMore(hasMoreServer);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   // Initialise city from nav localStorage selection
   useEffect(() => {
@@ -149,7 +175,6 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
       if (e.key === "eh_city") {
         const next = e.newValue ?? "all";
         setCity(cityOptions.includes(next) ? next : "all");
-        setPage(1);
       }
     }
     window.addEventListener("storage", onStorage);
@@ -163,16 +188,14 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
   const allSpecialties = useMemo(() => {
     const seen = new Set<string>();
     const list: string[] = [];
-    for (const item of items) {
+    for (const item of allItems) {
       for (const s of item.specialties) {
         const key = s.trim();
         if (key && !seen.has(key)) { seen.add(key); list.push(key); }
       }
     }
     return list.sort();
-  }, [items]);
-
-  function resetPage() { setPage(1); }
+  }, [allItems]);
 
   return (
     <main className={styles.directoryPage}>
@@ -182,7 +205,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
         <p>{description}</p>
 
         <div className={styles.heroStatsBanner}>
-          <span className={styles.heroStatPill}>🏥 {items.length} {kind === "hospital" ? t("common.hospitals") : t("common.doctors")}</span>
+          <span className={styles.heroStatPill}>🏥 {allItems.length}{serverHasMore ? "+" : ""} {kind === "hospital" ? t("common.hospitals") : t("common.doctors")}</span>
           <span className={styles.heroStatPill}>📍 {cityOptions.length} {t("common.cities")}</span>
           <span className={styles.heroStatPill}>🩺 {allSpecialties.length} {t("common.specialties")}</span>
         </div>
@@ -194,7 +217,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             </svg>
             <input
               value={query}
-              onChange={(e) => { setQuery(e.target.value); resetPage(); }}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder={kind === "hospital" ? t("hospital.searchPlaceholder") : t("doctor.searchPlaceholder")}
               aria-label={t("common.search")}
             />
@@ -205,7 +228,6 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
               const next = e.target.value;
               setCity(next);
               if (typeof window !== "undefined") localStorage.setItem("eh_city", next);
-              resetPage();
             }}
             aria-label={t("common.allCities")}
             className={styles.searchBarSelectHideMobile}
@@ -215,7 +237,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
           </select>
           <select
             value={sort}
-            onChange={(e) => { setSort(e.target.value as typeof sort); resetPage(); }}
+            onChange={(e) => setSort(e.target.value as typeof sort)}
             aria-label={t("common.rating")}
             className={styles.searchBarSelectHideMobile}
           >
@@ -313,19 +335,19 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
             <button
               type="button"
               className={specialty === "all" ? styles.filterPillActive : styles.filterPill}
-              onClick={() => { setSpecialty("all"); resetPage(); }}
+              onClick={() => setSpecialty("all")}
             >
               {t("common.allDepartments")}
-              <span className={styles.filterPillCount}>{items.length}</span>
+              <span className={styles.filterPillCount}>{allItems.length}</span>
             </button>
             {allSpecialties.slice(0, 20).map((s) => {
-              const count = items.filter((i) => i.specialties.some((sp) => sp.trim() === s)).length;
+              const count = allItems.filter((i) => i.specialties.some((sp) => sp.trim() === s)).length;
               return (
                 <button
                   key={s}
                   type="button"
                   className={specialty === s ? styles.filterPillActive : styles.filterPill}
-                  onClick={() => { setSpecialty(s); resetPage(); }}
+                  onClick={() => setSpecialty(s)}
                 >
                   {s}
                   <span className={styles.filterPillCount}>{count}</span>
@@ -343,7 +365,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
         {activeFilterCount > 0 && (
           <button
             type="button"
-            onClick={() => { setCity("all"); setSpecialty("all"); setSort("rating"); setPage(1); }}
+            onClick={() => { setCity("all"); setSpecialty("all"); setSort("rating"); }}
             className={styles.clearFiltersBtn}
           >
             {t("common.clearFilters")}
@@ -353,7 +375,7 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
 
       {/* ── Card grid ── */}
       <section className={styles.directoryGrid} aria-label={title}>
-        {visibleItems.map((item) => (
+        {filtered.map((item) => (
           <article
             key={item.id}
             className={styles.directoryCard}
@@ -482,14 +504,22 @@ export function DirectorySearchList({ kind, items, cityOptions }: DirectorySearc
         )}
       </section>
 
-      {/* ── Infinite scroll sentinel ── */}
-      {hasMore && (
-        <div ref={sentinelRef} className={styles.loadMoreWrap} aria-hidden="true">
-          <span style={{ display: "flex", justifyContent: "center", padding: "12px 0", color: "#8FA39A", fontSize: "13px" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1B8A4A" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }}>
-              <path d="M21 12a9 9 0 11-6.219-8.56"/>
-            </svg>
-          </span>
+      {/* ── Load More button ── */}
+      {serverHasMore && (
+        <div className={styles.loadMoreWrap}>
+          <button
+            type="button"
+            className={styles.loadMoreBtn}
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore && (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite", verticalAlign: "middle", marginRight: "6px" }}>
+                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+              </svg>
+            )}
+            {t("common.loadMore")}
+          </button>
         </div>
       )}
       </>)} {/* end viewMode === "list" */}

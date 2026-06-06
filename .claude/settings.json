@@ -3,7 +3,9 @@
     "allow": [
       "Bash(node -e ' *)",
       "Read(//tmp/**)",
-      "Read(//c/tmp/**)"
+      "Read(//c/tmp/**)",
+      "Bash(npm run *)",
+      "Bash(npx tsx -e ' *)"
     ]
   }
 }

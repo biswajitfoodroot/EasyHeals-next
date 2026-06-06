@@ -64,7 +64,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
   const [stats, setStats] = useState({ hospitalLabel: "12k+", cityLabel: "50+", languageLabel: "9+", doctorLabel: "5k+" });
   const [cityHospitals, setCityHospitals] = useState<HospitalCard[]>([]);
 
-  const currentLocale = LOCALES.find((l) => l.code === locale);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   /* ── Outside click closes dropdowns ── */
@@ -73,6 +73,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
       const target = e.target as Element;
       if (!target.closest("[data-city-picker]")) setCityPickerOpen(false);
       if (!target.closest("[data-lang-picker]")) setLangOpen(false);
+      if (!target.closest("[data-mobile-lang-picker]")) setMobileLangOpen(false);
       if (!target.closest("[data-mobile-menu]")) setMenuOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
@@ -142,6 +143,7 @@ export default function HomePage({ topHospitals }: HomePageProps) {
     localStorage.setItem("eh_city", name);
     setCityPickerOpen(false);
     setCitySearch("");
+    window.dispatchEvent(new StorageEvent("storage", { key: "eh_city", newValue: name }));
   }
 
   function detectGpsCity() {
@@ -240,18 +242,18 @@ export default function HomePage({ topHospitals }: HomePageProps) {
             )}
           </div>
 
-          {/* Language picker */}
+          {/* Language picker — desktop only */}
           <div className={styles.navLang} style={{ position: "relative" }} data-lang-picker>
-            <button type="button" className={styles.navLangBtn} onClick={() => setLangOpen((v) => !v)}>
-              <span>{currentLocale?.nativeLabel ?? "EN"}</span>
-              <span style={{ fontSize: "0.55rem", opacity: 0.6 }}>▼</span>
+            <button type="button" className={styles.navLangBtn} onClick={() => setLangOpen((v) => !v)}
+              style={{ background: langOpen ? "#E6F5EC" : undefined, color: langOpen ? "#1B8A4A" : undefined, borderColor: langOpen ? "#1B8A4A" : undefined }}>
+              🌐 <span style={{ letterSpacing: "0.04em" }}>{locale.toUpperCase()}</span>
             </button>
             {langOpen && (
               <div className={styles.langDrop}>
                 {LOCALES.map((loc) => (
                   <button key={loc.code} type="button" className={loc.code === locale ? styles.langDropActive : ""} onClick={() => { setLocale(loc.code); setLangOpen(false); }}>
                     <span>{loc.nativeLabel}</span>
-                    <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.label}</span>
+                    <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.code.toUpperCase()}</span>
                   </button>
                 ))}
               </div>
@@ -272,6 +274,25 @@ export default function HomePage({ topHospitals }: HomePageProps) {
 
           <button type="button" className={styles.navCta} onClick={() => setRegistrationOpen(true)}>{t("home.listHospitalFree")}</button>
 
+          {/* Language picker — mobile only, outside burger */}
+          <div className={styles.mobileLangPicker} style={{ position: "relative" }} data-mobile-lang-picker>
+            <button type="button" className={styles.navLangBtn} onClick={() => setMobileLangOpen((v) => !v)}
+              style={{ background: mobileLangOpen ? "#E6F5EC" : undefined, color: mobileLangOpen ? "#1B8A4A" : undefined, borderColor: mobileLangOpen ? "#1B8A4A" : undefined }}>
+              🌐 <span style={{ letterSpacing: "0.04em" }}>{locale.toUpperCase()}</span>
+            </button>
+            {mobileLangOpen && (
+              <div className={styles.langDrop} style={{ right: 0 }}>
+                {LOCALES.map((loc) => (
+                  <button key={loc.code} type="button" className={loc.code === locale ? styles.langDropActive : ""}
+                    onClick={() => { setLocale(loc.code); setMobileLangOpen(false); }}>
+                    <span>{loc.nativeLabel}</span>
+                    <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.code.toUpperCase()}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Burger */}
           <button type="button" className={styles.navBurger} aria-label={menuOpen ? "Close menu" : "Open menu"} aria-expanded={menuOpen} data-mobile-menu onClick={() => setMenuOpen((v) => !v)}>
             {menuOpen ? (
@@ -288,24 +309,6 @@ export default function HomePage({ topHospitals }: HomePageProps) {
             <Link href="/diagnostics" onClick={() => setMenuOpen(false)}>🔬 {t("nav.diagnostics")}</Link>
             <Link href="/hospitals" onClick={() => setMenuOpen(false)}>🏥 {t("nav.hospitals")}</Link>
             <Link href="/doctors" onClick={() => setMenuOpen(false)}>👨‍⚕️ {t("nav.doctors")}</Link>
-
-            {/* Language selector in mobile menu */}
-            <div style={{ position: "relative", paddingTop: "8px" }}>
-              <button type="button" className={styles.mobileMenuLangBtn} onClick={() => setMobileLangOpen((v) => !v)}>
-                <span>🌐 {currentLocale?.nativeLabel ?? "EN"}</span>
-                <span style={{ fontSize: "0.55rem", opacity: 0.6 }}>▼</span>
-              </button>
-              {mobileLangOpen && (
-                <div className={styles.mobileMenuLangDrop}>
-                  {LOCALES.map((loc) => (
-                    <button key={loc.code} type="button" onClick={() => { setLocale(loc.code); setMobileLangOpen(false); setMenuOpen(false); }} style={{ background: loc.code === locale ? "#E6F5EC" : "transparent", color: loc.code === locale ? "#1B8A4A" : "#5A7367", fontWeight: loc.code === locale ? "700" : "600" }}>
-                      <span>{loc.nativeLabel}</span>
-                      <span style={{ fontSize: "0.7rem", color: "#8FA39A" }}>{loc.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
 
             <div className={styles.mobileMenuDivider} />
             {isLoggedIn === true ? (

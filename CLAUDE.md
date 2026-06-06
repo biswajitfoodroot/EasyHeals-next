@@ -120,6 +120,13 @@ Flags live in [src/lib/config/feature-flags.ts](src/lib/config/feature-flags.ts)
 - The active locale is cookie-based (`easyheals_locale`); never read it from the URL — always use the `LocaleContext` via `useTranslations()`
 - Do not use `navigator.language` or `Intl` directly for UI locale decisions — defer to the app's locale context
 
+### Pagination
+- All listing screens (hospitals, doctors, treatments, etc.) must fetch a maximum of **100 records per request**
+- Server components fetch the first 100 items via ISR; the client renders a **"Load More" button** — never auto-scroll/IntersectionObserver — to fetch subsequent pages
+- Public read-only listing API routes live under `/api/public/*`; they must accept `?offset=N` and return `{ data: [...], hasMore: boolean }`
+- Filter option metadata (city list, specialty list) is fetched in a separate lightweight query so it covers the full dataset even when the main list is paginated
+- Run `listXDirectory(limit + 1, offset)` internally and slice to `limit` — if the extra row exists, `hasMore = true`
+
 ### Smart UX
 - Gate unreleased or role-restricted features behind `<FeatureGate flag="...">` rather than hiding them with CSS or conditional rendering scattered across components
 - Auth-required actions (booking, health coach) should trigger `AuthBookingModal` / `ReauthModal` inline — never silently fail or redirect away

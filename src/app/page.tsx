@@ -206,7 +206,7 @@ export const revalidate = 3600;
 
 export default async function Home() {
   // Fetch top hospitals server-side for the "Popular in [City]" section
-  const rawHospitals = await listHospitalsDirectory(120);
+  const { items: rawHospitals } = await listHospitalsDirectory(100, 0);
   const topHospitals = rawHospitals.map((h) => ({
     id: h.id,
     slug: h.slug,

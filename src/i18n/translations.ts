@@ -208,6 +208,7 @@ export type Dict = {
     submitReview: string;
     reviewThankYou: string;
     network: string;
+    loadMore: string;
   };
   hospital: {
     directoryTitle: string;
@@ -516,6 +517,7 @@ const en: Dict = {
     submitReview: "Submit Review",
     reviewThankYou: "Thank you! Your review has been submitted and will appear after moderation.",
     network: "Network Partner",
+    loadMore: "Load more",
   },
   hospital: {
     directoryTitle: "Private Hospitals Across India",
@@ -927,6 +929,7 @@ const hi: Dict = {
     submitReview: "समीक्षा सबमिट करें",
     reviewThankYou: "धन्यवाद! आपकी समीक्षा सबमिट हो गई है और समीक्षा के बाद दिखाई देगी।",
     network: "नेटवर्क पार्टनर",
+    loadMore: "और लोड करें",
   },
   hospital: {
     directoryTitle: "भारत भर के निजी अस्पताल",
@@ -1340,6 +1343,7 @@ const mr: Dict = {
     submitReview: "परीक्षण सबमिट करा",
     reviewThankYou: "धन्यवाद! तुमचे परीक्षण सबमिट झाले आहे आणि तपासणीनंतर दिसेल।",
     network: "नेटवर्क भागीदार",
+    loadMore: "अधिक लोड करा",
   },
   hospital: {
     directoryTitle: "भारतभरातील खाजगी रुग्णालये",
@@ -1748,6 +1752,7 @@ const ta: Dict = {
     submitReview: "மதிப்பாய்வைச் சமர்ப்பிக்கவும்",
     reviewThankYou: "நன்றி! உங்கள் மதிப்பாய்வு சமர்ப்பிக்கப்பட்டது, மதிப்பாய்வுக்குப் பிறகு தோன்றும்.",
     network: "நெட்வொர்க் பார்ட்னர்",
+    loadMore: "மேலும் ஏற்றவும்",
   },
   hospital: {
     directoryTitle: "இந்தியா முழுவதும் தனியார் மருத்துவமனைகள்",
@@ -2157,6 +2162,7 @@ const bn: Dict = {
     submitReview: "রিভিউ জমা দিন",
     reviewThankYou: "ধন্যবাদ! আপনার রিভিউ জমা দেওয়া হয়েছে এবং পর্যালোচনার পরে দেখাবে।",
     network: "নেটওয়ার্ক পার্টনার",
+    loadMore: "আরও লোড করুন",
   },
   hospital: {
     directoryTitle: "ভারত জুড়ে বেসরকারি হাসপাতাল",
@@ -2565,6 +2571,7 @@ const ml: Dict = {
     submitReview: "അവലോകനം സമർപ്പിക്കുക",
     reviewThankYou: "നന്ദി! നിങ്ങളുടെ അവലോകനം സമർപ്പിച്ചു, മോഡറേഷന് ശേഷം ദൃശ്യമാകും.",
     network: "നെറ്റ്‌വർക്ക് പാർട്ണർ",
+    loadMore: "കൂടുതൽ ലോഡ് ചെയ്യുക",
   },
   hospital: {
     directoryTitle: "ഇന്ത്യ മുഴുവൻ സ്വകാര്യ ആശുപത്രികൾ",
@@ -2973,6 +2980,7 @@ const kn: Dict = {
     submitReview: "ರಿವ್ಯೂ ಸಲ್ಲಿಸಿ",
     reviewThankYou: "ಧನ್ಯವಾದ! ನಿಮ್ಮ ರಿವ್ಯೂ ಸಲ್ಲಿಸಲಾಗಿದೆ, ಮಾಡರೇಷನ್ ನಂತರ ಕಾಣಿಸುತ್ತದೆ.",
     network: "ನೆಟ್‌ವರ್ಕ್ ಪಾರ್ಟ್ನರ್",
+    loadMore: "ಇನ್ನಷ್ಟು ಲೋಡ್ ಮಾಡಿ",
   },
   hospital: {
     directoryTitle: "ಭಾರತ ಉದ್ದಕ್ಕೂ ಖಾಸಗಿ ಆಸ್ಪತ್ರೆಗಳು",
@@ -3381,6 +3389,7 @@ const te: Dict = {
     submitReview: "రివ్యూ సమర్పించండి",
     reviewThankYou: "ధన్యవాదాలు! మీ రివ్యూ సమర్పించబడింది, మోడరేషన్ తర్వాత కనిపిస్తుంది.",
     network: "నెట్‌వర్క్ పార్ట్‌నర్",
+    loadMore: "మరిన్ని లోడ్ చేయండి",
   },
   hospital: {
     directoryTitle: "భారతదేశం అంతటా ప్రైవేట్ ఆసుపత్రులు",
@@ -3789,6 +3798,7 @@ const ar: Dict = {
     submitReview: "إرسال التقييم",
     reviewThankYou: "شكرًا! تم إرسال تقييمك وسيظهر بعد المراجعة.",
     network: "شريك الشبكة",
+    loadMore: "تحميل المزيد",
   },
   hospital: {
     directoryTitle: "المستشفيات الخاصة عبر الهند",
@@ -4197,6 +4207,7 @@ const si: Dict = {
     submitReview: "සමාලෝචනය ඉදිරිපත් කරන්න",
     reviewThankYou: "ස්තූතියි! ඔබේ සමාලෝචනය ඉදිරිපත් කර ඇති අතර සමාලෝකනයෙන් පසු දිස් වනු ඇත.",
     network: "ජාල හවුල්කරු",
+    loadMore: "තවත් පූරණය කරන්න",
   },
   hospital: {
     directoryTitle: "ඉන්දියාව පුරා පෞද්ගලික රෝහල්",

@@ -39,10 +39,16 @@ export function SiteNav() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Restore saved city from localStorage
+  // Restore saved city from localStorage and keep in sync with other components
   useEffect(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("eh_city") : null;
     if (saved) setCity(saved);
+
+    function onStorage(e: StorageEvent) {
+      if (e.key === "eh_city") setCity(e.newValue ?? null);
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   useEffect(() => {

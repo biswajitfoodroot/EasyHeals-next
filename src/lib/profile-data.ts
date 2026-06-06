@@ -1,11 +1,11 @@
-import { and, asc, desc, eq, inArray, isNotNull, like, ne, not, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, like, ne, not, or, sql } from "drizzle-orm";
 
 import { db } from "@/db/client";
 import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, patientReviews, providerAgreements, taxonomyNodes } from "@/db/schema";
 import { enrichDoctorProfile } from "@/lib/doctor-enrich";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 
-export async function listHospitalsDirectory(limit = 300) {
+export async function listHospitalsDirectory(limit = 100, offset = 0) {
   const rows = await db
     .select({
       id: hospitals.id,
@@ -18,35 +18,45 @@ export async function listHospitalsDirectory(limit = 300) {
       verified: hospitals.verified,
       communityVerified: hospitals.communityVerified,
       reviewCount: hospitals.reviewCount,
-      description: hospitals.description,
+      description: sql<string>`substr(${hospitals.description}, 1, 90)`,
       isPrivate: hospitals.isPrivate,
       isActive: hospitals.isActive,
+      // Correlated subquery avoids JOIN-fanout when a hospital has multiple agreements
+      networkTierCode: sql<string | null>`(SELECT tier_code FROM provider_agreements WHERE hospital_id = ${hospitals.id} AND status = 'accepted' LIMIT 1)`,
     })
     .from(hospitals)
     .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true)))
     .orderBy(desc(hospitals.verified), desc(hospitals.rating), asc(hospitals.name))
-    .limit(limit);
+    .limit(limit + 1)
+    .offset(offset);
 
-  // Fetch all accepted network agreements and build a lookup map
-  const networkAgreements = await db
-    .select({ hospitalId: providerAgreements.hospitalId, tierCode: providerAgreements.tierCode })
-    .from(providerAgreements)
-    .where(and(eq(providerAgreements.status, "accepted"), isNotNull(providerAgreements.hospitalId)));
-
-  const networkMap = new Map(networkAgreements.map((a) => [a.hospitalId!, a.tierCode ?? null]));
-
-  return rows.map((row) => ({
+  const hasMore = rows.length > limit;
+  const items = rows.slice(0, limit).map((row) => ({
     ...row,
     specialties: parseStringArray(row.specialties),
     rating: row.rating ?? 0,
     verified: Boolean(row.verified),
     communityVerified: Boolean(row.communityVerified),
     reviewCount: row.reviewCount ?? 0,
-    networkTierCode: networkMap.get(row.id) ?? null,
+    networkTierCode: row.networkTierCode ?? null,
+  }));
+
+  return { items, hasMore };
+}
+
+export async function listHospitalsFilterMeta() {
+  const rows = await db
+    .select({ city: hospitals.city, specialties: hospitals.specialties })
+    .from(hospitals)
+    .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true)));
+
+  return rows.map((r) => ({
+    city: r.city,
+    specialties: parseStringArray(r.specialties),
   }));
 }
 
-export async function listDoctorsDirectory(limit = 400) {
+export async function listDoctorsDirectory(limit = 100, offset = 0) {
   const rows = await db
     .select({
       id: doctors.id,
@@ -64,15 +74,19 @@ export async function listDoctorsDirectory(limit = 400) {
     .from(doctors)
     .where(eq(doctors.isActive, true))
     .orderBy(desc(doctors.verified), desc(doctors.rating), asc(doctors.fullName))
-    .limit(limit);
+    .limit(limit + 1)
+    .offset(offset);
 
-  return rows.map((row) => ({
+  const hasMore = rows.length > limit;
+  const items = rows.slice(0, limit).map((row) => ({
     ...row,
     specialties: parseStringArray(row.specialties),
     rating: row.rating ?? 0,
     verified: Boolean(row.verified),
     reviewCount: row.reviewCount ?? 0,
   }));
+
+  return { items, hasMore };
 }
 
 export async function getHospitalProfileBySlug(slug: string) {

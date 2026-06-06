@@ -2322,6 +2322,12 @@
   }
 }
 
+/* ── Mobile language picker — hidden on desktop, shown on mobile ─────────────── */
+
+.mobileLangPicker {
+  display: none;
+}
+
 /* ── Burger button — hidden on desktop, shown on mobile ──────────────────────── */
 
 .navBurger {
@@ -2488,9 +2494,13 @@
     display: none !important;
   }
 
-  /* Hide language picker specifically; city picker stays visible */
+  /* Hide desktop language picker; show compact mobile pill instead */
   .navLang[data-lang-picker] {
     display: none !important;
+  }
+
+  .mobileLangPicker {
+    display: flex !important;
   }
 
   /* City picker on mobile: compact pill */

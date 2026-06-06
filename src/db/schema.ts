@@ -153,6 +153,7 @@ export const hospitals = sqliteTable(
   (table) => [
     uniqueIndex("hospitals_city_name_idx").on(table.city, table.name),
     uniqueIndex("hospitals_slug_unique_idx").on(table.slug),
+    index("hospitals_directory_idx").on(table.isActive, table.isPrivate, table.verified, table.rating),
   ],
 );
 
@@ -1684,6 +1685,7 @@ export const providerAgreements = sqliteTable(
     index("agreement_hospital_idx").on(table.hospitalId),
     index("agreement_doctor_idx").on(table.doctorId),
     index("agreement_status_idx").on(table.status),
+    index("agreements_status_hospital_idx").on(table.status, table.hospitalId),
   ],
 );
 
