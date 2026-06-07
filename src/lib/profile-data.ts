@@ -317,97 +317,112 @@ export async function getDoctorProfileBySlug(slug: string) {
     if (enriched) Object.assign(doctor, enriched);
   }
 
-  const affiliationRows = await db
-    .select({
-      affiliationId: doctorHospitalAffiliations.id,
-      role: doctorHospitalAffiliations.role,
-      schedule: doctorHospitalAffiliations.schedule,
-      feeMin: doctorHospitalAffiliations.feeMin,
-      feeMax: doctorHospitalAffiliations.feeMax,
-      isPrimary: doctorHospitalAffiliations.isPrimary,
-      hospitalId: hospitals.id,
-      hospitalSlug: hospitals.slug,
-      hospitalName: hospitals.name,
-      hospitalCity: hospitals.city,
-      hospitalState: hospitals.state,
-      hospitalAddressLine1: hospitals.addressLine1,
-      hospitalPhone: hospitals.phone,
-      hospitalRating: hospitals.rating,
-      hospitalReviewCount: hospitals.reviewCount,
-      hospitalSpecialties: hospitals.specialties,
-      hospitalVerified: hospitals.verified,
-      latitude: hospitals.latitude,
-      longitude: hospitals.longitude,
-    })
-    .from(doctorHospitalAffiliations)
-    .innerJoin(hospitals, eq(doctorHospitalAffiliations.hospitalId, hospitals.id))
-    .where(
-      and(
-        eq(doctorHospitalAffiliations.doctorId, doctor.id),
-        eq(doctorHospitalAffiliations.isActive, true),
-        eq(doctorHospitalAffiliations.affiliationStatus, "active"),
-        eq(hospitals.isActive, true),
-        // Exclude rows whose role text indicates a past relationship (ingestion artefact)
-        not(like(doctorHospitalAffiliations.role, "Previously%")),
-      ),
-    )
-    .orderBy(desc(doctorHospitalAffiliations.isPrimary), desc(hospitals.rating), asc(hospitals.name))
-    .limit(100);
-
-  // Past affiliations — inactive, removed/declined, OR role flagged as "Previously worked at"
-  const pastAffiliationRows = await db
-    .select({
-      affiliationId: doctorHospitalAffiliations.id,
-      role: doctorHospitalAffiliations.role,
-      affiliationStatus: doctorHospitalAffiliations.affiliationStatus,
-      hospitalId: hospitals.id,
-      hospitalSlug: hospitals.slug,
-      hospitalName: hospitals.name,
-      hospitalCity: hospitals.city,
-      hospitalState: hospitals.state,
-    })
-    .from(doctorHospitalAffiliations)
-    .innerJoin(hospitals, eq(doctorHospitalAffiliations.hospitalId, hospitals.id))
-    .where(
-      and(
-        eq(doctorHospitalAffiliations.doctorId, doctor.id),
-        or(
-          eq(doctorHospitalAffiliations.isActive, false),
-          inArray(doctorHospitalAffiliations.affiliationStatus, ["removed", "declined"]),
-          like(doctorHospitalAffiliations.role, "Previously%"),
+  // Build a nearby-doctors query using doctor.city if available now;
+  // fall back to the first affiliation's hospital city after affiliations resolve.
+  const nearbyQuery = (cityHint: string) =>
+    db
+      .select({
+        id: doctors.id,
+        slug: doctors.slug,
+        fullName: doctors.fullName,
+        specialization: doctors.specialization,
+        specialties: doctors.specialties,
+        city: doctors.city,
+        state: doctors.state,
+        rating: doctors.rating,
+        reviewCount: doctors.reviewCount,
+        verified: doctors.verified,
+      })
+      .from(doctors)
+      .where(
+        and(
+          eq(doctors.isActive, true),
+          ne(doctors.id, doctor.id),
+          or(eq(doctors.city, cityHint), like(doctors.city, `%${cityHint}%`)),
         ),
-      ),
-    )
-    .orderBy(asc(hospitals.name))
-    .limit(50);
+      )
+      .orderBy(desc(doctors.rating), asc(doctors.fullName))
+      .limit(8);
 
-  const cityHint = doctor.city ?? affiliationRows[0]?.hospitalCity ?? null;
+  // Run all three independent queries in parallel.
+  // Nearby doctors can start immediately if doctor.city is known; otherwise deferred.
+  const [affiliationRows, pastAffiliationRows, nearbyDoctorsEarly] = await Promise.all([
+    db
+      .select({
+        affiliationId: doctorHospitalAffiliations.id,
+        role: doctorHospitalAffiliations.role,
+        schedule: doctorHospitalAffiliations.schedule,
+        feeMin: doctorHospitalAffiliations.feeMin,
+        feeMax: doctorHospitalAffiliations.feeMax,
+        isPrimary: doctorHospitalAffiliations.isPrimary,
+        hospitalId: hospitals.id,
+        hospitalSlug: hospitals.slug,
+        hospitalName: hospitals.name,
+        hospitalCity: hospitals.city,
+        hospitalState: hospitals.state,
+        hospitalAddressLine1: hospitals.addressLine1,
+        hospitalPhone: hospitals.phone,
+        hospitalRating: hospitals.rating,
+        hospitalReviewCount: hospitals.reviewCount,
+        hospitalSpecialties: hospitals.specialties,
+        hospitalVerified: hospitals.verified,
+        latitude: hospitals.latitude,
+        longitude: hospitals.longitude,
+      })
+      .from(doctorHospitalAffiliations)
+      .innerJoin(hospitals, eq(doctorHospitalAffiliations.hospitalId, hospitals.id))
+      .where(
+        and(
+          eq(doctorHospitalAffiliations.doctorId, doctor.id),
+          eq(doctorHospitalAffiliations.isActive, true),
+          eq(doctorHospitalAffiliations.affiliationStatus, "active"),
+          eq(hospitals.isActive, true),
+          // Exclude rows whose role text indicates a past relationship (ingestion artefact)
+          not(like(doctorHospitalAffiliations.role, "Previously%")),
+        ),
+      )
+      .orderBy(desc(doctorHospitalAffiliations.isPrimary), desc(hospitals.rating), asc(hospitals.name))
+      .limit(100),
 
-  const nearbyDoctors = cityHint
-    ? await db
-        .select({
-          id: doctors.id,
-          slug: doctors.slug,
-          fullName: doctors.fullName,
-          specialization: doctors.specialization,
-          specialties: doctors.specialties,
-          city: doctors.city,
-          state: doctors.state,
-          rating: doctors.rating,
-          reviewCount: doctors.reviewCount,
-          verified: doctors.verified,
-        })
-        .from(doctors)
-        .where(
-          and(
-            eq(doctors.isActive, true),
-            ne(doctors.id, doctor.id),
-            or(eq(doctors.city, cityHint), like(doctors.city, `%${cityHint}%`)),
+    // Past affiliations — inactive, removed/declined, OR role flagged as "Previously worked at"
+    db
+      .select({
+        affiliationId: doctorHospitalAffiliations.id,
+        role: doctorHospitalAffiliations.role,
+        affiliationStatus: doctorHospitalAffiliations.affiliationStatus,
+        hospitalId: hospitals.id,
+        hospitalSlug: hospitals.slug,
+        hospitalName: hospitals.name,
+        hospitalCity: hospitals.city,
+        hospitalState: hospitals.state,
+      })
+      .from(doctorHospitalAffiliations)
+      .innerJoin(hospitals, eq(doctorHospitalAffiliations.hospitalId, hospitals.id))
+      .where(
+        and(
+          eq(doctorHospitalAffiliations.doctorId, doctor.id),
+          or(
+            eq(doctorHospitalAffiliations.isActive, false),
+            inArray(doctorHospitalAffiliations.affiliationStatus, ["removed", "declined"]),
+            like(doctorHospitalAffiliations.role, "Previously%"),
           ),
-        )
-        .orderBy(desc(doctors.rating), asc(doctors.fullName))
-        .limit(8)
-    : [];
+        ),
+      )
+      .orderBy(asc(hospitals.name))
+      .limit(50),
+
+    // Start nearby-doctors query in parallel when doctor.city is already known
+    doctor.city ? nearbyQuery(doctor.city) : Promise.resolve([]),
+  ]);
+
+  // If doctor.city was null, fall back to the first affiliation's hospital city
+  const cityHint = doctor.city ?? affiliationRows[0]?.hospitalCity ?? null;
+  const nearbyDoctors =
+    nearbyDoctorsEarly.length > 0
+      ? nearbyDoctorsEarly
+      : cityHint
+        ? await nearbyQuery(cityHint)
+        : [];
 
   const doctorQualifications = Array.from(new Set([
     ...parseStringArray(doctor.qualifications),

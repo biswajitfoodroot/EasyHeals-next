@@ -71,6 +71,13 @@
       "when": 1774586262589,
       "tag": "0009_numerous_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1780846887040,
+      "tag": "0010_greedy_paper_doll",
+      "breakpoints": true
     }
   ]
 }

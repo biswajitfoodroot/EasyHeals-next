@@ -433,7 +433,12 @@ export const doctors = sqliteTable("doctors", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).default(
     sql`(unixepoch() * 1000)`,
   ),
-});
+}, (table) => [
+  // Profile lookup: WHERE slug = ? AND is_active = true
+  index("doctors_slug_active_idx").on(table.slug, table.isActive),
+  // Nearby doctors: WHERE is_active = true AND city = ? ORDER BY rating DESC
+  index("doctors_city_active_rating_idx").on(table.isActive, table.city, table.rating),
+]);
 
 export const doctorHospitalAffiliations = sqliteTable(
   "doctor_hospital_affiliations",
@@ -468,6 +473,8 @@ export const doctorHospitalAffiliations = sqliteTable(
   },
   (table) => [
     uniqueIndex("doctor_hospital_affiliation_unique_idx").on(table.doctorId, table.hospitalId),
+    // Active affiliation lookup: WHERE doctor_id = ? AND is_active = ? AND affiliation_status = ?
+    index("doctor_aff_lookup_idx").on(table.doctorId, table.isActive, table.affiliationStatus),
   ],
 );
 
