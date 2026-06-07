@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin"]);
   if (forbidden) return forbidden;
 
   const payload = await req.json();

@@ -87,6 +87,8 @@ const applySchema = z.object({
   // "new" = force-create a fresh record regardless of any DB match
   // "<uuid>" = link to this existing doctor without changing their data
   doctorIdOverrides: z.record(z.string(), z.string()).optional(),
+  // sourceUrls: all source URLs the admin confirmed for this research session
+  sourceUrls: z.array(z.string()).optional().default([]),
 }).passthrough();
 
 export type HospitalCandidate = {
@@ -133,7 +135,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin"]);
   if (forbidden) return forbidden;
 
   const payload = await req.json().catch(() => null);
@@ -843,11 +845,16 @@ async function applyData(
   // ── Write ingestionFieldConfidences for the References panel ───────────────
   // Create a synthetic ingestion job so the References tab has a provenance record.
   try {
-    const sourceUrl = cleanStr(h.website) ?? cleanStr(h.addressLine1) ?? "ai_research";
+    // Build a deduplicated list of source URLs (user-supplied list wins; fall back to website/address)
+    const rawSourceUrls: string[] = raw.sourceUrls ?? [];
+    const websiteUrl = cleanStr(h.website);
+    const allSourceUrls = [...new Set([...rawSourceUrls, ...(websiteUrl ? [websiteUrl] : []), "ai_research"])];
+    const primarySourceUrl = allSourceUrls[0];
+
     const [syntheticJob] = await db.insert(ingestionJobs).values({
       requestedByUserId: userId,
       status: "completed",
-      sourceUrl,
+      sourceUrl: primarySourceUrl,
       searchQuery: hospitalName + (hospitalCity ? ` ${hospitalCity}` : ""),
       runMode: "ai_research",
       completedAt: new Date(),
@@ -867,21 +874,40 @@ async function applyData(
         { key: "facilities",     value: incomingFacilities.length ? incomingFacilities.join(", ").slice(0, 500) : null },
         { key: "accreditations", value: incomingAccreditations.length ? incomingAccreditations.join(", ").slice(0, 500) : null },
       ];
+
+      // Write one provenance row per source URL so the References panel shows every source
       const toInsert = fieldRefs.filter(f => f.value);
       if (toInsert.length > 0) {
-        await db.insert(ingestionFieldConfidences).values(
-          toInsert.map(f => ({
+        const confidenceRows = toInsert.flatMap(f =>
+          allSourceUrls.slice(0, 5).map(srcUrl => ({
             jobId: syntheticJob.id,
             entityType: "hospital" as const,
             entityId: hospitalId,
             fieldKey: f.key,
             extractedValue: f.value,
             sourceType: "ai_research",
-            sourceUrl,
+            sourceUrl: srcUrl,
             confidence: 0.75,
             reviewStatus: "applied",
-          })),
-        ).onConflictDoNothing().catch(() => null);
+          }))
+        );
+        await db.insert(ingestionFieldConfidences).values(confidenceRows).onConflictDoNothing().catch(() => null);
+      }
+
+      // Write a "sources" row for each additional URL so all appear in References
+      if (allSourceUrls.length > 1) {
+        const sourceRows = allSourceUrls.slice(1, 10).map(srcUrl => ({
+          jobId: syntheticJob.id,
+          entityType: "hospital" as const,
+          entityId: hospitalId,
+          fieldKey: "source",
+          extractedValue: srcUrl.slice(0, 500),
+          sourceType: "ai_research",
+          sourceUrl: srcUrl,
+          confidence: 0.75,
+          reviewStatus: "applied" as const,
+        }));
+        await db.insert(ingestionFieldConfidences).values(sourceRows).onConflictDoNothing().catch(() => null);
       }
     }
   } catch { /* non-critical — don't fail the save */ }

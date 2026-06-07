@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor", "doctor"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin", "doctor"]);
   if (forbidden) return forbidden;
 
   let doctorId = auth.entityId;

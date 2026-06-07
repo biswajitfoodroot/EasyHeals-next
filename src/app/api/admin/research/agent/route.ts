@@ -38,6 +38,14 @@ export type AgentEntity = {
     priceMin: number | null;
     priceMax: number | null;
   }>;
+  doctors: Array<{
+    fullName: string;
+    specialization: string | null;
+    qualifications: string[];
+    yearsOfExperience: number | null;
+    consultationFee: number | null;
+    bio: string | null;
+  }>;
 };
 
 export async function POST(req: NextRequest) {
@@ -158,8 +166,20 @@ Extract a JSON array of entities. Each entity must have ALL of the following fie
       "priceMin": number or null,
       "priceMax": number or null
     }
+  ],
+  "doctors": [
+    {
+      "fullName": "string — doctor's full name with title (Dr. ...)",
+      "specialization": "string — primary specialty (e.g. Cardiologist, Orthopaedic Surgeon) or null",
+      "qualifications": ["array of qualification strings e.g. MBBS, MD, DM, MCh, DNB"],
+      "yearsOfExperience": number or null,
+      "consultationFee": number or null (INR amount only, no currency symbol),
+      "bio": "string — brief professional background or null"
+    }
   ]
 }
+
+IMPORTANT: For hospital/clinic entities, populate "doctors" with ALL doctors you found affiliated with that facility. For doctor entities, leave "doctors" as an empty array [].
 
 Return ONLY the JSON array, no other text.`;
 
@@ -191,6 +211,7 @@ Return ONLY the JSON array, no other text.`;
         facilities: [],
         accreditations: [],
         packages: [],
+        doctors: [],
       }));
   }
 
