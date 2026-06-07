@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { listDoctorsDirectory } from "@/lib/profile-data";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset") ?? 0));
-  const { items, hasMore } = await listDoctorsDirectory(100, offset);
+  const q = req.nextUrl.searchParams.get("q") ?? undefined;
+  const city = req.nextUrl.searchParams.get("city") ?? undefined;
+  const { items, hasMore } = await listDoctorsDirectory(100, offset, q, city);
 
   const data = items.map((row) => ({
     id: row.id,

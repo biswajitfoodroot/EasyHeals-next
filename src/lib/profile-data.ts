@@ -5,7 +5,7 @@ import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals
 import { enrichDoctorProfile } from "@/lib/doctor-enrich";
 import { buildDirectionsUrl, buildEmbedMapUrl, formatHospitalLocation, parseJsonRecord, parseStringArray } from "@/lib/profiles";
 
-export async function listHospitalsDirectory(limit = 100, offset = 0) {
+export async function listHospitalsDirectory(limit = 100, offset = 0, q?: string, city?: string) {
   const rows = await db
     .select({
       id: hospitals.id,
@@ -25,7 +25,16 @@ export async function listHospitalsDirectory(limit = 100, offset = 0) {
       networkTierCode: sql<string | null>`(SELECT tier_code FROM provider_agreements WHERE hospital_id = ${hospitals.id} AND status = 'accepted' LIMIT 1)`,
     })
     .from(hospitals)
-    .where(and(eq(hospitals.isActive, true), eq(hospitals.isPrivate, true)))
+    .where(and(
+      eq(hospitals.isActive, true),
+      eq(hospitals.isPrivate, true),
+      city ? eq(hospitals.city, city) : undefined,
+      q?.trim() ? or(
+        like(hospitals.name, `%${q.trim()}%`),
+        like(hospitals.city, `%${q.trim()}%`),
+        like(hospitals.description, `%${q.trim()}%`),
+      ) : undefined,
+    ))
     .orderBy(desc(hospitals.verified), desc(hospitals.rating), asc(hospitals.name))
     .limit(limit + 1)
     .offset(offset);
@@ -56,7 +65,7 @@ export async function listHospitalsFilterMeta() {
   }));
 }
 
-export async function listDoctorsDirectory(limit = 100, offset = 0) {
+export async function listDoctorsDirectory(limit = 100, offset = 0, q?: string, city?: string) {
   const rows = await db
     .select({
       id: doctors.id,
@@ -72,7 +81,15 @@ export async function listDoctorsDirectory(limit = 100, offset = 0) {
       yearsOfExperience: doctors.yearsOfExperience,
     })
     .from(doctors)
-    .where(eq(doctors.isActive, true))
+    .where(and(
+      eq(doctors.isActive, true),
+      city ? eq(doctors.city, city) : undefined,
+      q?.trim() ? or(
+        like(doctors.fullName, `%${q.trim()}%`),
+        like(doctors.specialization, `%${q.trim()}%`),
+        like(doctors.city, `%${q.trim()}%`),
+      ) : undefined,
+    ))
     .orderBy(desc(doctors.verified), desc(doctors.rating), asc(doctors.fullName))
     .limit(limit + 1)
     .offset(offset);

@@ -1149,7 +1149,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
             fullName: entity.name,
             city: entity.city ?? undefined,
             phone: entity.phone ?? undefined,
-            bio: entity.snippet || undefined,
+            bio: entity.description || entity.snippet || undefined,
+            sourceUrl: entity.sourceUrl ?? entity.website ?? undefined,
           }),
         });
         const body = await res.json().catch(() => ({}));

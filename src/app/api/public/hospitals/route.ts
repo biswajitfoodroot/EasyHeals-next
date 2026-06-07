@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset") ?? 0));
-  const { items, hasMore } = await listHospitalsDirectory(20, offset);
+  const q = req.nextUrl.searchParams.get("q") ?? undefined;
+  const city = req.nextUrl.searchParams.get("city") ?? undefined;
+  const { items, hasMore } = await listHospitalsDirectory(20, offset, q, city);
 
   const data = items.map((row) => ({
     id: row.id,

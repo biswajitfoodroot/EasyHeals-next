@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 import { useTranslations } from "@/i18n/LocaleContext";
@@ -73,6 +73,10 @@ export function DirectorySearchList({ kind, items, cityOptions, hasMore: initial
   const [serverHasMore, setServerHasMore] = useState(initialHasMore);
   const [serverOffset, setServerOffset] = useState(items.length);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Track q+city that are currently reflected in allItems so Load More sends the same params
+  const fetchParamsRef = useRef<{ q: string; city: string }>({ q: "", city: "all" });
 
   function openFilterSheet() {
     setDraftCity(city);
@@ -96,49 +100,83 @@ export function DirectorySearchList({ kind, items, cityOptions, hasMore: initial
 
   const activeFilterCount = [city !== "all", specialty !== "all", sort !== "rating"].filter(Boolean).length;
 
+  // city and query are handled server-side; specialty and sort remain client-side
   const filtered = useMemo(() => {
     let result = allItems.filter((item) => {
-      if (city !== "all" && item.city.toLowerCase() !== city.toLowerCase()) return false;
       if (specialty !== "all" && !item.specialties.some((s) => s.trim() === specialty)) return false;
-      if (!query.trim()) return true;
-      const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
-      return text.includes(query.trim().toLowerCase());
+      return true;
     });
     if (sort === "rating") result = [...result].sort((a, b) => b.rating - a.rating);
     else if (sort === "name") result = [...result].sort((a, b) => a.name.localeCompare(b.name));
     else if (sort === "reviews") result = [...result].sort((a, b) => (b.reviewCount ?? 0) - (a.reviewCount ?? 0));
     return result;
-  }, [city, allItems, query, sort, specialty]);
+  }, [allItems, sort, specialty]);
 
-  // Count based on draft filter state — updates live as user taps options in the sheet
+  // Count shown in the mobile filter sheet "Show N Results" button
   const draftFilteredCount = useMemo(() => {
     return allItems.filter((item) => {
-      if (draftCity !== "all" && item.city.toLowerCase() !== draftCity.toLowerCase()) return false;
       if (draftSpecialty !== "all" && !item.specialties.some((s) => s.trim() === draftSpecialty)) return false;
-      if (!query.trim()) return true;
-      const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
-      return text.includes(query.trim().toLowerCase());
+      return true;
     }).length;
-  }, [draftCity, draftSpecialty, allItems, query]);
+  }, [draftSpecialty, allItems]);
+
+  const apiBase = kind === "hospital" ? "/api/public/hospitals" : "/api/public/doctors";
+
+  function buildApiUrl(offsetVal: number, qVal: string, cityVal: string) {
+    const params = new URLSearchParams({ offset: String(offsetVal) });
+    if (qVal) params.set("q", qVal);
+    if (cityVal !== "all") params.set("city", cityVal);
+    return `${apiBase}?${params}`;
+  }
+
+  // Debounced server-side search whenever query or city changes
+  useEffect(() => {
+    const qTrimmed = query.trim();
+    const timer = setTimeout(async () => {
+      if (qTrimmed === fetchParamsRef.current.q && city === fetchParamsRef.current.city) return;
+
+      if (!qTrimmed && city === "all") {
+        // No active filter — reset to the SSR initial data
+        setAllItems(items);
+        setServerOffset(items.length);
+        setServerHasMore(initialHasMore);
+        fetchParamsRef.current = { q: "", city: "all" };
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const res = await fetch(buildApiUrl(0, qTrimmed, city), { credentials: "include", cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json() as { data: DirectoryItem[]; hasMore: boolean };
+        setAllItems(json.data);
+        setServerOffset(json.data.length);
+        setServerHasMore(json.hasMore);
+        fetchParamsRef.current = { q: qTrimmed, city };
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, city]);
 
   async function handleLoadMore() {
     if (loadingMore || !serverHasMore) return;
     setLoadingMore(true);
 
-    // Keep fetching batches until at least 10 new items pass the current filters,
+    // Server already filters by q+city; only specialty remains client-side
+    function passesSpecialty(item: DirectoryItem) {
+      if (specialty !== "all" && !item.specialties.some((s) => s.trim() === specialty)) return false;
+      return true;
+    }
+
+    // Keep fetching batches until at least 10 new items pass the specialty filter,
     // or the server runs out of data. Caps at 4 requests to avoid runaway loops.
     const MIN_VISIBLE = 10;
     const MAX_BATCHES = 4;
-
-    function passesFilter(item: DirectoryItem) {
-      if (city !== "all" && item.city.toLowerCase() !== city.toLowerCase()) return false;
-      if (specialty !== "all" && !item.specialties.some((s) => s.trim() === specialty)) return false;
-      if (query.trim()) {
-        const text = `${item.name} ${item.city} ${item.state ?? ""} ${item.specialties.join(" ")} ${item.subtitle ?? ""}`.toLowerCase();
-        if (!text.includes(query.trim().toLowerCase())) return false;
-      }
-      return true;
-    }
+    const { q: currentQ, city: currentCity } = fetchParamsRef.current;
 
     let currentOffset = serverOffset;
     let accumulated: DirectoryItem[] = [];
@@ -146,16 +184,13 @@ export function DirectorySearchList({ kind, items, cityOptions, hasMore: initial
 
     try {
       for (let batch = 0; batch < MAX_BATCHES; batch++) {
-        const apiPath = kind === "hospital"
-          ? `/api/public/hospitals?offset=${currentOffset}`
-          : `/api/public/doctors?offset=${currentOffset}`;
-        const res = await fetch(apiPath, { credentials: "include", cache: "no-store" });
+        const res = await fetch(buildApiUrl(currentOffset, currentQ, currentCity), { credentials: "include", cache: "no-store" });
         if (!res.ok) break;
         const json = await res.json() as { data: DirectoryItem[]; hasMore: boolean };
         accumulated = [...accumulated, ...json.data];
         currentOffset += json.data.length;
         hasMoreServer = json.hasMore;
-        if (!hasMoreServer || accumulated.filter(passesFilter).length >= MIN_VISIBLE) break;
+        if (!hasMoreServer || accumulated.filter(passesSpecialty).length >= MIN_VISIBLE) break;
       }
       setAllItems((prev) => [...prev, ...accumulated]);
       setServerOffset(currentOffset);
@@ -212,9 +247,15 @@ export function DirectorySearchList({ kind, items, cityOptions, hasMore: initial
 
         <div className={styles.searchBar}>
           <div className={styles.searchInputWrap}>
-            <svg className={styles.searchInputIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
+            {isSearching ? (
+              <svg className={styles.searchInputIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 0.8s linear infinite" }} aria-hidden="true">
+                <path d="M21 12a9 9 0 11-6.219-8.56"/>
+              </svg>
+            ) : (
+              <svg className={styles.searchInputIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+            )}
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}

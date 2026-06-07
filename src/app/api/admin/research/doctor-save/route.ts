@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { doctors } from "@/db/schema";
+import { doctors, ingestionFieldConfidences, ingestionJobs } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
@@ -25,6 +25,7 @@ const schema = z.object({
   phone: z.string().max(30).optional(),
   bio: z.string().max(2000).optional(),
   qualifications: z.array(z.string()).optional(),
+  sourceUrl: z.string().url().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -42,7 +43,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Validation error", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { fullName, specialization, city, phone, bio, qualifications = [] } = parsed.data;
+  const { fullName, specialization, city, phone, bio, qualifications = [], sourceUrl } = parsed.data;
+  const userId = auth.userId;
+
+  async function writeReferences(doctorId: string) {
+    try {
+      const url = sourceUrl ?? "ai_research";
+      const [job] = await db.insert(ingestionJobs).values({
+        requestedByUserId: userId,
+        status: "completed",
+        sourceUrl: url,
+        searchQuery: fullName + (city ? ` ${city}` : ""),
+        runMode: "ai_research",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      }).returning({ id: ingestionJobs.id });
+
+      if (!job) return;
+
+      type FieldRef = { key: string; value: string | null };
+      const fieldRefs: FieldRef[] = [
+        { key: "fullName",       value: fullName },
+        { key: "specialization", value: specialization ?? null },
+        { key: "bio",            value: bio ?? null },
+        { key: "city",           value: city ?? null },
+        { key: "phone",          value: phone ?? null },
+        { key: "qualifications", value: qualifications.length ? qualifications.join(", ") : null },
+      ];
+      const toInsert = fieldRefs.filter(f => f.value);
+      if (toInsert.length === 0) return;
+
+      await db.insert(ingestionFieldConfidences).values(
+        toInsert.map(f => ({
+          jobId: job.id,
+          entityType: "doctor" as const,
+          entityId: doctorId,
+          fieldKey: f.key,
+          extractedValue: f.value,
+          sourceType: "ai_research",
+          sourceUrl: url,
+          confidence: 0.75,
+          reviewStatus: "applied",
+        })),
+      ).onConflictDoNothing().catch(() => null);
+    } catch { /* non-critical */ }
+  }
 
   // ── Check for exact name match ────────────────────────────────────────────
   const [existing] = await db
@@ -82,6 +127,8 @@ export async function POST(req: NextRequest) {
       changes: { fullName },
     });
 
+    await writeReferences(existing.id);
+
     return NextResponse.json({
       data: { action: "updated", doctorId: existing.id, doctorSlug: existing.slug, doctorName: fullName },
     });
@@ -118,6 +165,8 @@ export async function POST(req: NextRequest) {
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
     changes: { fullName, specialization, city },
   });
+
+  await writeReferences(created.id);
 
   return NextResponse.json({
     data: { action: "created", doctorId: created.id, doctorSlug: created.slug, doctorName: fullName },
