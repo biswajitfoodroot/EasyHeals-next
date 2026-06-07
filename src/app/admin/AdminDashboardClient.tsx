@@ -313,6 +313,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
   // ── Hospital Management ─────────────────────────────────────────────────────
   const [hospitalList, setHospitalList] = useState<Hospital[]>(initialHospitals);
+  const [hospitalHasMore, setHospitalHasMore] = useState(initialHospitals.length >= 500);
+  const [hospitalLoadingMore, setHospitalLoadingMore] = useState(false);
   const [hospitalSearch, setHospitalSearch] = useState("");
   const [hospitalCityFilter, setHospitalCityFilter] = useState("");
   const [hospitalStatusFilter, setHospitalStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -583,6 +585,20 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     const active = hospitalList.filter((h) => h.isActive).length;
     return { total: hospitalList.length, active, inactive: hospitalList.length - active };
   }, [hospitalList]);
+
+  async function loadMoreHospitals() {
+    if (hospitalLoadingMore || !hospitalHasMore) return;
+    setHospitalLoadingMore(true);
+    try {
+      const res = await fetch(`/api/hospitals?offset=${hospitalList.length}&limit=500`, { credentials: "include", cache: "no-store" });
+      if (!res.ok) return;
+      const json = await res.json() as { data: Hospital[]; hasMore: boolean };
+      setHospitalList(prev => [...prev, ...json.data]);
+      setHospitalHasMore(json.hasMore);
+    } finally {
+      setHospitalLoadingMore(false);
+    }
+  }
 
   const slugPreview = useMemo(
     () =>
@@ -2142,6 +2158,19 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
               </div>
             </div>
           </div>
+        {/* ── Load More Hospitals ─────────────────────────────────────────── */}
+        {hospitalHasMore && (
+          <div className="flex justify-center pt-2 pb-4">
+            <button
+              type="button"
+              onClick={loadMoreHospitals}
+              disabled={hospitalLoadingMore}
+              className="px-6 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 hover:border-teal-300 transition-all disabled:opacity-50"
+            >
+              {hospitalLoadingMore ? "Loading…" : `Load more hospitals (showing ${hospitalList.length})`}
+            </button>
+          </div>
+        )}
         </section>
 
         {/* ── QUICK ADD HOSPITAL (inside hospitals tab) ────────────────────── */}

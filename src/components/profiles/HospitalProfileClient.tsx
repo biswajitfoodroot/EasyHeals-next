@@ -116,11 +116,89 @@ function ratingText(rating: number, count: number) {
   return `${rating.toFixed(1)} (${count.toLocaleString("en-IN")})`;
 }
 
-function objectSummary(value: Record<string, unknown> | null, notUpdatedLabel = "Not updated"): string {
-  if (!value) return notUpdatedLabel;
-  return Object.entries(value)
-    .map(([key, item]) => `${key}: ${String(item)}`)
-    .join(" | ");
+// ── Working-hours helpers (handles both legacy flat strings and new structured format) ──
+
+const WH_DAY_ORDER: [string, string][] = [
+  ["monday","Mon"],["tuesday","Tue"],["wednesday","Wed"],
+  ["thursday","Thu"],["friday","Fri"],["saturday","Sat"],["sunday","Sun"],
+];
+
+function whFormatSlot(val: unknown): string {
+  if (!val) return "—";
+  if (typeof val === "string") {
+    const norm = val.toLowerCase();
+    if (norm === "closed") return "Closed";
+    if (norm === "open24h" || norm === "24h" || norm === "24/7") return "Open 24 hrs";
+    return val;
+  }
+  if (typeof val === "object" && !Array.isArray(val)) {
+    const v = val as { open?: string; close?: string; closed?: boolean; open24h?: boolean };
+    if (v.open24h === true || (v.open === "00:00" && v.close === "00:00")) return "Open 24 hrs";
+    if (v.closed) return "Closed";
+    if (v.open && v.close) return `${v.open} – ${v.close}`;
+  }
+  return String(val);
+}
+
+// One-line summary shown in the hero strip (today's status or first available day).
+function whHeroLine(wh: Record<string, unknown>): string {
+  const dayKeys = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+  const todayKey = dayKeys[new Date().getDay()] ?? "monday";
+  const todayVal = wh[todayKey];
+  if (todayVal !== undefined) {
+    const slot = whFormatSlot(todayVal);
+    if (slot === "Closed") return "Closed today";
+    if (slot === "Open 24 hrs") return "Open 24/7";
+    return `Open today · ${slot}`;
+  }
+  // Fallback: first entry that looks like a schedule string
+  const first = Object.entries(wh)[0];
+  if (first) return `${first[0]}: ${whFormatSlot(first[1])}`;
+  return "Open";
+}
+
+// Full table rendered in the sidebar.
+function WorkingHoursTable({ wh }: { wh: Record<string, unknown> }) {
+  // Detect whether this is the new structured format (keys are full day names)
+  // or legacy flat format (arbitrary keys like "Mon-Fri", "Weekends" etc.)
+  const isStructured = WH_DAY_ORDER.some(([key]) => key in wh);
+
+  if (isStructured) {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+        <tbody>
+          {WH_DAY_ORDER.map(([key, label]) => {
+            const slot = whFormatSlot(wh[key]);
+            const closed = slot === "Closed" || !wh[key];
+            const is24h = slot === "Open 24 hrs";
+            return (
+              <tr key={key} style={{ borderBottom: "1px solid #f1f5f3" }}>
+                <td style={{ padding: "4px 0", fontWeight: 600, color: "#374151", width: "40px" }}>{label}</td>
+                <td style={{ padding: "4px 0", textAlign: "right" }}>
+                  {closed ? (
+                    <span style={{ color: "#9ca3af" }}>Closed</span>
+                  ) : is24h ? (
+                    <span style={{ color: "#059669", fontWeight: 600, fontSize: "12px", background: "#ecfdf5", padding: "1px 7px", borderRadius: "10px", border: "1px solid #a7f3d0" }}>24h</span>
+                  ) : (
+                    <span style={{ color: "#111827" }}>{slot}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  }
+
+  // Legacy flat format — render as simple key: value lines
+  return (
+    <>{Object.entries(wh).map(([k, v]) => (
+      <p key={k} style={{ margin: "2px 0", fontSize: "13px" }}>
+        <span style={{ fontWeight: 600 }}>{k}:</span> {whFormatSlot(v)}
+      </p>
+    ))}</>
+  );
 }
 
 function initials(name: string): string {
@@ -357,7 +435,7 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 {data.hospital.workingHours && (
                   <span className={styles.heroFact}>
                     <span className={styles.heroFactIcon}>🕐</span>
-                    <span>{objectSummary(data.hospital.workingHours, "").split("|")[0]?.trim() || "Open"}</span>
+                    <span>{whHeroLine(data.hospital.workingHours)}</span>
                   </span>
                 )}
               </div>
@@ -556,9 +634,9 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               {data.hospital.workingHours && (
                 <div>
                   <p className={styles.sidebarCardTitle}>🕐 {t("common.workingHours")}</p>
-                  <p className={styles.sidebarCardBody} style={{ wordBreak: "break-word" }}>
-                    {objectSummary(data.hospital.workingHours)}
-                  </p>
+                  <div className={styles.sidebarCardBody}>
+                    <WorkingHoursTable wh={data.hospital.workingHours} />
+                  </div>
                 </div>
               )}
 

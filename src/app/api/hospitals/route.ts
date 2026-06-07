@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
 
   const city = req.nextUrl.searchParams.get("city");
   const search = req.nextUrl.searchParams.get("search");
+  const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset") ?? 0));
+  const limit = Math.min(500, Math.max(1, Number(req.nextUrl.searchParams.get("limit") ?? 500)));
 
   const filters = [];
   if (city) filters.push(eq(hospitals.city, city));
@@ -35,9 +37,11 @@ export async function GET(req: NextRequest) {
     .from(hospitals)
     .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(hospitals.createdAt))
-    .limit(100);
+    .limit(limit + 1)
+    .offset(offset);
 
-  return NextResponse.json({ data: rows });
+  const hasMore = rows.length > limit;
+  return NextResponse.json({ data: rows.slice(0, limit), hasMore });
 }
 
 export async function POST(req: NextRequest) {

@@ -18,7 +18,8 @@ const updateHospitalSchema = z.object({
   country: z.string().max(80).optional(),
   addressLine1: z.string().max(200).optional(),
   phone: z.string().max(20).optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().nullable().optional()
+    .or(z.literal("").transform(() => null)),
   isActive: z.boolean().optional(),
 });
 

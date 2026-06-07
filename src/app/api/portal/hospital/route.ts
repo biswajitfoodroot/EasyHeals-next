@@ -49,18 +49,16 @@ const patchSchema = z.object({
   // Contact
   phone: z.string().max(20).nullable().optional(),
   phones: z.array(z.string()).optional(),
-  email: z.string().email("Invalid email address").nullable().optional(),
+  email: z.string().email("Invalid email address").nullable().optional()
+    .or(z.literal("").transform(() => null)),
   emailIds: z.array(z.string()).optional(),
-  website: z
-    .string()
-    .url("Invalid website URL")
-    .nullable()
-    .optional()
+  website: z.string().nullable().optional()
     .or(z.literal("").transform(() => null)),
   whatsappBusinessNumber: z.string().max(20).nullable().optional(),
   contactPerson: z.string().max(200).nullable().optional(),
   contactPhone: z.string().max(20).nullable().optional(),
-  contactEmail: z.string().email().nullable().optional(),
+  contactEmail: z.string().email().nullable().optional()
+    .or(z.literal("").transform(() => null)),
   // Location
   city: z.string().max(100).nullable().optional(),
   state: z.string().max(100).nullable().optional(),

@@ -14,7 +14,7 @@ export default async function AdminDashboardPage() {
   }
 
   const [hospitalRows, nodeRows] = await Promise.all([
-    db.select().from(hospitals).orderBy(desc(hospitals.createdAt)).limit(50),
+    db.select().from(hospitals).orderBy(desc(hospitals.createdAt)).limit(500),
     db.select().from(taxonomyNodes).orderBy(desc(taxonomyNodes.createdAt)).limit(100),
   ]);
 
