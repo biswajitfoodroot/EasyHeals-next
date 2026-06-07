@@ -24,7 +24,8 @@
       "Bash(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\HospitalProfileClient.tsx\")",
       "Bash(Measure-Object -Line)",
       "PowerShell(\\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\HospitalProfileClient.tsx\"\\).Count; \\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\DoctorProfileClient.tsx\"\\).Count)",
-      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(grep -v \"//.*advisor\")"
     ]
   }
 }
