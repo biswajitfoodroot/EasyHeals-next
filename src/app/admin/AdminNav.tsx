@@ -23,43 +23,49 @@ type NavItem = {
   roles?: string[];
 };
 
+// Shorthand role sets reused across menu items
+const OWNERS_ADMINS = ["owner", "admin"];
+const CONTENT_EDITORS = ["owner", "admin", "admin_manager", "admin_editor"];
+const ALL_STAFF = ["owner", "admin", "admin_manager", "admin_editor", "advisor"];
+
 const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
   {
     items: [
-      { href: "/admin", label: "Dashboard", icon: "⚡", exact: true },
+      { href: "/admin", label: "Dashboard", icon: "⚡", exact: true, roles: CONTENT_EDITORS },
     ],
   },
   {
     heading: "Data & Content",
     items: [
-      { href: "/admin?tab=ingestion", label: "Ingestion", icon: "🤖" },
-      { href: "/admin?tab=hospitals", label: "Hospitals", icon: "🏥" },
-      { href: "/admin?tab=taxonomy", label: "Taxonomy", icon: "🏷️" },
-      { href: "/admin?tab=ai_research", label: "AI Research", icon: "🔍" },
-      { href: "/admin?tab=brochure", label: "Brochure Extract", icon: "📄" },
+      { href: "/admin?tab=ingestion",   label: "Ingestion",        icon: "🤖", roles: CONTENT_EDITORS },
+      { href: "/admin?tab=hospitals",   label: "Hospitals",        icon: "🏥", roles: CONTENT_EDITORS },
+      { href: "/admin?tab=taxonomy",    label: "Taxonomy",         icon: "🏷️", roles: CONTENT_EDITORS },
+      { href: "/admin?tab=ai_research", label: "AI Research",      icon: "🔍", roles: CONTENT_EDITORS },
+      { href: "/admin?tab=brochure",    label: "Brochure Extract", icon: "📄", roles: CONTENT_EDITORS },
     ],
   },
   {
     heading: "Operations",
     items: [
-      { href: "/provider-management/appointments", label: "Appointments", icon: "📅" },
-      { href: "/admin?tab=patients", label: "Patients", icon: "🧑‍⚕️" },
-      { href: "/admin?tab=providers", label: "Providers", icon: "🏥" },
+      { href: "/provider-management/appointments", label: "Appointments", icon: "📅", roles: ALL_STAFF },
+      { href: "/admin?tab=patients",  label: "Patients",  icon: "🧑‍⚕️", roles: OWNERS_ADMINS },
+      { href: "/admin?tab=providers", label: "Providers", icon: "🏥",    roles: ALL_STAFF },
     ],
   },
   {
     heading: "Community & Moderation",
     items: [
-      { href: "/admin?tab=contributions", label: "Contributions", icon: "✏️" },
-      { href: "/admin?tab=kyc", label: "KYC Review", icon: "🪪" },
-      { href: "/admin/audit-log", label: "Audit Log", icon: "📋" },
+      { href: "/admin?tab=contributions", label: "Contributions", icon: "✏️", roles: ALL_STAFF },
+      { href: "/admin?tab=kyc",           label: "KYC Review",    icon: "🪪", roles: [...OWNERS_ADMINS, "admin_manager"] },
+      { href: "/admin/audit-log",         label: "Audit Log",     icon: "📋", roles: ALL_STAFF },
     ],
   },
   {
     heading: "Administration",
     items: [
-      { href: "/admin/access", label: "Access & Users", icon: "👥", roles: ["owner", "admin"] },
-      { href: "/admin?tab=config", label: "Feature Flags", icon: "⚙️", roles: ["owner", "admin"] },
+      { href: "/admin/access",       label: "Access & Users", icon: "👥", roles: OWNERS_ADMINS },
+      { href: "/admin?tab=config",   label: "Feature Flags",  icon: "⚙️", roles: OWNERS_ADMINS },
+      { href: "/admin?tab=settings", label: "Settings",       icon: "🔧", roles: OWNERS_ADMINS },
     ],
   },
 ];

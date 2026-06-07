@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor", "viewer"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
   if (forbidden) return forbidden;
 
   const { searchParams } = new URL(req.url);
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin"]);
   if (forbidden) return forbidden;
 
   const body = await req.json().catch(() => null);
@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin"]);
   if (forbidden) return forbidden;
 
   const body = await req.json().catch(() => null);

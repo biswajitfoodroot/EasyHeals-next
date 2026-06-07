@@ -7,11 +7,12 @@ import { db } from "@/db/client";
 import { hospitals, taxonomyNodes } from "@/db/schema";
 import { getAuthFromCookies } from "@/lib/auth";
 
+const ADMIN_ROLES = ["owner", "admin", "admin_manager", "admin_editor", "advisor"];
+
 export default async function AdminDashboardPage() {
   const auth = await getAuthFromCookies();
-  if (!auth) {
-    redirect("/admin/login");
-  }
+  if (!auth) redirect("/admin/login");
+  if (!ADMIN_ROLES.includes(auth.role)) redirect("/");
 
   const [hospitalRows, nodeRows] = await Promise.all([
     db.select().from(hospitals).orderBy(desc(hospitals.createdAt)).limit(500),

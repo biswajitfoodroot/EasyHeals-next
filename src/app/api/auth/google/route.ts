@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     const role = roleRows[0]?.code ?? "contributor";
-    const adminRoles = ["owner", "admin", "advisor", "viewer"];
+    const adminRoles = ["owner", "admin", "admin_manager", "admin_editor", "advisor", "viewer"];
 
     if (!adminRoles.includes(role)) {
       return NextResponse.json(

@@ -60,7 +60,7 @@ const createQueueSchema = z.object({
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
-  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor", "viewer"]);
+  const forbidden = ensureRole(auth.role, ["owner", "admin", "advisor"]);
   if (forbidden) return forbidden;
 
   const jobId = req.nextUrl.searchParams.get("jobId")?.trim();

@@ -10,8 +10,12 @@ import { requireAuth } from "@/lib/auth";
 import { ensureRole } from "@/lib/rbac";
 import { loadThresholds, saveThresholds } from "@/lib/outlier-config";
 
-export function GET(req: NextRequest) {
-  void req;
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+  const forbidden = ensureRole(auth.role, ["owner", "admin"]);
+  if (forbidden) return forbidden;
+
   const thresholds = loadThresholds();
   return NextResponse.json({ data: thresholds });
 }
