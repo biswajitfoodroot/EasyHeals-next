@@ -9,7 +9,21 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/)",
       "Bash(curl -s \"http://localhost:5000/doctors\")",
       "Bash(npx playwright *)",
-      "Read(//c/Users/raman/AppData/Local/Temp/**)"
+      "Read(//c/Users/raman/AppData/Local/Temp/**)",
+      "Bash(xargs grep -l \"outlier\\\\|scoreContribution\")",
+      "Bash(mkdir -p \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\app\\\\api\\\\public\\\\hospitals\\\\[id]\\\\references\")",
+      "Bash(mkdir -p \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\app\\\\api\\\\public\\\\hospitals\\\\[id]\\\\edits\")",
+      "Bash(mkdir -p \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\app\\\\api\\\\public\\\\doctors\\\\[id]\\\\references\")",
+      "Bash(mkdir -p \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\app\\\\api\\\\public\\\\doctors\\\\[id]\\\\edits\")",
+      "Bash(nslookup database-easyheals-next-vercel-icfg-olfoninplshbsuocigzka41i.aws-ap-south-1.turso.io)",
+      "Bash(nslookup turso.io 8.8.8.8)",
+      "Bash(nslookup database-easyheals-next-vercel-icfg-olfoninplshbsuocigzka41i.aws-ap-south-1.turso.io 8.8.8.8)",
+      "Bash(ipconfig /flushdns)",
+      "PowerShell(ipconfig /flushdns)",
+      "Bash(xargs grep -l \"hospital.*profile\\\\|HospitalProfile\\\\|hospitals/\\\\[\")",
+      "Bash(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\HospitalProfileClient.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "PowerShell(\\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\HospitalProfileClient.tsx\"\\).Count; \\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\DoctorProfileClient.tsx\"\\).Count)"
     ]
   }
 }

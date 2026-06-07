@@ -7,6 +7,7 @@ import { useTranslations } from "@/i18n/LocaleContext";
 import AuthBookingModal from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
 import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
+import { ReferencesEditsPanel } from "@/components/profiles/ReferencesEditsPanel";
 import styles from "@/components/profiles/profiles.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -699,6 +700,11 @@ export function DoctorProfileClient({ data }: DoctorProfileClientProps) {
         )}
 
       </div>{/* end tab content container */}
+
+      {/* ── References & Edits (Wikipedia-style) ── */}
+      <div className={styles.container} style={{ minWidth: 0, marginTop: "24px" }}>
+        <ReferencesEditsPanel entityType="doctor" entityId={doctor.id} />
+      </div>
 
       {/* ── Nearby Doctors (always visible, below all tabs) ── */}
       {data.nearbyDoctors.length > 0 && (

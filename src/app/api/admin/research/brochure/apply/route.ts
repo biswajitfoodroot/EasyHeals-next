@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db/client";
-import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals } from "@/db/schema";
+import { doctorHospitalAffiliations, doctors, hospitalListingPackages, hospitals, ingestionFieldConfidences, ingestionJobs } from "@/db/schema";
 import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { ensureRole } from "@/lib/rbac";
@@ -81,6 +81,8 @@ const applySchema = z.object({
   dryRun: z.boolean().optional(),
   // quickSave: skip confirmation for 0-1 candidates — auto-create or auto-update
   quickSave: z.boolean().optional(),
+  // overrideFields: scalar fields to overwrite even when DB already has a value
+  overrideFields: z.array(z.string()).optional().default([]),
   // doctorIdOverrides: admin explicitly maps extracted doctor name → existing doctor ID or "new"
   // "new" = force-create a fresh record regardless of any DB match
   // "<uuid>" = link to this existing doctor without changing their data
@@ -112,6 +114,8 @@ export type BrochureDiff = {
     addedAccreditations: string[];
     dupAccreditations: string[];
     fieldFills: Array<{ field: string; value: string }>;
+    /** Scalar fields where the DB has a value AND the fetch has a different value */
+    fieldUpdates: Array<{ field: string; currentValue: string; fetchedValue: string }>;
   };
   doctors: {
     /** Doctors not yet in DB (or not linked) — admin must decide: link to candidate or create new */
@@ -286,6 +290,7 @@ async function createAndApply(
         addedAccreditations: cleanArr(h.accreditations),
         dupAccreditations: [],
         fieldFills: [],
+        fieldUpdates: [],
       },
       doctors: {
         new: raw.doctors
@@ -410,23 +415,33 @@ async function applyData(
   const addedAccreditations = incomingAccreditations.filter((a) => !existingAccreditations.includes(a));
   const dupAccreditations = incomingAccreditations.filter((a) => existingAccreditations.includes(a));
 
-  // ── Scalar fields: only fill if currently null/empty ──────────────────────
+  // ── Scalar fields: fill empty + optionally override existing ─────────────
+  const overrideFields: string[] = Array.isArray(raw.overrideFields) ? raw.overrideFields : [];
   const fieldFills: Array<{ field: string; value: string }> = [];
+  const fieldUpdates: Array<{ field: string; currentValue: string; fetchedValue: string }> = [];
   const scalarUpdate: Record<string, unknown> = {};
 
-  function fillIfEmpty(field: string, existing: string | null, incoming: string | undefined) {
-    if (!existing && incoming) {
+  function processScalarField(field: string, existing: string | null, incoming: string | undefined) {
+    if (!incoming) return;
+    if (!existing) {
+      // DB is empty — always fill
       fieldFills.push({ field, value: incoming });
       scalarUpdate[field] = incoming;
+    } else if (existing !== incoming) {
+      // DB has a different value — record as potential update
+      fieldUpdates.push({ field, currentValue: existing, fetchedValue: incoming });
+      if (overrideFields.includes(field)) {
+        scalarUpdate[field] = incoming;
+      }
     }
   }
 
-  fillIfEmpty("phone", existingPhone, cleanStr(h.phone));
-  fillIfEmpty("email", existingEmail, cleanStr(h.email));
-  fillIfEmpty("website", existingWebsite, cleanStr(h.website));
-  fillIfEmpty("description", existingDescription, cleanStr(h.description));
-  fillIfEmpty("addressLine1", existingAddressLine1, cleanStr(h.addressLine1));
-  fillIfEmpty("state", existingState, cleanStr(h.state));
+  processScalarField("phone", existingPhone, cleanStr(h.phone));
+  processScalarField("email", existingEmail, cleanStr(h.email));
+  processScalarField("website", existingWebsite, cleanStr(h.website));
+  processScalarField("description", existingDescription, cleanStr(h.description));
+  processScalarField("addressLine1", existingAddressLine1, cleanStr(h.addressLine1));
+  processScalarField("state", existingState, cleanStr(h.state));
 
   // ── Resolve doctors (query once, reuse in write) ───────────────────────────
   type ResolvedDoctor = {
@@ -605,6 +620,7 @@ async function applyData(
       addedAccreditations,
       dupAccreditations,
       fieldFills,
+      fieldUpdates,
     },
     doctors: {
       new: resolvedDoctors
@@ -823,6 +839,52 @@ async function applyData(
       addedAccreditations,
     },
   });
+
+  // ── Write ingestionFieldConfidences for the References panel ───────────────
+  // Create a synthetic ingestion job so the References tab has a provenance record.
+  try {
+    const sourceUrl = cleanStr(h.website) ?? cleanStr(h.addressLine1) ?? "ai_research";
+    const [syntheticJob] = await db.insert(ingestionJobs).values({
+      requestedByUserId: userId,
+      status: "completed",
+      sourceUrl,
+      searchQuery: hospitalName + (hospitalCity ? ` ${hospitalCity}` : ""),
+      runMode: "ai_research",
+      completedAt: new Date(),
+      updatedAt: new Date(),
+    }).returning({ id: ingestionJobs.id });
+
+    if (syntheticJob) {
+      type FieldRef = { key: string; value: string | null };
+      const fieldRefs: FieldRef[] = [
+        { key: "description",    value: cleanStr(h.description) ?? null },
+        { key: "phone",          value: cleanStr(h.phone) ?? null },
+        { key: "email",          value: cleanStr(h.email) ?? null },
+        { key: "website",        value: cleanStr(h.website) ?? null },
+        { key: "addressLine1",   value: cleanStr(h.addressLine1) ?? null },
+        { key: "workingHours",   value: cleanWorkingHours(h.workingHours) ? JSON.stringify(cleanWorkingHours(h.workingHours)).slice(0, 500) : null },
+        { key: "specialties",    value: incomingSpecialties.length ? incomingSpecialties.join(", ").slice(0, 500) : null },
+        { key: "facilities",     value: incomingFacilities.length ? incomingFacilities.join(", ").slice(0, 500) : null },
+        { key: "accreditations", value: incomingAccreditations.length ? incomingAccreditations.join(", ").slice(0, 500) : null },
+      ];
+      const toInsert = fieldRefs.filter(f => f.value);
+      if (toInsert.length > 0) {
+        await db.insert(ingestionFieldConfidences).values(
+          toInsert.map(f => ({
+            jobId: syntheticJob.id,
+            entityType: "hospital" as const,
+            entityId: hospitalId,
+            fieldKey: f.key,
+            extractedValue: f.value,
+            sourceType: "ai_research",
+            sourceUrl,
+            confidence: 0.75,
+            reviewStatus: "applied",
+          })),
+        ).onConflictDoNothing().catch(() => null);
+      }
+    }
+  } catch { /* non-critical — don't fail the save */ }
 
   return NextResponse.json({
     data: {

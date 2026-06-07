@@ -7,9 +7,9 @@ import Image from "next/image";
 import { useTranslations } from "@/i18n/LocaleContext";
 import AuthBookingModal, { type BookingDoctor } from "@/components/AuthBookingModal";
 import { ContributeModal } from "@/components/contribute/ContributeModal";
-import { InlineFieldEditor } from "@/components/profiles/InlineFieldEditor";
 import EasyHealsNetworkBadge from "@/components/profiles/EasyHealsNetworkBadge";
 import HospitalMiniCard from "@/components/profiles/HospitalMiniCard";
+import { ReferencesEditsPanel } from "@/components/profiles/ReferencesEditsPanel";
 import styles from "@/components/profiles/profiles.module.css";
 import type { SearchResult } from "@/components/phase1/types";
 
@@ -107,7 +107,7 @@ type HospitalProfileClientProps = {
   };
 };
 
-const TABS = ["doctors", "packages", "reviews"] as const;
+const TABS = ["overview", "doctors", "packages", "reviews"] as const;
 type TabKey = (typeof TABS)[number];
 
 function ratingText(rating: number, count: number) {
@@ -186,6 +186,7 @@ function PictorialListItem({ text, type }: { text: string; type: "facility" | "a
 
 export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   const { t } = useTranslations();
+  const [tab, setTab] = useState<TabKey>("overview");
   const [modalOpen, setModalOpen] = useState(false);
   const [contributeOpen, setContributeOpen] = useState(false);
   const [showAllSpecialties, setShowAllSpecialties] = useState(false);
@@ -259,15 +260,17 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
   };
 
   const tabLabels: Record<TabKey, string> = {
-    doctors: t("hospital.tabDoctors"),
+    overview: t("doctor.tabOverview"),
+    doctors:  t("hospital.tabDoctors"),
     packages: t("hospital.tabPackagesShort"),
-    reviews: t("hospital.tabReviews"),
+    reviews:  t("hospital.tabReviews"),
   };
 
   const tabIcons: Record<TabKey, string> = {
-    doctors: "👨‍⚕️",
+    overview: "🏥",
+    doctors:  "👨‍⚕️",
     packages: "📦",
-    reviews: "⭐",
+    reviews:  "⭐",
   };
 
   return (
@@ -461,20 +464,164 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
         </header>
       </div>
 
-      {/* ══ STICKY NAVIGATION BAR ══════════════════════════════════════════════ */}
+      {/* ── Tab Nav ── */}
       <div className={styles.container}>
-        <nav className={styles.anchorNav} aria-label="Hospital profile sections">
+        <nav className={styles.anchorNav} role="tablist" aria-label="Hospital profile sections">
           {TABS.map((key) => (
-            <a key={key} href={`#${key}`} className={styles.anchorLink}>
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={styles.anchorLink}
+              style={tab === key
+                ? { background: "#E6F5EC", color: "#1B8A4A", fontWeight: 700 }
+                : undefined}
+            >
               {tabIcons[key]} {tabLabels[key]}
-            </a>
+            </button>
           ))}
         </nav>
       </div>
 
-      <section id="doctors" className={styles.pageSection}>
-        <div className={styles.container}>
-          <div className={styles.panel}>
+      {/* ── Tab Content ── */}
+      <div className={styles.container} style={{ minWidth: 0, marginTop: "24px", marginBottom: "8px" }}>
+
+        {/* ══════════════════════════════
+            TAB: Overview
+        ══════════════════════════════ */}
+        {tab === "overview" && (
+          <div className={styles.overviewMain} style={{ minWidth: 0, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "36px 40px" }}>
+
+              {/* Highlights */}
+              <div>
+                <p className={styles.sidebarCardTitle}>✦ Highlights</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "20px" }}>⭐</span>
+                    <div>
+                      <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#1A2B23" }}>
+                        {ratingText(data.hospital.rating, data.hospital.reviewCount)}
+                      </p>
+                      <p style={{ margin: 0, fontSize: "11px", color: "#8FA39A" }}>{t("common.rating")}</p>
+                    </div>
+                  </div>
+                  {data.doctors.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "20px" }}>👨‍⚕️</span>
+                      <div>
+                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#1A2B23" }}>{data.doctors.length}</p>
+                        <p style={{ margin: 0, fontSize: "11px", color: "#8FA39A" }}>{t("common.doctors")}</p>
+                      </div>
+                    </div>
+                  )}
+                  {data.hospital.specialties.length > 0 && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "20px" }}>🩺</span>
+                      <div>
+                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#1A2B23" }}>{data.hospital.specialties.length}</p>
+                        <p style={{ margin: 0, fontSize: "11px", color: "#8FA39A" }}>Specialties</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Contact */}
+              {(data.hospital.phone || data.hospital.email || data.hospital.website || data.hospital.addressLine1) && (
+                <div>
+                  <p className={styles.sidebarCardTitle}>📞 {t("common.contact")}</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {data.hospital.phone && (
+                      <a href={`tel:${data.hospital.phone}`} className={styles.contactValue}>{data.hospital.phone}</a>
+                    )}
+                    {data.hospital.email && (
+                      <a href={`mailto:${data.hospital.email}`} className={styles.contactValue}>{data.hospital.email}</a>
+                    )}
+                    {data.hospital.website && (
+                      <a href={data.hospital.website} target="_blank" rel="noreferrer" className={styles.contactValue}>
+                        {data.hospital.website.replace(/^https?:\/\//, "").split("/")[0]}
+                      </a>
+                    )}
+                    {data.hospital.addressLine1 && (
+                      <p style={{ margin: 0, fontSize: "13px", color: "#5A7367" }}>{data.hospital.addressLine1}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Working Hours */}
+              {data.hospital.workingHours && (
+                <div>
+                  <p className={styles.sidebarCardTitle}>🕐 {t("common.workingHours")}</p>
+                  <p className={styles.sidebarCardBody} style={{ wordBreak: "break-word" }}>
+                    {objectSummary(data.hospital.workingHours)}
+                  </p>
+                </div>
+              )}
+
+              {/* Accreditations */}
+              {data.hospital.accreditations.length > 0 && (
+                <div>
+                  <p className={styles.sidebarCardTitle}>🏅 Accreditations</p>
+                  <div className={styles.tagRow}>
+                    {data.hospital.accreditations.map((a) => (
+                      <span key={a}><PictorialListItem text={a} type="accreditation" /></span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Facilities — full pictorial grid */}
+            {data.hospital.facilities.length > 0 && (
+              <div style={{ marginTop: "28px" }}>
+                <p className={styles.sidebarCardTitle}>🏨 Facilities</p>
+                <div className={styles.pictorialGrid}>
+                  {data.hospital.facilities.map((f) => (
+                    <PictorialListItem key={f} text={f} type="facility" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Specialties — full list */}
+            {data.hospital.specialties.length > 0 && (
+              <div style={{ marginTop: "28px" }}>
+                <p className={styles.sidebarCardTitle}>🩺 All Specialties</p>
+                <div className={styles.tagRow}>
+                  {data.hospital.specialties.map((s) => <span key={s}>{s}</span>)}
+                </div>
+              </div>
+            )}
+
+            {/* Map embed */}
+            {data.hospital.map.embedUrl && (
+              <div style={{ marginTop: "28px" }}>
+                <p className={styles.sidebarCardTitle}>🗺️ Location</p>
+                <iframe
+                  src={data.hospital.map.embedUrl}
+                  width="100%"
+                  height="260"
+                  style={{ border: 0, borderRadius: "14px" }}
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                  title={`Map for ${data.hospital.name}`}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════════════════════════════
+            TAB: Doctors
+        ══════════════════════════════ */}
+        {tab === "doctors" && (
+          <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div className={styles.panelHeaderIcon}>👨‍⚕️</div>
               <div>
@@ -503,105 +650,94 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
             </div>
 
             <div className={styles.sectionScrollBox}>
-            <div className={styles.cardGrid}>
-              {visibleDoctors.map((doctor) => (
-                <article key={doctor.id} className={styles.docCard} data-color={docAvatarColor(doctor.name)}>
-                  {/* Header: avatar + identity */}
-                  <div className={styles.docCardHeader}>
-                    <div className={styles.avatar} data-color={docAvatarColor(doctor.name)} aria-hidden="true">
-                      {initials(doctor.name)}
-                    </div>
-                    <div className={styles.docCardIdentity}>
-                      <h3 className={styles.docCardName}>{doctor.name}</h3>
-                      <span className={styles.docCardRole}>{doctor.role}</span>
-                    </div>
-                  </div>
-
-                  {/* Specialization */}
-                  {doctor.specialization && (
-                    <div className={styles.docCardSection}>
-                      <span className={styles.docCardSectionLabel}>🩺 Specialization</span>
-                      <span className={styles.docCardSpecValue}>{doctor.specialization}</span>
-                    </div>
-                  )}
-
-                  {/* Qualifications */}
-                  {doctor.qualifications.length > 0 && (
-                    <div className={styles.docCardSection}>
-                      <span className={styles.docCardSectionLabel}>🎓 {t("doctor.qualifications")}</span>
-                      <div className={styles.docCardQualPills}>
-                        {doctor.qualifications.slice(0, 3).map((q) => (
-                          <span key={q} className={styles.docCardQualPill}>{q}</span>
-                        ))}
-                        {doctor.qualifications.length > 3 && (
-                          <span className={styles.docCardQualPillMore}>+{doctor.qualifications.length - 3}</span>
-                        )}
+              <div className={styles.cardGrid}>
+                {visibleDoctors.map((doctor) => (
+                  <article key={doctor.id} className={styles.docCard} data-color={docAvatarColor(doctor.name)}>
+                    <div className={styles.docCardHeader}>
+                      <div className={styles.avatar} data-color={docAvatarColor(doctor.name)} aria-hidden="true">
+                        {initials(doctor.name)}
+                      </div>
+                      <div className={styles.docCardIdentity}>
+                        <h3 className={styles.docCardName}>{doctor.name}</h3>
+                        <span className={styles.docCardRole}>{doctor.role}</span>
                       </div>
                     </div>
-                  )}
-
-                  {/* Sub-specialties */}
-                  {doctor.specialties.length > 0 && (
-                    <div className={styles.docCardSpecialties}>
-                      {doctor.specialties.slice(0, 3).map((item) => (
-                        <span key={`${doctor.id}-${item}`} className={styles.docCardSpecialtyTag}>{item}</span>
-                      ))}
-                      {doctor.specialties.length > 3 && (
-                        <span className={styles.tagMore}>+{doctor.specialties.length - 3}</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Rating + badge row */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                    <span className={styles.starRow}>
-                      {(() => {
-                        const effective = doctor.reviewCount === 0 && doctor.rating === 0 ? 4.0 : doctor.rating;
-                        const full = Math.min(5, Math.round(effective));
-                        return <>{"★".repeat(full)}{"☆".repeat(5 - full)}<span>{effective.toFixed(1)}{doctor.reviewCount > 0 ? ` (${doctor.reviewCount.toLocaleString("en-IN")})` : " (New)"}</span></>;
-                      })()}
-                    </span>
-                    <span className={styles.verifiedBadge}>
-                      {doctor.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
-                    </span>
-                  </div>
-
-                  {/* Footer */}
-                  <div className={styles.docCardFooter}>
-                    {doctor.yearsOfExperience ? (
-                      <span className={styles.docCardExp}>
-                        <span className={styles.docCardExpVal}>{doctor.yearsOfExperience}+</span> {t("common.yearsExp")}
-                      </span>
-                    ) : (
-                      <span className={styles.docCardExpMuted}>⏳ {t("common.updating")}</span>
+                    {doctor.specialization && (
+                      <div className={styles.docCardSection}>
+                        <span className={styles.docCardSectionLabel}>🩺 Specialization</span>
+                        <span className={styles.docCardSpecValue}>{doctor.specialization}</span>
+                      </div>
                     )}
-                    <Link href={doctor.profileUrl} className={styles.docCardViewBtn}>{t("common.viewProfile")}</Link>
+                    {doctor.qualifications.length > 0 && (
+                      <div className={styles.docCardSection}>
+                        <span className={styles.docCardSectionLabel}>🎓 {t("doctor.qualifications")}</span>
+                        <div className={styles.docCardQualPills}>
+                          {doctor.qualifications.slice(0, 3).map((q) => (
+                            <span key={q} className={styles.docCardQualPill}>{q}</span>
+                          ))}
+                          {doctor.qualifications.length > 3 && (
+                            <span className={styles.docCardQualPillMore}>+{doctor.qualifications.length - 3}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {doctor.specialties.length > 0 && (
+                      <div className={styles.docCardSpecialties}>
+                        {doctor.specialties.slice(0, 3).map((item) => (
+                          <span key={`${doctor.id}-${item}`} className={styles.docCardSpecialtyTag}>{item}</span>
+                        ))}
+                        {doctor.specialties.length > 3 && (
+                          <span className={styles.tagMore}>+{doctor.specialties.length - 3}</span>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span className={styles.starRow}>
+                        {(() => {
+                          const effective = doctor.reviewCount === 0 && doctor.rating === 0 ? 4.0 : doctor.rating;
+                          const full = Math.min(5, Math.round(effective));
+                          return <>{"★".repeat(full)}{"☆".repeat(5 - full)}<span>{effective.toFixed(1)}{doctor.reviewCount > 0 ? ` (${doctor.reviewCount.toLocaleString("en-IN")})` : " (New)"}</span></>;
+                        })()}
+                      </span>
+                      <span className={styles.verifiedBadge}>
+                        {doctor.verified ? `✅ ${t("common.verified")}` : t("common.communityVerified")}
+                      </span>
+                    </div>
+                    <div className={styles.docCardFooter}>
+                      {doctor.yearsOfExperience ? (
+                        <span className={styles.docCardExp}>
+                          <span className={styles.docCardExpVal}>{doctor.yearsOfExperience}+</span> {t("common.yearsExp")}
+                        </span>
+                      ) : (
+                        <span className={styles.docCardExpMuted}>⏳ {t("common.updating")}</span>
+                      )}
+                      <Link href={doctor.profileUrl} className={styles.docCardViewBtn}>{t("common.viewProfile")}</Link>
+                    </div>
+                  </article>
+                ))}
+                {visibleDoctors.length === 0 && (
+                  <div className={styles.emptyStateCard}>
+                    <div className={styles.emptyStateIcon}>👨‍⚕️</div>
+                    <h3 className={styles.emptyStateTitle}>{t("common.noResults")}</h3>
+                    <p className={styles.emptyStateBody}>Try a different search term or clear the filter.</p>
                   </div>
-                </article>
-              ))}
-              {visibleDoctors.length === 0 && (
-                <div className={styles.emptyStateCard}>
-                  <div className={styles.emptyStateIcon}>👨‍⚕️</div>
-                  <h3 className={styles.emptyStateTitle}>{t("common.noResults")}</h3>
-                  <p className={styles.emptyStateBody}>Try a different search term or clear the department filter.</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-            </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        )}
 
-      <section id="packages" className={styles.pageSection}>
-        <div className={styles.container}>
-          <div className={styles.panel}>
+        {/* ══════════════════════════════
+            TAB: Packages
+        ══════════════════════════════ */}
+        {tab === "packages" && (
+          <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div className={styles.panelHeaderIcon}>📦</div>
               <div>
                 <h2 className={styles.panelTitle}>{t("hospital.tabPackages")}</h2>
               </div>
             </div>
-            
             <div className={styles.tabSearchControl}>
               <div className={styles.tabSearchRow}>
                 <svg className={styles.tabSearchIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -630,44 +766,43 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               </div>
             ) : (
               <div className={styles.sectionScrollBox}>
-              <div className={styles.cardGrid}>
-                {visiblePackages.map((pkg) => (
-                  <article key={pkg.id} className={styles.packageCard}>
-                    <h3 className={styles.packageName}>{pkg.packageName}</h3>
-                    {pkg.procedureName && <p className={styles.packageProcedure}>{pkg.procedureName}</p>}
-                    {pkg.department && <span className={styles.packageDept}>{pkg.department}</span>}
-                    <p className={styles.packagePrice}>
-                      {pkg.priceMin || pkg.priceMax
-                        ? `₹${pkg.priceMin?.toLocaleString("en-IN") ?? "–"} – ₹${pkg.priceMax?.toLocaleString("en-IN") ?? "–"}${pkg.currency !== "INR" ? ` ${pkg.currency}` : ""}`
-                        : t("common.priceOnRequest")}
-                    </p>
-                    {pkg.lengthOfStay && <p className={styles.packageStay}>🛏 {t("common.stay")}: {pkg.lengthOfStay}</p>}
-                    {pkg.inclusions.length > 0 && (
-                      <ul className={styles.packageInclusions}>
-                        {pkg.inclusions.slice(0, 4).map((inc) => (
-                          <li key={inc} className={styles.packageInclusionItem}>{inc}</li>
-                        ))}
-                      </ul>
-                    )}
-                    <div className={styles.profileCardFooter}>
-                      <button type="button" onClick={() => setModalOpen(true)} className={styles.directoryCardBook}>
-                        {t("common.bookPackage")}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
+                <div className={styles.cardGrid}>
+                  {visiblePackages.map((pkg) => (
+                    <article key={pkg.id} className={styles.packageCard}>
+                      <h3 className={styles.packageName}>{pkg.packageName}</h3>
+                      {pkg.procedureName && <p className={styles.packageProcedure}>{pkg.procedureName}</p>}
+                      {pkg.department && <span className={styles.packageDept}>{pkg.department}</span>}
+                      <p className={styles.packagePrice}>
+                        {pkg.priceMin || pkg.priceMax
+                          ? `₹${pkg.priceMin?.toLocaleString("en-IN") ?? "–"} – ₹${pkg.priceMax?.toLocaleString("en-IN") ?? "–"}${pkg.currency !== "INR" ? ` ${pkg.currency}` : ""}`
+                          : t("common.priceOnRequest")}
+                      </p>
+                      {pkg.lengthOfStay && <p className={styles.packageStay}>🛏 {t("common.stay")}: {pkg.lengthOfStay}</p>}
+                      {pkg.inclusions.length > 0 && (
+                        <ul className={styles.packageInclusions}>
+                          {pkg.inclusions.slice(0, 4).map((inc) => (
+                            <li key={inc} className={styles.packageInclusionItem}>{inc}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className={styles.profileCardFooter}>
+                        <button type="button" onClick={() => setModalOpen(true)} className={styles.directoryCardBook}>
+                          {t("common.bookPackage")}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      </section>
+          </section>
+        )}
 
-
-
-      <section id="reviews" className={styles.pageSection}>
-        <div className={styles.container}>
-          <div className={styles.panel}>
+        {/* ══════════════════════════════
+            TAB: Reviews
+        ══════════════════════════════ */}
+        {tab === "reviews" && (
+          <section className={styles.panel}>
             <div className={styles.panelHeader}>
               <div className={styles.panelHeaderIcon}>⭐</div>
               <div>
@@ -678,7 +813,6 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               </div>
             </div>
 
-            {/* Approved reviews list */}
             {data.reviews.length > 0 && (
               <div className={styles.reviewList}>
                 {data.reviews.map((review) => (
@@ -715,15 +849,12 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               </div>
             )}
 
-            {/* Review submission form */}
             <div className={styles.reviewForm}>
               <h3 className={styles.reviewFormTitle}>
                 {data.reviews.length > 0 ? t("common.writeReview") : t("common.beFirstReview")}
               </h3>
               {reviewSubmitted ? (
-                <p className={styles.reviewSuccess}>
-                  ✅ {t("common.reviewThankYou")}
-                </p>
+                <p className={styles.reviewSuccess}>✅ {t("common.reviewThankYou")}</p>
               ) : (
                 <form
                   onSubmit={async (e) => {
@@ -796,16 +927,20 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
                 </form>
               )}
             </div>
-          </div>
-        </div>
-      </section>
+          </section>
+        )}
 
-      <section className={styles.pageSection}>
-        <div className={styles.container}>
+      </div>{/* end tab content container */}
 
-        {/* ── Related: Similar Hospitals ── */}
-        {data.nearbyHospitals.length > 0 && (
-          <div className={styles.relatedSection}>
+      {/* ── References & Edits (always visible below tabs) ── */}
+      <div className={styles.container} style={{ minWidth: 0, marginTop: "24px" }}>
+        <ReferencesEditsPanel entityType="hospital" entityId={data.hospital.id} />
+      </div>
+
+      {/* ── Related: Similar Hospitals ── */}
+      {data.nearbyHospitals.length > 0 && (
+        <div className={styles.container} style={{ minWidth: 0, marginTop: "40px" }}>
+          <div className={styles.relatedSection} style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}>
             <h3 className={styles.relatedTitle}>🏥 {t("hospital.nearby")}</h3>
             <div className={styles.relatedScroll}>
               {data.nearbyHospitals.slice(0, 8).map((item) => (
@@ -822,9 +957,8 @@ export function HospitalProfileClient({ data }: HospitalProfileClientProps) {
               ))}
             </div>
           </div>
-        )}
         </div>
-      </section>
+      )}
 
       <div className={styles.mobileBar}>
         <button type="button" className={styles.mobilePrimary} onClick={() => setModalOpen(true)}>

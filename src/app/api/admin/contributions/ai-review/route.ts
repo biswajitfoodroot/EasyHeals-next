@@ -194,6 +194,64 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ data: reviews });
 }
 
+// ── Array fields that must be merged (appended) instead of overwritten ────────
+
+const ARRAY_FIELDS_HOSPITAL = new Set(["specialties", "facilities"]);
+const ARRAY_FIELDS_DOCTOR   = new Set(["specialties", "qualifications", "languages"]);
+
+function dedupeStrings(arr: unknown[]): string[] {
+  return [...new Set(arr.filter((v): v is string => typeof v === "string" && v.trim() !== "").map((s) => s.trim()))];
+}
+
+type MergeResult = {
+  merged: Record<string, unknown>;
+  before: Record<string, unknown>;
+};
+
+async function mergeHospitalArrayFields(
+  targetId: string,
+  patch: Record<string, unknown>,
+): Promise<MergeResult> {
+  const arrKeys = Object.keys(patch).filter((k) => ARRAY_FIELDS_HOSPITAL.has(k) && Array.isArray(patch[k]));
+  if (!arrKeys.length) return { merged: patch, before: {} };
+  const [row] = await db
+    .select({ specialties: hospitals.specialties, facilities: hospitals.facilities })
+    .from(hospitals)
+    .where(eq(hospitals.id, targetId))
+    .limit(1);
+  if (!row) return { merged: patch, before: {} };
+  const merged = { ...patch };
+  const before: Record<string, unknown> = {};
+  for (const k of arrKeys) {
+    const existing = (row[k as keyof typeof row] as string[] | null) ?? [];
+    before[k] = existing;
+    merged[k] = dedupeStrings([...existing, ...(patch[k] as unknown[])]);
+  }
+  return { merged, before };
+}
+
+async function mergeDoctorArrayFields(
+  targetId: string,
+  patch: Record<string, unknown>,
+): Promise<MergeResult> {
+  const arrKeys = Object.keys(patch).filter((k) => ARRAY_FIELDS_DOCTOR.has(k) && Array.isArray(patch[k]));
+  if (!arrKeys.length) return { merged: patch, before: {} };
+  const [row] = await db
+    .select({ specialties: doctors.specialties, qualifications: doctors.qualifications, languages: doctors.languages })
+    .from(doctors)
+    .where(eq(doctors.id, targetId))
+    .limit(1);
+  if (!row) return { merged: patch, before: {} };
+  const merged = { ...patch };
+  const before: Record<string, unknown> = {};
+  for (const k of arrKeys) {
+    const existing = (row[k as keyof typeof row] as string[] | null) ?? [];
+    before[k] = existing;
+    merged[k] = dedupeStrings([...existing, ...(patch[k] as unknown[])]);
+  }
+  return { merged, before };
+}
+
 // ── Field resolvers for applying approved contributions ───────────────────────
 
 // Build a DB patch from the stored contribution newValue (wrapped scalar or array).
@@ -207,6 +265,7 @@ function resolveHospitalPatch(field: string, rawValue: Record<string, unknown>):
     const v = typeof rawValue.value === "string" ? rawValue.value.trim() : null;
     return v ? { addressLine1: v } : null;
   }
+  // Return incoming array as-is; merging with existing happens in the apply loop.
   if (f === "specialties") return Array.isArray(rawValue) ? { specialties: rawValue } : null;
   if (f === "facilities")  return Array.isArray(rawValue) ? { facilities: rawValue }  : null;
   if (f === "workinghours") {
@@ -219,6 +278,7 @@ function resolveHospitalPatch(field: string, rawValue: Record<string, unknown>):
 
 function resolveDoctorPatch(field: string, rawValue: Record<string, unknown>): Record<string, unknown> | null {
   const f = field.toLowerCase();
+  // Return incoming array as-is; merging with existing happens in the apply loop.
   if (f === "specialties")    return Array.isArray(rawValue) ? { specialties: rawValue }    : null;
   if (f === "qualifications") return Array.isArray(rawValue) ? { qualifications: rawValue } : null;
   if (f === "languages")      return Array.isArray(rawValue) ? { languages: rawValue }      : null;
@@ -231,6 +291,7 @@ function resolveDoctorPatch(field: string, rawValue: Record<string, unknown>): R
 }
 
 // Build a DB patch from a plain-string override value typed by the admin.
+// For array fields the override is treated as additional items to append.
 function resolveHospitalPatchFromOverride(field: string, override: string): Record<string, unknown> | null {
   const f = field.toLowerCase();
   const v = override.trim();
@@ -322,17 +383,36 @@ export async function PUT(req: NextRequest) {
                 : resolveDoctorPatch(contribution.fieldChanged, contribution.newValue as Record<string, unknown>);
 
           if (patch) {
+            let effectiveOldValue: Record<string, unknown> = {};
+            let effectiveNewValue: Record<string, unknown> = patch;
+
             if (contribution.targetType === "hospital") {
+              const { merged, before } = await mergeHospitalArrayFields(contribution.targetId, patch);
+              effectiveOldValue = before;
+              effectiveNewValue = merged;
               await db
                 .update(hospitals)
-                .set({ ...patch, updatedAt: new Date() })
+                .set({ ...merged, updatedAt: new Date() })
                 .where(eq(hospitals.id, contribution.targetId));
             } else {
+              const { merged, before } = await mergeDoctorArrayFields(contribution.targetId, patch);
+              effectiveOldValue = before;
+              effectiveNewValue = merged;
               await db
                 .update(doctors)
-                .set({ ...patch, updatedAt: new Date() })
+                .set({ ...merged, updatedAt: new Date() })
                 .where(eq(doctors.id, contribution.targetId));
             }
+
+            // Stamp the contribution with the values that were actually applied so the
+            // Edits history panel shows the true before/after state.
+            await db
+              .update(contributions)
+              .set({
+                oldValue: effectiveOldValue as Record<string, unknown>,
+                newValue: effectiveNewValue as Record<string, unknown>,
+              })
+              .where(eq(contributions.id, id));
             applied++;
             appliedChanges.push({
               fieldChanged: contribution.fieldChanged,

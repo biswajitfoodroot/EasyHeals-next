@@ -23,6 +23,21 @@ export type AgentEntity = {
   phone: string | null;
   snippet: string;
   sourceUrl: string | null;
+  // Enriched fields extracted from the grounded research
+  description: string | null;
+  address: string | null;
+  specialties: string[];
+  facilities: string[];
+  accreditations: string[];
+  workingHours: string | null;
+  googleRating: number | null;
+  packages: Array<{
+    packageName: string;
+    procedureName: string | null;
+    department: string | null;
+    priceMin: number | null;
+    priceMax: number | null;
+  }>;
 };
 
 export async function POST(req: NextRequest) {
@@ -119,15 +134,31 @@ ${groundedText}
 Source URLs found:
 ${groundingChunks.map((c, i) => `[${i}] ${c.web?.title ?? ""}: ${c.web?.uri ?? ""}`).join("\n")}
 
-Extract a JSON array of entities. Each entity must have:
+Extract a JSON array of entities. Each entity must have ALL of the following fields:
 {
-  "name": "string — name of hospital, clinic, or doctor",
+  "name": "string — full name of hospital, clinic, or doctor",
   "type": "hospital" | "clinic" | "doctor" | "unknown",
   "city": "string or null",
   "website": "string URL or null",
-  "phone": "string or null",
-  "snippet": "1-2 sentence description of specialties or services",
-  "sourceUrl": "string URL from the source list or null"
+  "phone": "string or null (primary contact number)",
+  "snippet": "1-2 sentence summary of the entity",
+  "sourceUrl": "string URL from the source list or null",
+  "description": "string — full description / about text, or null",
+  "address": "string — full address with PIN code, or null",
+  "workingHours": "string — working hours summary (e.g. Mon-Sat 8am-8pm), or null",
+  "googleRating": number or null (e.g. 4.3),
+  "specialties": ["array", "of", "medical", "specialty", "strings"],
+  "facilities": ["array", "of", "facility", "strings", "like", "ICU", "pharmacy", "etc"],
+  "accreditations": ["array", "of", "accreditation", "strings", "like", "NABH", "JCI", "etc"],
+  "packages": [
+    {
+      "packageName": "e.g. Knee Replacement Surgery",
+      "procedureName": "string or null",
+      "department": "e.g. Orthopaedics or null",
+      "priceMin": number or null,
+      "priceMax": number or null
+    }
+  ]
 }
 
 Return ONLY the JSON array, no other text.`;
@@ -152,6 +183,14 @@ Return ONLY the JSON array, no other text.`;
         phone: null,
         snippet: "",
         sourceUrl: c.web?.uri ?? null,
+        description: null,
+        address: null,
+        workingHours: null,
+        googleRating: null,
+        specialties: [],
+        facilities: [],
+        accreditations: [],
+        packages: [],
       }));
   }
 

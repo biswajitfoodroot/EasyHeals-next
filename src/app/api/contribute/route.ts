@@ -8,6 +8,13 @@ import { requireAuth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import { scoreContribution } from "@/lib/outlier";
 
+const ARRAY_FIELDS_HOSPITAL = new Set(["specialties", "facilities"]);
+const ARRAY_FIELDS_DOCTOR   = new Set(["specialties", "qualifications", "languages"]);
+
+function dedupeStrings(arr: unknown[]): string[] {
+  return [...new Set(arr.filter((v): v is string => typeof v === "string" && v.trim() !== "").map((s) => s.trim()))];
+}
+
 const contributionSchema = z.object({
   targetType: z.enum(["hospital", "doctor", "lab"]),
   targetId: z.string().min(3),
@@ -28,32 +35,48 @@ function toTrustChange(status: "auto_approve" | "pending_review" | "auto_reject"
 // Contributors (public users) may only suggest service-availability data.
 // Core identity fields (name, phone, email, address, website, description) are
 // editable only by portal owners (hospital_admin / doctor role) and EasyHeals admins.
-function normalizeHospitalPatch(field: string, value: unknown): Record<string, unknown> | null {
-  switch (field.toLowerCase()) {
-    case "specialties":
-      return Array.isArray(value) ? { specialties: value } : null;
-    case "facilities":
-      return Array.isArray(value) ? { facilities: value } : null;
-    case "workinghours":
-      return typeof value === "object" && value !== null ? { workingHours: value } : null;
-    default:
-      return null; // all other fields are portal/admin-only
+// Array fields (specialties, facilities, qualifications, languages) are merged
+// with existing values — never overwritten — so community edits are additive.
+// Returns { patch, before } so the contribution record can be stamped with the
+// true before/after values for accurate Edits history display.
+type PatchResult = { patch: Record<string, unknown>; before: Record<string, unknown> };
+
+async function normalizeHospitalPatch(targetId: string, field: string, value: unknown): Promise<PatchResult | null> {
+  const f = field.toLowerCase();
+  if (f === "workinghours") {
+    if (typeof value === "object" && value !== null) return { patch: { workingHours: value }, before: {} };
+    return null;
   }
+  if (ARRAY_FIELDS_HOSPITAL.has(f)) {
+    if (!Array.isArray(value)) return null;
+    const [row] = await db
+      .select({ specialties: hospitals.specialties, facilities: hospitals.facilities })
+      .from(hospitals)
+      .where(eq(hospitals.id, targetId))
+      .limit(1);
+    const existing = (row?.[f as "specialties" | "facilities"] as string[] | null) ?? [];
+    return { patch: { [f]: dedupeStrings([...existing, ...value]) }, before: { [f]: existing } };
+  }
+  return null; // all other fields are portal/admin-only
 }
 
-function normalizeDoctorPatch(field: string, value: unknown): Record<string, unknown> | null {
-  switch (field.toLowerCase()) {
-    case "specialties":
-      return Array.isArray(value) ? { specialties: value } : null;
-    case "qualifications":
-      return Array.isArray(value) ? { qualifications: value } : null;
-    case "languages":
-      return Array.isArray(value) ? { languages: value } : null;
-    case "consultationhours":
-      return typeof value === "object" && value !== null ? { consultationHours: value } : null;
-    default:
-      return null; // all other fields are portal/admin-only
+async function normalizeDoctorPatch(targetId: string, field: string, value: unknown): Promise<PatchResult | null> {
+  const f = field.toLowerCase();
+  if (f === "consultationhours") {
+    if (typeof value === "object" && value !== null) return { patch: { consultationHours: value }, before: {} };
+    return null;
   }
+  if (ARRAY_FIELDS_DOCTOR.has(f)) {
+    if (!Array.isArray(value)) return null;
+    const [row] = await db
+      .select({ specialties: doctors.specialties, qualifications: doctors.qualifications, languages: doctors.languages })
+      .from(doctors)
+      .where(eq(doctors.id, targetId))
+      .limit(1);
+    const existing = (row?.[f as "specialties" | "qualifications" | "languages"] as string[] | null) ?? [];
+    return { patch: { [f]: dedupeStrings([...existing, ...value]) }, before: { [f]: existing } };
+  }
+  return null; // all other fields are portal/admin-only
 }
 
 export async function POST(req: NextRequest) {
@@ -157,27 +180,37 @@ export async function POST(req: NextRequest) {
 
     if (outlier.recommendation === "auto_approve") {
       if (normalizedTargetType === "hospital") {
-        const patch = normalizeHospitalPatch(fieldChanged, newValue);
-        if (patch) {
+        const result = await normalizeHospitalPatch(targetId, fieldChanged, newValue);
+        if (result) {
           await db
             .update(hospitals)
             .set({
-              ...patch,
+              ...result.patch,
               updatedAt: new Date(),
               contributionCount: sql`${hospitals.contributionCount} + 1`,
             })
             .where(eq(hospitals.id, targetId));
+          // Stamp contribution with true before/after so Edits history is accurate.
+          await db
+            .update(contributions)
+            .set({ oldValue: result.before as Record<string, unknown>, newValue: result.patch as Record<string, unknown> })
+            .where(eq(contributions.id, saved.id));
         }
       } else {
-        const patch = normalizeDoctorPatch(fieldChanged, newValue);
-        if (patch) {
+        const result = await normalizeDoctorPatch(targetId, fieldChanged, newValue);
+        if (result) {
           await db
             .update(doctors)
             .set({
-              ...patch,
+              ...result.patch,
               updatedAt: new Date(),
             })
             .where(eq(doctors.id, targetId));
+          // Stamp contribution with true before/after so Edits history is accurate.
+          await db
+            .update(contributions)
+            .set({ oldValue: result.before as Record<string, unknown>, newValue: result.patch as Record<string, unknown> })
+            .where(eq(contributions.id, saved.id));
         }
       }
     }

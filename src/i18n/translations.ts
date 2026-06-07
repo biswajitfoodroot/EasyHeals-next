@@ -211,6 +211,14 @@ export type Dict = {
     loadMore: string;
     reviews: string;
   };
+  profile?: {
+    refsEditsTitle?: string;
+    refsEditsHint?: string;
+    tabEdits?: string;
+    tabReferences?: string;
+    noEditsYet?: string;
+    noRefsYet?: string;
+  };
   hospital: {
     directoryTitle: string;
     directoryDescription: string;
@@ -530,6 +538,14 @@ const en: Dict = {
     network: "Network Partner",
     loadMore: "Load more",
     reviews: "reviews",
+  },
+  profile: {
+    refsEditsTitle: "References & Edits",
+    refsEditsHint: "Community edit history and AI data sources for this profile.",
+    tabEdits: "Edits",
+    tabReferences: "References",
+    noEditsYet: "No community edits have been approved yet.",
+    noRefsYet: "No AI-sourced references are available for this profile yet.",
   },
   hospital: {
     directoryTitle: "Private Hospitals Across India",

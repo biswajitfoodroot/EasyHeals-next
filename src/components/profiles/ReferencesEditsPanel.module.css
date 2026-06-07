@@ -1,0 +1,270 @@
+/* ── Tab bar ────────────────────────────────────────────────────────────────── */
+
+.tabBar {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1.5px solid #EDF5F0;
+  margin-bottom: 20px;
+}
+
+.tabBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8FA39A;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tabBtn:hover {
+  color: #1B8A4A;
+}
+
+.tabBtnActive {
+  color: #1B8A4A;
+  border-bottom-color: #1B8A4A;
+}
+
+.tabCount {
+  background: #E6F5EC;
+  color: #1B8A4A;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 1px 7px;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* ── Tab content ────────────────────────────────────────────────────────────── */
+
+.tabContent {
+  min-height: 80px;
+}
+
+.emptyMsg {
+  color: #8FA39A;
+  font-size: 14px;
+  text-align: center;
+  padding: 32px 0;
+}
+
+/* ── Edit timeline ──────────────────────────────────────────────────────────── */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.timelineItem {
+  display: flex;
+  gap: 12px;
+  position: relative;
+  padding-bottom: 20px;
+}
+
+.timelineItem:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 16px;
+  bottom: 0;
+  width: 1.5px;
+  background: #EDF5F0;
+}
+
+.timelineDot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #E6F5EC;
+  border: 2px solid #1B8A4A;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.timelineBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.timelineHeader {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.fieldBadge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  padding: 2px 8px;
+  /* background and color are set inline per field via fieldPalette() */
+}
+
+.timelineMeta {
+  font-size: 12px;
+  color: #8FA39A;
+}
+
+.timelineDiff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.diffOld {
+  color: #DC2626;
+  background: #FEF2F2;
+  border-radius: 4px;
+  padding: 1px 6px;
+  text-decoration: line-through;
+  word-break: break-all;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diffArrow {
+  color: #8FA39A;
+  font-size: 14px;
+}
+
+.diffNew {
+  color: #1D4ED8;
+  background: #EFF6FF;
+  border-radius: 4px;
+  padding: 1px 6px;
+  word-break: break-all;
+}
+
+/* ── Load more ──────────────────────────────────────────────────────────────── */
+
+.loadMoreBtn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 8px 24px;
+  border: 1.5px solid #1B8A4A;
+  border-radius: 20px;
+  background: none;
+  color: #1B8A4A;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  background: #E6F5EC;
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── References list ────────────────────────────────────────────────────────── */
+
+.refList {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.refGroup {
+  border: 1px solid #EDF5F0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.refFieldLabel {
+  background: #F5FBF7;
+  border-bottom: 1px solid #EDF5F0;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5A7367;
+}
+
+.refRow {
+  padding: 12px 14px;
+  border-bottom: 1px solid #F0F7F3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.refRow:last-child {
+  border-bottom: none;
+}
+
+.refMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.confidenceBadge {
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 1px 8px;
+}
+
+.sourceType {
+  font-size: 12px;
+  color: #5A7367;
+  text-transform: capitalize;
+  background: #F0F7F3;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.refDate {
+  font-size: 11px;
+  color: #8FA39A;
+  margin-inline-start: auto;
+}
+
+.refExtracted {
+  font-size: 13px;
+  color: #2D4A3A;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.refLink {
+  font-size: 12px;
+  color: #2563EB;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.refLink:hover {
+  text-decoration: underline;
+}

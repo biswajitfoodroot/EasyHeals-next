@@ -28,6 +28,7 @@ import {
   ingestionDoctorCandidates,
   ingestionServiceCandidates,
   ingestionPackageCandidates,
+  ingestionFieldConfidences,
   hospitals,
   doctors,
   doctorHospitalAffiliations,
@@ -54,6 +55,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
   if (forbidden) return forbidden;
 
   const { jobId } = await params;
+
+  // Parse optional selectedFields from body — if provided only apply those fields for hospitals.
+  // If absent (or empty), apply all eligible fields (backwards-compat with bulk apply paths).
+  let selectedFieldsParam: string[] | null = null;
+  try {
+    const bodyJson = await req.json() as { selectedFields?: unknown };
+    if (Array.isArray(bodyJson?.selectedFields) && bodyJson.selectedFields.length > 0) {
+      selectedFieldsParam = bodyJson.selectedFields as string[];
+    }
+  } catch { /* no body is fine */ }
+
+  function shouldApplyField(key: string): boolean {
+    return selectedFieldsParam === null || selectedFieldsParam.includes(key);
+  }
 
   // ── Load job ───────────────────────────────────────────────────────────────
   const [job] = await db.select().from(ingestionJobs).where(eq(ingestionJobs.id, jobId)).limit(1);
@@ -150,21 +165,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
 
       if (candidate.matchHospitalId) {
         // ── UPDATE existing hospital branch ────────────────────────────────
-        // Only update fields that have new data — don't overwrite with nulls
+        // Only update fields that have new data — don't overwrite with nulls.
+        // Also read rawPayload for fields not promoted to direct columns in older candidates.
+        const raw = (candidate.rawPayload ?? {}) as Record<string, unknown>;
         const updateSet: Partial<typeof hospitals.$inferInsert> = { updatedAt: new Date() };
-        if (candidate.phone) updateSet.phone = candidate.phone;
-        if (candidate.contactNumbers?.length) updateSet.phones = candidate.contactNumbers;
-        if (candidate.email) updateSet.email = candidate.email;
-        if (candidate.website) updateSet.website = candidate.website;
-        if (candidate.description) updateSet.description = candidate.description;
-        if (candidate.addressLine1) updateSet.addressLine1 = candidate.addressLine1;
-        if (candidate.addressData) updateSet.address = candidate.addressData;
-        if (candidate.latitude) updateSet.latitude = candidate.latitude;
-        if (candidate.longitude) updateSet.longitude = candidate.longitude;
-        if (candidate.operatingHours) updateSet.workingHours = candidate.operatingHours;
-        if (candidate.specialties?.length) updateSet.specialties = candidate.specialties;
-        // Merge facilities (keyFacilities → facilities column)
-        if (candidate.keyFacilities?.length) updateSet.facilities = candidate.keyFacilities;
+        if (shouldApplyField("phone") && candidate.phone) updateSet.phone = candidate.phone;
+        if (shouldApplyField("phone") && candidate.contactNumbers?.length) updateSet.phones = candidate.contactNumbers;
+        if (shouldApplyField("email") && candidate.email) updateSet.email = candidate.email;
+        if (shouldApplyField("website") && candidate.website) updateSet.website = candidate.website;
+        if (shouldApplyField("description") && candidate.description) updateSet.description = candidate.description;
+        if (shouldApplyField("addressLine1") && candidate.addressLine1) updateSet.addressLine1 = candidate.addressLine1;
+        if (shouldApplyField("addressLine1") && candidate.addressData) updateSet.address = candidate.addressData;
+        if (shouldApplyField("addressLine1") && candidate.latitude) updateSet.latitude = candidate.latitude;
+        if (shouldApplyField("addressLine1") && candidate.longitude) updateSet.longitude = candidate.longitude;
+        // operatingHours column may be null for candidates saved before the fix;
+        // fall back to rawPayload.operatingHours in that case.
+        const opHours = candidate.operatingHours ?? (raw.operatingHours as Record<string, unknown> | null ?? null);
+        if (shouldApplyField("operatingHours") && opHours) updateSet.workingHours = opHours;
+        if (shouldApplyField("specialties") && candidate.specialties?.length) updateSet.specialties = candidate.specialties;
+        if (shouldApplyField("facilities") && candidate.keyFacilities?.length) updateSet.facilities = candidate.keyFacilities;
+        // rawPayload-only fields that the hospitals table supports
+        const rawAccreditations = Array.isArray(raw.accreditations) ? raw.accreditations as string[] : null;
+        if (shouldApplyField("accreditations") && rawAccreditations?.length) updateSet.accreditations = rawAccreditations;
+        const rawGoogleRating = typeof raw.googleRating === "number" ? raw.googleRating : null;
+        if (shouldApplyField("googleRating") && rawGoogleRating !== null) updateSet.googleRating = rawGoogleRating;
 
         // Regenerate SEO keywords with fresh data
         updateSet.seoKeywords = generateHospitalSeoKeywords({
@@ -221,15 +245,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
         if (matchRow) {
           // Already exists — update it
           const existId = matchRow.id;
+          const raw2 = (candidate.rawPayload ?? {}) as Record<string, unknown>;
           const patchSet: Partial<typeof hospitals.$inferInsert> = { updatedAt: new Date() };
-          if (candidate.phone) patchSet.phone = candidate.phone;
-          if (candidate.contactNumbers?.length) patchSet.phones = candidate.contactNumbers;
-          if (candidate.email) patchSet.email = candidate.email;
-          if (candidate.website) patchSet.website = candidate.website;
-          if (candidate.description) patchSet.description = candidate.description;
-          if (candidate.specialties?.length) patchSet.specialties = candidate.specialties;
-          if (candidate.keyFacilities?.length) patchSet.facilities = candidate.keyFacilities;
-          if (candidate.operatingHours) patchSet.workingHours = candidate.operatingHours;
+          if (shouldApplyField("phone") && candidate.phone) patchSet.phone = candidate.phone;
+          if (shouldApplyField("phone") && candidate.contactNumbers?.length) patchSet.phones = candidate.contactNumbers;
+          if (shouldApplyField("email") && candidate.email) patchSet.email = candidate.email;
+          if (shouldApplyField("website") && candidate.website) patchSet.website = candidate.website;
+          if (shouldApplyField("description") && candidate.description) patchSet.description = candidate.description;
+          if (shouldApplyField("addressLine1") && candidate.addressLine1) patchSet.addressLine1 = candidate.addressLine1;
+          if (shouldApplyField("addressLine1") && candidate.addressData) patchSet.address = candidate.addressData;
+          if (shouldApplyField("addressLine1") && candidate.latitude) patchSet.latitude = candidate.latitude;
+          if (shouldApplyField("addressLine1") && candidate.longitude) patchSet.longitude = candidate.longitude;
+          if (shouldApplyField("specialties") && candidate.specialties?.length) patchSet.specialties = candidate.specialties;
+          if (shouldApplyField("facilities") && candidate.keyFacilities?.length) patchSet.facilities = candidate.keyFacilities;
+          const opHours2 = candidate.operatingHours ?? (raw2.operatingHours as Record<string, unknown> | null ?? null);
+          if (shouldApplyField("operatingHours") && opHours2) patchSet.workingHours = opHours2;
+          const rawAcc2 = Array.isArray(raw2.accreditations) ? raw2.accreditations as string[] : null;
+          if (shouldApplyField("accreditations") && rawAcc2?.length) patchSet.accreditations = rawAcc2;
+          const rawRating2 = typeof raw2.googleRating === "number" ? raw2.googleRating : null;
+          if (shouldApplyField("googleRating") && rawRating2 !== null) patchSet.googleRating = rawRating2;
           patchSet.seoKeywords = generateHospitalSeoKeywords({
             name: candidate.name,
             city: candidateCity,
@@ -242,6 +276,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
           realHospitalId = existId;
         } else {
           // New hospital branch — insert
+          const raw3 = (candidate.rawPayload ?? {}) as Record<string, unknown>;
+          const opHours3 = candidate.operatingHours ?? (raw3.operatingHours as Record<string, unknown> | null ?? null);
+          const rawAcc3 = Array.isArray(raw3.accreditations) ? raw3.accreditations as string[] : [];
+          const rawRating3 = typeof raw3.googleRating === "number" ? raw3.googleRating : null;
           const [newHospital] = await db.insert(hospitals).values({
             name: candidate.name,
             slug,
@@ -267,10 +305,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
               facilities: candidate.keyFacilities ?? [],
               description: candidate.description,
             }),
-            accreditations: [],
+            accreditations: rawAcc3,
             latitude: candidate.latitude ?? null,
             longitude: candidate.longitude ?? null,
-            workingHours: candidate.operatingHours ?? null,
+            workingHours: opHours3,
+            googleRating: rawRating3,
             source: "admin_ingestion",
             verified: false,
             isActive: true,
@@ -282,6 +321,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ job
       }
 
       hospitalIdMap.set(candidate.id, realHospitalId);
+
+      // ── Write ingestionFieldConfidences for the References panel ──────────
+      // This stamps which fields came from which AI research job so the
+      // hospital profile's References tab can show provenance.
+      try {
+        const raw = (candidate.rawPayload ?? {}) as Record<string, unknown>;
+        const opHours = candidate.operatingHours ?? (raw.operatingHours as Record<string, unknown> | null ?? null);
+        type FieldRef = { key: string; value: string | null };
+        const fieldRefs: FieldRef[] = [
+          { key: "description",    value: candidate.description },
+          { key: "phone",          value: candidate.phone },
+          { key: "email",          value: candidate.email },
+          { key: "website",        value: candidate.website },
+          { key: "addressLine1",   value: candidate.addressLine1 },
+          { key: "operatingHours", value: opHours ? JSON.stringify(opHours).slice(0, 500) : null },
+          { key: "googleRating",   value: typeof raw.googleRating === "number" ? String(raw.googleRating) : null },
+          { key: "specialties",    value: candidate.specialties?.length ? candidate.specialties.join(", ").slice(0, 500) : null },
+          { key: "facilities",     value: candidate.keyFacilities?.length ? candidate.keyFacilities.join(", ").slice(0, 500) : null },
+          { key: "accreditations", value: Array.isArray(raw.accreditations) && (raw.accreditations as string[]).length ? (raw.accreditations as string[]).join(", ").slice(0, 500) : null },
+        ];
+        const toInsert = fieldRefs.filter(f => shouldApplyField(f.key) && f.value);
+        if (toInsert.length > 0) {
+          await db.insert(ingestionFieldConfidences).values(
+            toInsert.map(f => ({
+              jobId,
+              entityType: "hospital" as const,
+              entityId: realHospitalId,
+              fieldKey: f.key,
+              extractedValue: f.value,
+              sourceType: "admin_ingestion",
+              sourceUrl: job.sourceUrl,
+              confidence: candidate.aiConfidence ?? 0.7,
+              reviewStatus: "applied",
+            })),
+          ).onConflictDoNothing().catch(() => null);
+        }
+      } catch { /* non-critical */ }
 
       await db.update(ingestionHospitalCandidates)
         .set({ applyStatus: "applied", reviewStatus: "applied", updatedAt: new Date() })

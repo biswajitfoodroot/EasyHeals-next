@@ -92,6 +92,19 @@ export async function GET(req: NextRequest) {
       const flattenedHospitals = hospitalCandidatesRaw.map((row) => ({
         ...row.ingestion_hospital_candidates,
         matchHospitalName: row.hospitals?.name,
+        // Current DB state for field-by-field comparison in the Save to DB modal
+        currentHospital: row.hospitals ? {
+          description: row.hospitals.description,
+          phone: row.hospitals.phone,
+          email: row.hospitals.email,
+          website: row.hospitals.website,
+          addressLine1: row.hospitals.addressLine1,
+          facilities: row.hospitals.facilities ?? [],
+          specialties: row.hospitals.specialties ?? [],
+          workingHours: row.hospitals.workingHours,
+          accreditations: row.hospitals.accreditations ?? [],
+          googleRating: row.hospitals.googleRating,
+        } : null,
       }));
       const flattenedDoctors = doctorCandidatesRaw.map((row) => ({
         ...row.ingestion_doctor_candidates,

@@ -8,6 +8,7 @@ import { AdminAffiliationsTab } from "./AdminAffiliationsTab";
 import { AdminDoctorsTab } from "./AdminDoctorsTab";
 import { AdminReviewsTab } from "./AdminReviewsTab";
 import KycReviewTabContent from "./KycReviewTabContent";
+import { ResearchFieldSelector, defaultSelectedFields } from "@/components/admin/ResearchFieldSelector";
 
 // ── 40-Specialty Master List ─────────────────────────────────────────────────
 const SPECIALTY_LIST = [
@@ -168,7 +169,14 @@ type IngestionDetails = {
     id: string;
     name: string;
     city: string | null;
-    website?: string | null;
+    description: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+    addressLine1: string | null;
+    keyFacilities: string[];
+    operatingHours: Record<string, unknown> | null;
+    rawPayload: Record<string, unknown> | null;
     mergeAction: string;
     matchHospitalId: string | null;
     matchHospitalName?: string;
@@ -178,6 +186,18 @@ type IngestionDetails = {
     aiConfidence: number | null;
     applyStatus: CandidateStatus;
     reviewStatus: CandidateStatus;
+    currentHospital: {
+      description: string | null;
+      phone: string | null;
+      email: string | null;
+      website: string | null;
+      addressLine1: string | null;
+      facilities: string[];
+      specialties: string[];
+      workingHours: Record<string, unknown> | null;
+      accreditations: string[];
+      googleRating: number | null;
+    } | null;
   }>;
   doctorCandidates: Array<{
     id: string;
@@ -259,6 +279,7 @@ type BrochureDiff = {
     addedAccreditations: string[];
     dupAccreditations: string[];
     fieldFills: Array<{ field: string; value: string }>;
+    fieldUpdates: Array<{ field: string; currentValue: string; fetchedValue: string }>;
   };
   doctors: {
     new: Array<{ fullName: string; specialization: string | null; candidates: DoctorCandidate[] }>;
@@ -360,6 +381,20 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       phone: string | null;
       snippet: string;
       sourceUrl: string | null;
+      description: string | null;
+      address: string | null;
+      specialties: string[];
+      facilities: string[];
+      accreditations: string[];
+      workingHours: string | null;
+      googleRating: number | null;
+      packages: Array<{
+        packageName: string;
+        procedureName: string | null;
+        department: string | null;
+        priceMin: number | null;
+        priceMax: number | null;
+      }>;
     }>;
     queuedCount: number;
     queuedItems: Array<{ id: string; sourceUrl: string; sourceTitle: string | null }>;
@@ -393,6 +428,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [batchReviewLoading, setBatchReviewLoading] = useState(false);
   const [batchReviewSaving, setBatchReviewSaving] = useState(false);
   const [batchReviewSaved, setBatchReviewSaved] = useState(false);
+  const [batchReviewSelectedFields, setBatchReviewSelectedFields] = useState<Set<string>>(new Set());
   // AI research save
   const [agentBatchBusy, setAgentBatchBusy] = useState(false);
   const [agentBatchResult, setAgentBatchResult] = useState<{
@@ -461,6 +497,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [brochureConfirmOpen, setBrochureConfirmOpen] = useState(false);
   const [brochurePendingArgs, setBrochurePendingArgs] = useState<Record<string, unknown>>({});
   const [brochurePendingPayload, setBrochurePendingPayload] = useState<Record<string, unknown> | null>(null);
+  const [brochureOverrideFields, setBrochureOverrideFields] = useState<Set<string>>(new Set());
   // AI research save state
   const [agentSavingIdx, setAgentSavingIdx] = useState<number | null>(null);
   const [agentSaveResults, setAgentSaveResults] = useState<Record<number, { ok: boolean; text: string }>>({});
@@ -1022,12 +1059,15 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         throw new Error((body.error ?? "Preview failed") + detail);
       }
       if (body.needsConfirmation) {
+        // Save payload so the candidate picker's onApplyWithTarget can continue the flow
+        setBrochurePendingPayload(explicitPayload ?? null);
         setBrochureCandidates(body.candidates);
         setBrochureCandidateMeta({ extractedName: body.extractedName, extractedCity: body.extractedCity });
       } else if (body.dryRun) {
         setBrochureDiff(body as BrochureDiff);
         setBrochurePendingArgs(extra);
         setBrochurePendingPayload(explicitPayload ?? null);
+        setBrochureOverrideFields(new Set());
         setBrochureConfirmOpen(true);
       }
     } catch (err: any) {
@@ -1064,7 +1104,11 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   async function confirmApply() {
     setBrochureConfirmOpen(false);
     const savedIdx = agentSavingIdx;
-    await submitApply({ ...brochurePendingArgs, doctorIdOverrides }, brochurePendingPayload);
+    await submitApply(
+      { ...brochurePendingArgs, doctorIdOverrides, overrideFields: Array.from(brochureOverrideFields) },
+      brochurePendingPayload,
+    );
+    setBrochureOverrideFields(new Set());
     // If triggered from AI research, track per-entity result
     if (savedIdx !== null) {
       setAgentSaveResults((prev) => ({ ...prev, [savedIdx]: { ok: true, text: "Saved successfully" } }));
@@ -1119,7 +1163,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
       return;
     }
 
-    // Hospital/clinic — use quickSave (auto-save for 0-1 matches, ask only for 2+ matches)
+    // Hospital/clinic — build rich payload from all extracted fields and show preview modal
     const payload: Record<string, unknown> = {
       hospital: {
         name: entity.name,
@@ -1127,33 +1171,30 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
         city: entity.city ?? undefined,
         phone: entity.phone ?? undefined,
         website: entity.website ?? undefined,
-        description: entity.snippet || undefined,
+        description: entity.description || entity.snippet || undefined,
+        addressLine1: entity.address ?? undefined,
+        specialties: entity.specialties ?? [],
+        facilities: entity.facilities ?? [],
+        accreditations: entity.accreditations ?? [],
+        workingHours: entity.workingHours ?? undefined,
       },
       doctors: [],
-      packages: [],
-      services: [],
+      packages: (entity.packages ?? []).map((p) => ({
+        packageName: p.packageName,
+        procedureName: p.procedureName ?? undefined,
+        department: p.department ?? undefined,
+        priceMin: p.priceMin ?? undefined,
+        priceMax: p.priceMax ?? undefined,
+      })),
+      services: entity.specialties ?? [],
+      // quickSave=true so brochure/apply auto-resolves 0→create or 1→update rather than
+      // always returning needsConfirmation. 2+ ambiguous matches will still show the picker.
       quickSave: true,
     };
 
     try {
-      const res = await fetch("/api/admin/research/brochure/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const detail = body.details ? ` — ${JSON.stringify(body.details)}` : "";
-        throw new Error((body.error ?? "Save failed") + detail);
-      }
-      if (body.needsConfirmation) {
-        // Multiple fuzzy matches — store pending payload and show candidates modal
-        setBrochurePendingPayload(payload);
-        setBrochureCandidates(body.candidates);
-        setBrochureCandidateMeta({ extractedName: body.extractedName, extractedCity: body.extractedCity });
-      } else if (body.data) {
-        setAgentSaveResults((prev) => ({ ...prev, [idx]: { ok: true, text: body.data.hospitalAction } }));
-      }
+      // Use previewApply (dryRun:true) so the comparison modal always shows before any write
+      await previewApply({}, payload);
     } catch (err: any) {
       setBrochureApplyError(err.message ?? "Unknown error");
     } finally {
@@ -1234,10 +1275,16 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     setBatchReviewData(null);
     setBatchReviewLoading(true);
     setBatchReviewSaved(false);
+    setBatchReviewSelectedFields(new Set());
     try {
       const res = await fetch(`/api/admin/ingestion/jobs?jobId=${encodeURIComponent(jobId)}`);
       const body = await res.json() as { data?: IngestionDetails };
-      if (res.ok && body.data) setBatchReviewData(body.data);
+      if (res.ok && body.data) {
+        setBatchReviewData(body.data);
+        // Auto-select fields that are new or different from current DB state
+        const hc = body.data.hospitalCandidates[0];
+        if (hc) setBatchReviewSelectedFields(defaultSelectedFields(hc));
+      }
     } catch { /* ignore */ }
     setBatchReviewLoading(false);
   }
@@ -1246,11 +1293,27 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
     if (!batchReviewJob) return;
     setBatchReviewSaving(true);
     try {
-      await fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(batchReviewJob.jobId)}/apply`, { method: "POST" });
+      const res = await fetch(`/api/admin/ingestion/jobs/${encodeURIComponent(batchReviewJob.jobId)}/apply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedFields: Array.from(batchReviewSelectedFields) }),
+      });
+      const body = await res.json().catch(() => ({})) as { data?: Record<string, number>; error?: string };
+      if (!res.ok) {
+        setIngestionMessage(body.error ?? `Apply failed (${res.status})`);
+        return;
+      }
       setBatchReviewSaved(true);
+      const d = body.data ?? {};
+      setIngestionMessage(
+        `Saved. Hospitals: ${d.hospitalsApplied ?? 0}, Doctors: ${d.doctorsApplied ?? 0}, Packages: ${d.packagesApplied ?? 0}, Services: ${d.servicesApplied ?? 0}`,
+      );
       router.refresh();
-    } catch { /* ignore */ }
-    setBatchReviewSaving(false);
+    } catch (err: unknown) {
+      setIngestionMessage((err as Error).message ?? "Save failed due to a network error.");
+    } finally {
+      setBatchReviewSaving(false);
+    }
   }
 
   async function onResolveAmbiguous(name: string, city: string, targetHospitalId: string) {
@@ -2989,67 +3052,44 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                     const dc = batchReviewData.doctorCandidates;
                     const sc = batchReviewData.serviceCandidates;
                     const pc = batchReviewData.packageCandidates;
-                    const fc = batchReviewData.fieldConfidences;
-                    const descField = fc.find(f => f.fieldKey === "description");
-                    const description = descField?.extractedValue ?? null;
-                    const ratingField = fc.find(f => f.fieldKey === "googleRating" || f.fieldKey === "rating");
-                    const phoneField = fc.find(f => f.fieldKey === "phone");
-                    const addressField = fc.find(f => f.fieldKey === "addressLine1" || f.fieldKey === "address");
-                    const bedsField = fc.find(f => f.fieldKey === "bedCount");
-                    const accredField = fc.find(f => f.fieldKey === "accreditations");
 
                     return (
                       <div className="space-y-5">
-                        {/* Hospital card */}
+                        {/* Hospital identity header */}
                         {hc && (
-                          <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <h3 className="font-bold text-slate-800 text-base">{hc.name}</h3>
-                                <p className="text-sm text-slate-500">{hc.city ?? ""} · <span className="capitalize">{batchReviewData.job.summary?.entityType as string ?? "hospital"}</span></p>
-                              </div>
-                              <div className="flex gap-2 flex-wrap justify-end">
-                                {hc.aiConfidence !== null && (
-                                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{Math.round(hc.aiConfidence * 100)}% conf</span>
-                                )}
-                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${hc.mergeAction === "create" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                                  {hc.mergeAction === "create" ? "New hospital" : `Update: ${hc.matchHospitalName ?? hc.matchHospitalId}`}
-                                </span>
-                              </div>
+                          <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+                            <div>
+                              <h3 className="font-bold text-slate-800 text-base">{hc.name}</h3>
+                              <p className="text-sm text-slate-500">{hc.city ?? ""}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
-                              {phoneField?.extractedValue && <div><span className="font-semibold text-slate-500">Phone:</span> {phoneField.extractedValue}</div>}
-                              {addressField?.extractedValue && <div><span className="font-semibold text-slate-500">Address:</span> {addressField.extractedValue}</div>}
-                              {ratingField?.extractedValue && <div><span className="font-semibold text-slate-500">Rating:</span> {ratingField.extractedValue}</div>}
-                              {bedsField?.extractedValue && <div><span className="font-semibold text-slate-500">Beds:</span> {bedsField.extractedValue}</div>}
-                              {accredField?.extractedValue && <div className="col-span-2"><span className="font-semibold text-slate-500">Accreditations:</span> {accredField.extractedValue}</div>}
+                            <div className="flex gap-2 flex-wrap justify-end shrink-0">
+                              {hc.aiConfidence !== null && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">{Math.round(hc.aiConfidence * 100)}% conf</span>
+                              )}
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${!hc.matchHospitalId ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                {!hc.matchHospitalId ? "New hospital" : `Update: ${hc.matchHospitalName ?? hc.matchHospitalId}`}
+                              </span>
                             </div>
-                            {description && (
-                              <p className="text-xs text-slate-600 bg-white border border-slate-100 rounded-lg p-3 leading-relaxed">{description}</p>
-                            )}
-                            {hc.specialties.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Specialties ({hc.specialties.length})</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {hc.specialties.map((s, i) => <span key={i} className="px-2 py-0.5 bg-teal-50 border border-teal-100 text-teal-700 text-xs rounded-full">{s}</span>)}
-                                </div>
-                              </div>
-                            )}
-                            {hc.services.length > 0 && (
-                              <div>
-                                <p className="text-xs font-semibold text-slate-500 mb-1.5">Key Services ({hc.services.length})</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {hc.services.map((s, i) => <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">{s}</span>)}
-                                </div>
-                              </div>
-                            )}
                           </div>
+                        )}
+
+                        {/* Field-by-field selection */}
+                        {hc && (
+                          <ResearchFieldSelector
+                            candidate={hc}
+                            selectedFields={batchReviewSelectedFields}
+                            onToggle={(key) => setBatchReviewSelectedFields((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(key)) next.delete(key); else next.add(key);
+                              return next;
+                            })}
+                          />
                         )}
 
                         {/* Doctors */}
                         {dc.length > 0 && (
                           <div>
-                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Doctors ({dc.length})</h4>
+                            <h4 className="font-semibold text-slate-700 text-sm mb-2">Doctors ({dc.length}) — will all be applied</h4>
                             <div className="space-y-2">
                               {dc.map((d) => (
                                 <div key={d.id} className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-wrap items-start gap-3 text-sm">
@@ -3154,13 +3194,13 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                   {!batchReviewSaved ? (
                     <button
                       type="button"
-                      disabled={batchReviewLoading || batchReviewSaving || !batchReviewData}
+                      disabled={batchReviewLoading || batchReviewSaving || !batchReviewData || batchReviewSelectedFields.size === 0}
                       onClick={onBatchReviewSave}
                       className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
                       {batchReviewSaving
                         ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
-                        : "💾 Save to DB"}
+                        : `💾 Save ${batchReviewSelectedFields.size} field${batchReviewSelectedFields.size !== 1 ? "s" : ""} to DB`}
                     </button>
                   ) : (
                     <span className="text-sm font-semibold text-emerald-700">✓ Saved successfully</span>
@@ -3567,11 +3607,41 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                         </div>
                         {entity.city && <p className="text-xs text-slate-500">📍 {entity.city}</p>}
                         {entity.phone && <p className="text-xs text-slate-500">📞 {entity.phone}</p>}
-                        {entity.snippet && <p className="text-xs text-slate-600 line-clamp-3">{entity.snippet}</p>}
+                        {entity.snippet && <p className="text-xs text-slate-600 line-clamp-2">{entity.snippet}</p>}
                         {entity.website && (
                           <a href={entity.website} target="_blank" rel="noreferrer" className="text-xs text-teal-700 font-medium hover:underline break-all">
                             {entity.website}
                           </a>
+                        )}
+                        {/* Enriched field badges — only visible after new extract prompt */}
+                        {((entity.specialties?.length ?? 0) > 0 || (entity.facilities?.length ?? 0) > 0 || (entity.packages?.length ?? 0) > 0 || entity.address || entity.googleRating) && (
+                          <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-100">
+                            {(entity.specialties?.length ?? 0) > 0 && (
+                              <span className="px-1.5 py-0.5 bg-teal-50 text-teal-700 text-[10px] font-medium rounded-full border border-teal-200">
+                                {entity.specialties!.length} specialties
+                              </span>
+                            )}
+                            {(entity.facilities?.length ?? 0) > 0 && (
+                              <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-medium rounded-full border border-blue-200">
+                                {entity.facilities!.length} facilities
+                              </span>
+                            )}
+                            {(entity.packages?.length ?? 0) > 0 && (
+                              <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 text-[10px] font-medium rounded-full border border-purple-200">
+                                {entity.packages!.length} packages
+                              </span>
+                            )}
+                            {entity.googleRating && (
+                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-medium rounded-full border border-amber-200">
+                                ★ {entity.googleRating}
+                              </span>
+                            )}
+                            {entity.address && (
+                              <span className="px-1.5 py-0.5 bg-slate-50 text-slate-500 text-[10px] font-medium rounded-full border border-slate-200">
+                                address
+                              </span>
+                            )}
+                          </div>
                         )}
                         <div className="mt-auto pt-1">
                           {isSaved || perEntityResult?.ok ? (
@@ -4663,10 +4733,64 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
                   </div>
                 )}
 
+                {brochureDiff.hospital.fieldUpdates && brochureDiff.hospital.fieldUpdates.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-amber-700">
+                        {brochureDiff.hospital.fieldUpdates.length} field{brochureDiff.hospital.fieldUpdates.length !== 1 ? "s" : ""} differ from current DB — select to override
+                      </p>
+                      <button
+                        type="button"
+                        className="text-xs text-amber-600 hover:text-amber-900 font-semibold"
+                        onClick={() => {
+                          const allKeys = brochureDiff.hospital.fieldUpdates.map(u => u.field);
+                          const allSelected = allKeys.every(k => brochureOverrideFields.has(k));
+                          setBrochureOverrideFields(prev => {
+                            const next = new Set(prev);
+                            if (allSelected) allKeys.forEach(k => next.delete(k));
+                            else allKeys.forEach(k => next.add(k));
+                            return next;
+                          });
+                        }}
+                      >
+                        {brochureDiff.hospital.fieldUpdates.every(u => brochureOverrideFields.has(u.field)) ? "Deselect all" : "Select all"}
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {brochureDiff.hospital.fieldUpdates.map(({ field, currentValue, fetchedValue }) => (
+                        <label key={field} className="flex items-start gap-2 cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={brochureOverrideFields.has(field)}
+                            onChange={() => setBrochureOverrideFields(prev => {
+                              const next = new Set(prev);
+                              if (next.has(field)) next.delete(field); else next.add(field);
+                              return next;
+                            })}
+                            className="mt-0.5 w-4 h-4 accent-amber-600 cursor-pointer shrink-0"
+                          />
+                          <div className="text-xs flex-1 min-w-0">
+                            <span className="font-semibold text-amber-700 uppercase tracking-wide">{field}</span>
+                            <div className="flex gap-1 mt-0.5">
+                              <span className="text-slate-400 shrink-0">Current:</span>
+                              <span className="text-slate-600 truncate">{currentValue}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              <span className="text-amber-500 shrink-0">Fetched:</span>
+                              <span className="text-amber-800 truncate font-medium">{fetchedValue}</span>
+                            </div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {brochureDiff.hospital.addedSpecialties.length === 0 &&
                   brochureDiff.hospital.addedFacilities.length === 0 &&
                   brochureDiff.hospital.addedAccreditations.length === 0 &&
-                  brochureDiff.hospital.fieldFills.length === 0 && (
+                  brochureDiff.hospital.fieldFills.length === 0 &&
+                  (!brochureDiff.hospital.fieldUpdates || brochureDiff.hospital.fieldUpdates.length === 0) && (
                   <p className="text-sm text-slate-400 italic">No new hospital data to add.</p>
                 )}
               </div>
