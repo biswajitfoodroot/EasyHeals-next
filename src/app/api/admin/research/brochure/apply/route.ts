@@ -842,6 +842,82 @@ async function applyData(
     },
   });
 
+  // ── Write ingestionFieldConfidences for each doctor ───────────────────────
+  // Runs after the doctor loop so doctorId is available.
+  try {
+    const rawSourceUrls: string[] = raw.sourceUrls ?? [];
+    const websiteUrl = cleanStr(raw.hospital.website);
+    const allDocSourceUrls = [...new Set([...rawSourceUrls, ...(websiteUrl ? [websiteUrl] : []), "ai_research"])];
+    const primaryDocSourceUrl = rawSourceUrls[0] ?? "ai_research";
+
+    // Re-resolve doctor IDs from the resolvedDoctors list (ids were computed above in the write loop)
+    // We store them in a parallel list during the doctor loop.
+    // Since we already have resolvedDoctors and wrote them above, we need to correlate.
+    // The simplest approach: query doctors by name for this hospital to get their IDs.
+    if (resolvedDoctors.length > 0) {
+      const [docJob] = await db.insert(ingestionJobs).values({
+        requestedByUserId: userId,
+        status: "completed",
+        sourceUrl: primaryDocSourceUrl,
+        searchQuery: `doctors @ ${hospitalName}${hospitalCity ? ` ${hospitalCity}` : ""}`,
+        runMode: "ai_research",
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      }).returning({ id: ingestionJobs.id });
+
+      if (docJob) {
+        type DocConfidenceRow = {
+          jobId: string;
+          entityType: string;
+          entityId: string;
+          fieldKey: string;
+          extractedValue: string | null;
+          sourceType: string;
+          sourceUrl: string;
+          confidence: number;
+          reviewStatus: string;
+        };
+        const docConfidenceRows: DocConfidenceRow[] = [];
+        for (const r of resolvedDoctors) {
+          // Look up the doctor's actual ID by name (existingId may be from the admin override)
+          const docId = r.existingId ?? (await db
+            .select({ id: doctors.id })
+            .from(doctors)
+            .where(eq(doctors.fullName, r.fullName))
+            .limit(1)
+            .then(rows => rows[0]?.id));
+          if (!docId) continue;
+
+          const docFields: { key: string; value: string | null }[] = [
+            { key: "fullName",          value: r.fullName },
+            { key: "specialization",    value: cleanStr(r.docInput.specialization) ?? null },
+            { key: "bio",               value: cleanStr(r.docInput.bio) ?? null },
+            { key: "qualifications",    value: cleanArr(r.docInput.qualifications).join(", ") || null },
+            { key: "consultationFee",   value: cleanNum(r.docInput.consultationFee) ? String(cleanNum(r.docInput.consultationFee)) : null },
+            { key: "yearsOfExperience", value: cleanNum(r.docInput.yearsOfExperience) ? String(Math.round(cleanNum(r.docInput.yearsOfExperience)!)) : null },
+          ].filter((f): f is { key: string; value: string } => !!f.value);
+
+          docConfidenceRows.push(...docFields.flatMap(f =>
+            allDocSourceUrls.slice(0, 5).map(srcUrl => ({
+              jobId: docJob.id,
+              entityType: "doctor",
+              entityId: docId,
+              fieldKey: f.key,
+              extractedValue: f.value,
+              sourceType: "ai_research",
+              sourceUrl: srcUrl,
+              confidence: 0.75,
+              reviewStatus: "applied",
+            }))
+          ));
+        }
+        if (docConfidenceRows.length > 0) {
+          await db.insert(ingestionFieldConfidences).values(docConfidenceRows).onConflictDoNothing().catch(() => null);
+        }
+      }
+    }
+  } catch { /* non-critical */ }
+
   // ── Write ingestionFieldConfidences for the References panel ───────────────
   // Create a synthetic ingestion job so the References tab has a provenance record.
   try {

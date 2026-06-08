@@ -45,6 +45,17 @@ type AgentEntity = {
   }[];
 };
 
+type MatchCandidate = {
+  id: string;
+  name: string;
+  city: string | null;
+  confidence: number;
+  reasons: string[];
+  specialization?: string | null;
+  state?: string | null;
+  type?: string | null;
+};
+
 type DoctorDraft = {
   fullName: string;
   specialization: string;
@@ -55,6 +66,11 @@ type DoctorDraft = {
   matchMode: "existing" | "new" | "skip";
   matchedDoctorId: string | null;
   matchedDoctorName: string | null;
+  // Auto-match state
+  autoMatchId: string | null;
+  autoMatchName: string | null;
+  autoMatchConfidence: number | null;
+  autoMatchReviewed: boolean;
 };
 
 type PackageDraft = {
@@ -103,6 +119,11 @@ type EntityDraft = {
   linkedHospitalName: string | null;
   // Source references
   sourceUrls: string[];
+  // Auto-match state (set by runAutoMatch after entity cards are rendered)
+  autoMatchId: string | null;
+  autoMatchName: string | null;
+  autoMatchConfidence: number | null;
+  autoMatchReviewed: boolean;
   // UI state
   expanded: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
@@ -191,9 +212,13 @@ function entityFromAgent(e: AgentEntity): EntityDraft {
       yearsOfExperience: d.yearsOfExperience ?? null,
       consultationFee: d.consultationFee ?? null,
       bio: d.bio ?? "",
-      matchMode: "new",
+      matchMode: "new" as const,
       matchedDoctorId: null,
       matchedDoctorName: null,
+      autoMatchId: null,
+      autoMatchName: null,
+      autoMatchConfidence: null,
+      autoMatchReviewed: false,
     })),
     packages: isDoctor ? [] : (e.packages ?? []).map(p => ({
       packageName: p.packageName,
@@ -209,6 +234,10 @@ function entityFromAgent(e: AgentEntity): EntityDraft {
       doctorBio: e.description ?? e.snippet ?? "",
     } : {}),
     sourceUrls: uniqueUrls([e.sourceUrl, e.website]),
+    autoMatchId: null,
+    autoMatchName: null,
+    autoMatchConfidence: null,
+    autoMatchReviewed: false,
     expanded: true,
     saveStatus: "idle",
     saveResult: null,
@@ -232,6 +261,10 @@ function entityFromJobDetails(details: Record<string, unknown>): EntityDraft | n
       fullName: (d.fullName as string) ?? (dc as Record<string, unknown>).normalizedName as string ?? "",
       specialization: (d.specialization as string) ?? "",
       qualifications: (d.qualifications as string[]) ?? [],
+      autoMatchId: null,
+      autoMatchName: null,
+      autoMatchConfidence: null,
+      autoMatchReviewed: false,
       yearsOfExperience: (d.yearsOfExperience as number) ?? null,
       consultationFee: (d.consultationFee as number) ?? null,
       bio: (d.bio as string) ?? "",
@@ -273,6 +306,10 @@ function entityFromJobDetails(details: Record<string, unknown>): EntityDraft | n
     packages,
     ...DOCTOR_BLANK,
     sourceUrls: uniqueUrls(sources.map(s => s.sourceUrl)),
+    autoMatchId: null,
+    autoMatchName: null,
+    autoMatchConfidence: null,
+    autoMatchReviewed: false,
     expanded: true,
     saveStatus: "idle",
     saveResult: null,
@@ -431,6 +468,67 @@ function HospitalMatchSelect({
   );
 }
 
+// ─── AutoMatchBanner ─────────────────────────────────────────────────────────
+// Shown on cards when auto-match found a candidate. High-confidence (≥80%) are
+// auto-applied and need confirmation; medium (55-79%) are suggestions only.
+
+function AutoMatchBanner({
+  matchName,
+  confidence,
+  onConfirm,
+  onReject,
+  onApply,
+}: {
+  matchName: string;
+  confidence: number;
+  onConfirm?: () => void;   // only when auto-applied
+  onReject: () => void;
+  onApply?: () => void;     // only when suggestion
+}) {
+  const pct = Math.round(confidence * 100);
+  const isAutoApplied = confidence >= 0.80;
+
+  if (isAutoApplied) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-sm">
+        <span className="text-amber-500 shrink-0">⚡</span>
+        <div className="flex-1 min-w-0">
+          <span className="font-semibold text-amber-800">Auto-matched</span>
+          <span className="text-amber-700 ml-1.5">→ <span className="font-medium truncate">{matchName}</span></span>
+          <span className="ml-2 text-[11px] text-amber-500 font-mono">{pct}%</span>
+        </div>
+        <button type="button" onClick={onConfirm}
+          className="px-3 py-1 text-[11px] bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition-colors shrink-0">
+          Confirm
+        </button>
+        <button type="button" onClick={onReject}
+          className="px-3 py-1 text-[11px] border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shrink-0">
+          Not this
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-sky-50 border-b border-sky-200 text-sm">
+      <span className="text-sky-500 shrink-0">💡</span>
+      <div className="flex-1 min-w-0">
+        <span className="font-semibold text-sky-800">Possible match</span>
+        <span className="text-sky-700 ml-1.5"><span className="font-medium truncate">{matchName}</span></span>
+        <span className="ml-2 text-[11px] text-sky-500 font-mono">{pct}%</span>
+      </div>
+      <button type="button" onClick={onApply}
+        className="px-3 py-1 text-[11px] bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shrink-0">
+        Use this
+      </button>
+      <button type="button" onClick={onReject}
+        className="px-3 py-1 text-[11px] border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors shrink-0">
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
 // ─── DoctorRow ────────────────────────────────────────────────────────────────
 
 function DoctorRow({
@@ -511,6 +609,30 @@ function DoctorRow({
         </div>
         <button type="button" onClick={onRemove} className="text-slate-300 hover:text-red-400 text-sm ml-1 shrink-0">✕</button>
       </div>
+
+      {/* Auto-match banner */}
+      {doctor.autoMatchConfidence !== null && !doctor.autoMatchReviewed && (
+        <AutoMatchBanner
+          matchName={doctor.autoMatchName ?? ""}
+          confidence={doctor.autoMatchConfidence}
+          onConfirm={() => onUpdate({ autoMatchReviewed: true })}
+          onReject={() => onUpdate({
+            matchMode: "new",
+            matchedDoctorId: null,
+            matchedDoctorName: null,
+            autoMatchId: null,
+            autoMatchName: null,
+            autoMatchConfidence: null,
+            autoMatchReviewed: true,
+          })}
+          onApply={() => onUpdate({
+            matchMode: "existing",
+            matchedDoctorId: doctor.autoMatchId!,
+            matchedDoctorName: doctor.autoMatchName!,
+            autoMatchReviewed: true,
+          })}
+        />
+      )}
 
       {/* Match existing search */}
       {doctor.matchMode === "existing" && (
@@ -714,6 +836,30 @@ function DoctorEntityCard({
           <span className="text-slate-300 text-sm shrink-0">{draft.expanded ? "▲" : "▼"}</span>
         )}
       </div>
+
+      {/* Auto-match banner — always visible while unreviewed */}
+      {!isSaved && draft.autoMatchConfidence !== null && !draft.autoMatchReviewed && (
+        <AutoMatchBanner
+          matchName={draft.autoMatchName ?? ""}
+          confidence={draft.autoMatchConfidence}
+          onConfirm={() => onUpdate({ autoMatchReviewed: true })}
+          onReject={() => onUpdate({
+            doctorMatchMode: "new",
+            doctorMatchedDoctorId: null,
+            doctorMatchedDoctorName: null,
+            autoMatchId: null,
+            autoMatchName: null,
+            autoMatchConfidence: null,
+            autoMatchReviewed: true,
+          })}
+          onApply={() => onUpdate({
+            doctorMatchMode: "existing",
+            doctorMatchedDoctorId: draft.autoMatchId!,
+            doctorMatchedDoctorName: draft.autoMatchName!,
+            autoMatchReviewed: true,
+          })}
+        />
+      )}
 
       {draft.expanded && !isSaved && (
         <div className="divide-y divide-slate-100">
@@ -968,6 +1114,7 @@ function EntityReviewCard({
     const blank: DoctorDraft = {
       fullName: "", specialization: "", qualifications: [], yearsOfExperience: null,
       consultationFee: null, bio: "", matchMode: "new", matchedDoctorId: null, matchedDoctorName: null,
+      autoMatchId: null, autoMatchName: null, autoMatchConfidence: null, autoMatchReviewed: false,
     };
     onUpdate({ doctors: [...draft.doctors, blank] });
   }
@@ -1028,6 +1175,30 @@ function EntityReviewCard({
           </div>
         )}
       </div>
+
+      {/* Auto-match banner — always visible while unreviewed */}
+      {!isSaved && draft.autoMatchConfidence !== null && !draft.autoMatchReviewed && (
+        <AutoMatchBanner
+          matchName={draft.autoMatchName ?? ""}
+          confidence={draft.autoMatchConfidence}
+          onConfirm={() => onUpdate({ autoMatchReviewed: true })}
+          onReject={() => onUpdate({
+            matchMode: "new",
+            matchedHospitalId: null,
+            matchedHospitalName: null,
+            autoMatchId: null,
+            autoMatchName: null,
+            autoMatchConfidence: null,
+            autoMatchReviewed: true,
+          })}
+          onApply={() => onUpdate({
+            matchMode: "existing",
+            matchedHospitalId: draft.autoMatchId!,
+            matchedHospitalName: draft.autoMatchName!,
+            autoMatchReviewed: true,
+          })}
+        />
+      )}
 
       {/* Expandable body */}
       {draft.expanded && !isSaved && (
@@ -1262,6 +1433,118 @@ export function ResearchWorkspace({
     setDrafts(prev => [...prev, draft]);
   }
 
+  // Runs in background after drafts are set — patches each card with the best DB match.
+  async function runAutoMatch(initialDrafts: EntityDraft[]) {
+    const matchEntity = async (draft: EntityDraft, i: number) => {
+      const isDocEntity = draft.rawType === "doctor" || draft.rawType === "physician" || draft.rawType === "surgeon";
+      const params = new URLSearchParams({
+        type: isDocEntity ? "doctor" : "hospital",
+        name: draft.name,
+      });
+      if (draft.city) params.set("city", draft.city);
+      if (isDocEntity) {
+        if (draft.doctorSpecialization) params.set("specialization", draft.doctorSpecialization);
+        if (draft.phone) params.set("phone", draft.phone);
+      } else {
+        if (draft.website) params.set("website", draft.website);
+        if (draft.phone) params.set("phone", draft.phone);
+      }
+
+      try {
+        const res = await fetch(`/api/admin/research/match?${params}`, { credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json() as { matches: MatchCandidate[] };
+        const top = data.matches?.[0];
+        if (!top) return;
+
+        if (top.confidence >= 0.80) {
+          if (isDocEntity) {
+            updateDraft(i, {
+              doctorMatchMode: "existing",
+              doctorMatchedDoctorId: top.id,
+              doctorMatchedDoctorName: top.name,
+              autoMatchId: top.id,
+              autoMatchName: top.name,
+              autoMatchConfidence: top.confidence,
+              autoMatchReviewed: false,
+            });
+          } else {
+            updateDraft(i, {
+              matchMode: "existing",
+              matchedHospitalId: top.id,
+              matchedHospitalName: top.name,
+              autoMatchId: top.id,
+              autoMatchName: top.name,
+              autoMatchConfidence: top.confidence,
+              autoMatchReviewed: false,
+            });
+          }
+        } else if (top.confidence >= 0.55) {
+          updateDraft(i, {
+            autoMatchId: top.id,
+            autoMatchName: top.name,
+            autoMatchConfidence: top.confidence,
+            autoMatchReviewed: false,
+          });
+        }
+      } catch { /* skip */ }
+    };
+
+    const matchDoctorsInDraft = async (draft: EntityDraft, draftIndex: number) => {
+      if (!draft.doctors.length) return;
+      await Promise.all(draft.doctors.map(async (doc, di) => {
+        if (!doc.fullName) return;
+        const dParams = new URLSearchParams({ type: "doctor", name: doc.fullName });
+        if (draft.city) dParams.set("city", draft.city);
+        if (doc.specialization) dParams.set("specialization", doc.specialization);
+        try {
+          const res = await fetch(`/api/admin/research/match?${dParams}`, { credentials: "include" });
+          if (!res.ok) return;
+          const data = await res.json() as { matches: MatchCandidate[] };
+          const top = data.matches?.[0];
+          if (!top) return;
+
+          setDrafts(prev => prev.map((d, idx) => {
+            if (idx !== draftIndex) return d;
+            return {
+              ...d,
+              doctors: d.doctors.map((doc2, dIdx) => {
+                if (dIdx !== di) return doc2;
+                if (top.confidence >= 0.80) {
+                  return {
+                    ...doc2,
+                    matchMode: "existing" as const,
+                    matchedDoctorId: top.id,
+                    matchedDoctorName: top.name,
+                    autoMatchId: top.id,
+                    autoMatchName: top.name,
+                    autoMatchConfidence: top.confidence,
+                    autoMatchReviewed: false,
+                  };
+                } else if (top.confidence >= 0.55) {
+                  return {
+                    ...doc2,
+                    autoMatchId: top.id,
+                    autoMatchName: top.name,
+                    autoMatchConfidence: top.confidence,
+                    autoMatchReviewed: false,
+                  };
+                }
+                return doc2;
+              }),
+            };
+          }));
+        } catch { /* skip */ }
+      }));
+    };
+
+    // Entity-level matching runs first; doctor-level matching runs concurrently.
+    await Promise.all([
+      ...initialDrafts.map((draft, i) => matchEntity(draft, i)),
+      ...initialDrafts.map((draft, i) => matchDoctorsInDraft(draft, i)),
+    ]);
+  }
+
   async function runResearch() {
     if (mode === "single" && !query.trim()) return;
     if (mode === "batch" && !batchText.trim()) return;
@@ -1284,7 +1567,9 @@ export function ResearchWorkspace({
         if (!res.ok) throw new Error(json.error ?? "Research failed");
         const entities: AgentEntity[] = (json.data?.entities ?? []).filter(isUsableEntity);
         setGroundedSummary(json.data?.groundedSummary ?? null);
-        setDrafts(entities.map(entityFromAgent));
+        const newDrafts = entities.map(entityFromAgent);
+        setDrafts(newDrafts);
+        void runAutoMatch(newDrafts);
       } else {
         const names = batchText.split("\n").map(s => s.trim()).filter(Boolean);
         const createRes = await fetch("/api/admin/research/batch", {
@@ -1369,9 +1654,8 @@ export function ResearchWorkspace({
           qualifications: draft.doctorQualifications.length ? draft.doctorQualifications : undefined,
           yearsOfExperience: draft.doctorYearsOfExperience ?? undefined,
           consultationFee: draft.doctorConsultationFee ?? undefined,
-          sourceUrl: draft.sourceUrls[0] ?? undefined,
+          sourceUrls: draft.sourceUrls,  // send full array so all sources are recorded
         };
-        // If matching existing doctor, include the id so doctor-save can update it
         if (draft.doctorMatchMode === "existing" && draft.doctorMatchedDoctorId) {
           savePayload.existingDoctorId = draft.doctorMatchedDoctorId;
         }
@@ -1503,6 +1787,10 @@ export function ResearchWorkspace({
 
   const savedCount = drafts.filter(d => d.saveStatus === "saved").length;
   const allSaved = drafts.length > 0 && savedCount === drafts.length;
+  const pendingReviewCount = drafts.filter(d =>
+    (d.autoMatchConfidence !== null && !d.autoMatchReviewed) ||
+    d.doctors.some(doc => doc.autoMatchConfidence !== null && !doc.autoMatchReviewed)
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -1621,18 +1909,25 @@ export function ResearchWorkspace({
       {/* ── Entity review cards ── */}
       {drafts.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex items-center justify-between px-1 flex-wrap gap-2">
             <p className="text-sm font-semibold text-slate-600">
               {drafts.length} {drafts.length === 1 ? "entity" : "entities"} found
               {savedCount > 0 && (
                 <span className="ml-2 text-emerald-600">· {savedCount} saved</span>
               )}
             </p>
-            {allSaved && (
-              <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
-                ✓ All entities saved
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {pendingReviewCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-semibold rounded-full border border-amber-200">
+                  ⚡ {pendingReviewCount} auto-matched — review needed
+                </span>
+              )}
+              {allSaved && (
+                <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1">
+                  ✓ All entities saved
+                </span>
+              )}
+            </div>
           </div>
 
           {(() => {
