@@ -45,7 +45,7 @@ type AgentEntity = {
   }[];
 };
 
-type MatchCandidate = {
+export type MatchCandidate = {
   id: string;
   name: string;
   city: string | null;
@@ -56,7 +56,7 @@ type MatchCandidate = {
   type?: string | null;
 };
 
-type DoctorDraft = {
+export type DoctorDraft = {
   fullName: string;
   specialization: string;
   qualifications: string[];
@@ -73,7 +73,7 @@ type DoctorDraft = {
   autoMatchReviewed: boolean;
 };
 
-type PackageDraft = {
+export type PackageDraft = {
   packageName: string;
   department: string;
   priceMin: number | null;
@@ -81,7 +81,7 @@ type PackageDraft = {
   include: boolean;
 };
 
-type EntityDraft = {
+export type EntityDraft = {
   // Original entity type from AI ("hospital" | "clinic" | "doctor" | "unknown")
   rawType: string;
   // All hospital DB fields (used when rawType !== "doctor")
@@ -150,7 +150,7 @@ type BatchItem = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function uniqueUrls(urls: (string | null | undefined)[]): string[] {
+export function uniqueUrls(urls: (string | null | undefined)[]): string[] {
   return [...new Set(urls.filter((u): u is string => !!u && u.startsWith("http")))];
 }
 
@@ -173,7 +173,7 @@ function isUsableEntity(e: AgentEntity): boolean {
   return true;
 }
 
-const DOCTOR_BLANK = {
+export const DOCTOR_BLANK = {
   doctorSpecialization: "",
   doctorQualifications: [] as string[],
   doctorYearsOfExperience: null as number | null,
@@ -245,39 +245,39 @@ function entityFromAgent(e: AgentEntity): EntityDraft {
   };
 }
 
-function entityFromJobDetails(details: Record<string, unknown>): EntityDraft | null {
+export function entityFromJobDetails(details: Record<string, unknown>): EntityDraft | null {
   const candidates = (details.hospitalCandidates as unknown[]) ?? [];
   if (!candidates.length) return null;
 
+  // Hospital candidates are stored flat (no extractedData wrapper) — read columns directly.
   const cand = candidates[0] as Record<string, unknown>;
-  const data = (cand.extractedData as Record<string, unknown>) ?? {};
   const doctorCandidates = (details.doctorCandidates as unknown[]) ?? [];
   const packageCandidates = (details.packageCandidates as unknown[]) ?? [];
   const sources = (details.sources as { sourceUrl?: string }[]) ?? [];
 
   const doctors: DoctorDraft[] = doctorCandidates.map((dc) => {
-    const d = (dc as Record<string, unknown>).extractedData as Record<string, unknown> ?? {};
+    const d = dc as Record<string, unknown>;
     return {
-      fullName: (d.fullName as string) ?? (dc as Record<string, unknown>).normalizedName as string ?? "",
+      fullName: (d.fullName as string) ?? (d.normalizedName as string) ?? "",
       specialization: (d.specialization as string) ?? "",
       qualifications: (d.qualifications as string[]) ?? [],
+      yearsOfExperience: (d.yearsOfExperience as number) ?? null,
+      consultationFee: (d.consultationFee as number) ?? (d.feeMin as number) ?? null,
+      bio: "",
+      matchMode: "new",
+      matchedDoctorId: (d.matchDoctorId as string) ?? null,
+      matchedDoctorName: null,
       autoMatchId: null,
       autoMatchName: null,
       autoMatchConfidence: null,
       autoMatchReviewed: false,
-      yearsOfExperience: (d.yearsOfExperience as number) ?? null,
-      consultationFee: (d.consultationFee as number) ?? null,
-      bio: (d.bio as string) ?? "",
-      matchMode: "new",
-      matchedDoctorId: null,
-      matchedDoctorName: null,
     };
   });
 
   const packages: PackageDraft[] = packageCandidates.map((pc) => {
-    const p = (pc as Record<string, unknown>).extractedData as Record<string, unknown> ?? {};
+    const p = pc as Record<string, unknown>;
     return {
-      packageName: (p.packageName as string) ?? (pc as Record<string, unknown>).packageName as string ?? "",
+      packageName: (p.packageName as string) ?? "",
       department: (p.department as string) ?? "",
       priceMin: (p.priceMin as number) ?? null,
       priceMax: (p.priceMax as number) ?? null,
@@ -285,23 +285,27 @@ function entityFromJobDetails(details: Record<string, unknown>): EntityDraft | n
     };
   });
 
+  // Derive type from hospital name / existing type field
+  const rawType = (cand.type as string) ?? "hospital";
+  const name = (cand.name as string) ?? "";
+
   return {
-    rawType: (data.type as string) ?? "hospital",
-    name: (data.name as string) ?? (cand.normalizedName as string) ?? "",
-    type: (data.type as string) ?? "hospital",
-    city: (data.city as string) ?? "",
-    state: (data.state as string) ?? "",
-    addressLine1: (data.addressLine1 as string) ?? (data.address as string) ?? "",
-    phone: (data.phone as string) ?? "",
-    email: (data.email as string) ?? "",
-    website: (data.website as string) ?? "",
-    description: (data.description as string) ?? "",
-    specialties: (data.specialties as string[]) ?? [],
-    facilities: (data.facilities as string[]) ?? [],
-    accreditations: (data.accreditations as string[]) ?? [],
-    matchMode: cand.mergeTargetId ? "existing" : "new",
-    matchedHospitalId: (cand.mergeTargetId as string) ?? null,
-    matchedHospitalName: null,
+    rawType,
+    name,
+    type: rawType === "clinic" ? "clinic" : rawType === "nursing_home" ? "nursing_home" : "hospital",
+    city: (cand.city as string) ?? "",
+    state: (cand.state as string) ?? "",
+    addressLine1: (cand.addressLine1 as string) ?? "",
+    phone: (cand.phone as string) ?? "",
+    email: (cand.email as string) ?? "",
+    website: (cand.website as string) ?? "",
+    description: (cand.description as string) ?? "",
+    specialties: (cand.specialties as string[]) ?? [],
+    facilities: (cand.keyFacilities as string[]) ?? [],
+    accreditations: [],
+    matchMode: cand.matchHospitalId ? "existing" : "new",
+    matchedHospitalId: (cand.matchHospitalId as string) ?? null,
+    matchedHospitalName: (cand.matchHospitalName as string) ?? null,
     doctors,
     packages,
     ...DOCTOR_BLANK,
@@ -1075,7 +1079,7 @@ const DB_TEXT_FIELDS: [keyof EntityDraft, string, "text" | "textarea" | "select"
 
 const HOSPITAL_TYPES = ["hospital", "clinic", "nursing_home", "diagnostic_center", "polyclinic", "wellness_center"];
 
-function EntityReviewCard({
+export function EntityReviewCard({
   draft,
   index,
   hospitals,
@@ -1410,11 +1414,17 @@ function EntityReviewCard({
 
 export function ResearchWorkspace({
   hospitals,
+  initialQuery,
 }: {
   hospitals: HospitalRow[];
+  initialQuery?: string;
 }) {
   const [mode, setMode] = useState<"single" | "batch">("single");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery ?? "");
+
+  useEffect(() => {
+    if (initialQuery) setQuery(initialQuery);
+  }, [initialQuery]);
   const [batchText, setBatchText] = useState("");
   const [city, setCity] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1613,8 +1623,8 @@ export function ResearchWorkspace({
             if (item.status === "done" && item.jobId) {
               try {
                 const jobRes = await fetch(`/api/admin/ingestion/jobs?jobId=${item.jobId}`, { credentials: "include" });
-                const jobJson = await jobRes.json() as Record<string, unknown>;
-                const draft = entityFromJobDetails(jobJson);
+                const jobJson = await jobRes.json() as { data?: Record<string, unknown> };
+                const draft = entityFromJobDetails(jobJson.data ?? {});
                 if (draft) appendDraft(draft);
               } catch { /* skip failed fetches */ }
             }

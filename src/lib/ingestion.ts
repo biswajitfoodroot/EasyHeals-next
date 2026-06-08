@@ -776,13 +776,10 @@ async function fetchWithPlaywright(url: string, options?: { useBrowserAutomation
     if (!browser) return null;
 
     try {
-      const context = await browser.createBrowserContext();
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      });
       const page = await context.newPage();
-
-      // Set realistic user agent
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      );
 
       // Block heavy resources to speed up loading
       await page.route('**/*.{png,jpg,jpeg,gif,svg,webp,ico}', (route: any) => route.abort());

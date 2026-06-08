@@ -40,6 +40,7 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
       { href: "/admin?tab=ingestion",   label: "Ingestion",        icon: "🤖", roles: CONTENT_EDITORS },
       { href: "/admin?tab=hospitals",   label: "Hospitals",        icon: "🏥", roles: CONTENT_EDITORS },
       { href: "/admin?tab=taxonomy",    label: "Taxonomy",         icon: "🏷️", roles: CONTENT_EDITORS },
+      { href: "/admin?tab=content",     label: "Treatment Content",icon: "📝", roles: CONTENT_EDITORS },
       { href: "/admin?tab=ai_research", label: "AI Research",      icon: "🔍", roles: CONTENT_EDITORS },
       { href: "/admin?tab=brochure",    label: "Brochure Extract", icon: "📄", roles: CONTENT_EDITORS },
     ],
@@ -48,14 +49,17 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
     heading: "Operations",
     items: [
       { href: "/provider-management/appointments", label: "Appointments", icon: "📅", roles: ALL_STAFF },
-      { href: "/admin?tab=patients",  label: "Patients",  icon: "🧑‍⚕️", roles: OWNERS_ADMINS },
-      { href: "/admin?tab=providers", label: "Providers", icon: "🏥",    roles: ALL_STAFF },
+      { href: "/admin?tab=patients",     label: "Patients",     icon: "🧑‍⚕️", roles: OWNERS_ADMINS },
+      { href: "/admin?tab=providers",    label: "Providers",    icon: "🏥",    roles: ALL_STAFF },
+      { href: "/admin?tab=doctors",      label: "Doctors",      icon: "👨‍⚕️",  roles: CONTENT_EDITORS },
+      { href: "/admin?tab=affiliations", label: "Affiliations", icon: "🔗",    roles: CONTENT_EDITORS },
     ],
   },
   {
     heading: "Community & Moderation",
     items: [
       { href: "/admin?tab=contributions", label: "Contributions", icon: "✏️", roles: ALL_STAFF },
+      { href: "/admin?tab=reviews",       label: "Reviews",       icon: "⭐", roles: ALL_STAFF },
       { href: "/admin?tab=kyc",           label: "KYC Review",    icon: "🪪", roles: [...OWNERS_ADMINS, "admin_manager"] },
       { href: "/admin/audit-log",         label: "Audit Log",     icon: "📋", roles: ALL_STAFF },
     ],
@@ -63,6 +67,7 @@ const NAV_GROUPS: { heading?: string; items: NavItem[] }[] = [
   {
     heading: "Administration",
     items: [
+      { href: "/admin?tab=analytics", label: "Analytics",      icon: "📊", roles: OWNERS_ADMINS },
       { href: "/admin/access",       label: "Access & Users", icon: "👥", roles: OWNERS_ADMINS },
       { href: "/admin?tab=config",   label: "Feature Flags",  icon: "⚙️", roles: OWNERS_ADMINS },
       { href: "/admin?tab=settings", label: "Settings",       icon: "🔧", roles: OWNERS_ADMINS },
@@ -152,14 +157,19 @@ export function AdminNav({ me }: NavProps) {
           >
             {me.role}
           </span>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="text-xs text-slate-400 hover:text-white transition-colors"
-            suppressHydrationWarning
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            <Link href="/portal/account" className="text-xs text-slate-400 hover:text-white transition-colors no-underline">
+              My Account
+            </Link>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="text-xs text-slate-400 hover:text-white transition-colors"
+              suppressHydrationWarning
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </aside>

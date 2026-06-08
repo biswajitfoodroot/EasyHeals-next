@@ -550,10 +550,10 @@ async function saveJobAndCandidates(
   // procedureCosts are stored alongside packages (same table) but with a
   // procedureName and no packageName bundle. The apply route will write them
   // to hospital_listing_packages with source = "cost_data".
-  if (extracted.procedureCosts.length > 0) {
+  const procedureCostRows = extracted.procedureCosts.filter(pc => pc.priceMin !== null || pc.priceMax !== null);
+  if (procedureCostRows.length > 0) {
     await db.insert(ingestionPackageCandidates).values(
-      extracted.procedureCosts
-        .filter(pc => pc.priceMin !== null || pc.priceMax !== null) // only store if we have a price
+      procedureCostRows
         .map(pc => ({
           jobId: jobId!,
           hospitalCandidateId,

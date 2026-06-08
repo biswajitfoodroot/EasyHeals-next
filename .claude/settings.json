@@ -26,7 +26,11 @@
       "PowerShell(\\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\HospitalProfileClient.tsx\"\\).Count; \\(Get-Content \"c:\\\\EasyHeals\\\\EasyHeals-next\\\\src\\\\components\\\\profiles\\\\DoctorProfileClient.tsx\"\\).Count)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(grep -v \"//.*advisor\")",
-      "Bash(xargs grep -l \"taxonomyNodes\")"
+      "Bash(xargs grep -l \"taxonomyNodes\")",
+      "Bash(awk 'NR>=4195 && NR<=4242 {print NR\": \"$0}' src/app/admin/AdminDashboardClient.tsx)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/admin)",
+      "Bash(curl -s http://localhost:5000/)"
     ]
   }
 }

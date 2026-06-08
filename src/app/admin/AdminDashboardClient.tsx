@@ -10,6 +10,7 @@ import { AdminReviewsTab } from "./AdminReviewsTab";
 import KycReviewTabContent from "./KycReviewTabContent";
 import { ResearchFieldSelector, defaultSelectedFields } from "@/components/admin/ResearchFieldSelector";
 import { ResearchWorkspace } from "@/app/admin/research/ResearchWorkspace";
+import { ScraperWorkspace } from "@/app/admin/ingestion/ScraperWorkspace";
 
 // ── 40-Specialty Master List ─────────────────────────────────────────────────
 const SPECIALTY_LIST = [
@@ -346,6 +347,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
   const [selectedHospitalIds, setSelectedHospitalIds] = useState<string[]>([]);
 
   // ── Quick Create Hospital ───────────────────────────────────────────────────
+  const [showAddHospital, setShowAddHospital] = useState(false);
   const [newHospName, setNewHospName] = useState("");
   const [newHospCity, setNewHospCity] = useState("");
   const [newHospState, setNewHospState] = useState("");
@@ -1812,34 +1814,8 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 p-4 font-sans antialiased">
-      <div className="max-w-7xl mx-auto space-y-6">
-
-        {/* Header */}
-        <section className="bg-gradient-to-r from-teal-900 to-teal-700 text-white rounded-2xl p-6 shadow-sm border border-teal-800 flex justify-between items-center">
-          <div>
-            <p className="text-teal-200 text-sm font-semibold uppercase tracking-wider mb-1">EasyHeals Admin</p>
-            <h1 className="text-3xl font-bold tracking-tight">CRM Operations Center</h1>
-            <p className="text-teal-100 mt-1.5">
-              Signed in as <span className="font-semibold text-white">{me.fullName}</span>{" "}
-              <span className="text-teal-300 text-sm">({me.role})</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <a
-              href="/portal/account"
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors font-medium backdrop-blur-sm text-sm"
-            >
-              👤 My Account
-            </a>
-            <button
-              onClick={onLogout}
-              className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-xl transition-colors font-medium backdrop-blur-sm"
-            >
-              Sign Out
-            </button>
-          </div>
-        </section>
+    <div className="bg-slate-50 text-slate-800 p-4 font-sans antialiased">
+      <div className="max-w-7xl mx-auto space-y-4">
 
         {error && (
           <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-xl shadow-sm text-sm font-medium flex items-center gap-2">
@@ -1848,396 +1824,374 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
           </div>
         )}
 
-        {/* ── TAB NAVIGATION ─────────────────────────────────────────────── */}
-        <nav className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-2xl shadow-sm">
-          {allowedTabs.map((tab) => {
-            const labels: Record<Tab, { label: string; icon: string; count?: number }> = {
-              ingestion: { label: "Data Ingestion", icon: "🤖" },
-              hospitals: { label: "Hospitals", icon: "🏥", count: hospitalStats.total },
-              taxonomy: { label: "Taxonomy", icon: "🏷️", count: initialNodes.length },
-              content: { label: "Content", icon: "📝", count: undefined },
-              ai_research: { label: "AI Research", icon: "🔍" },
-              brochure: { label: "Brochure Extract", icon: "📄" },
-              contributions: { label: "Contributions", icon: "✏️" },
-              reviews: { label: "Reviews", icon: "⭐" },
-              kyc: { label: "KYC Requests", icon: "🪪" },
-              config: { label: "Config & Flags", icon: "⚙️" },
-              patients: { label: "Patients", icon: "👤" },
-              providers: { label: "Providers", icon: "🏥" },
-              affiliations: { label: "Affiliations", icon: "🔗" },
-              doctors: { label: "Doctors", icon: "👨‍⚕️" },
-              analytics: { label: "Analytics", icon: "📊" },
-            };
-            const { label, icon, count } = labels[tab];
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  activeTab === tab
-                    ? "bg-teal-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                }`}
-              >
-                <span>{icon}</span>
-                <span>{label}</span>
-                {count !== undefined && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-
         {/* ── HOSPITAL MANAGEMENT (tab) ────────────────────────────────────── */}
         {activeTab === "hospitals" && (<>
 
         {/* ── HOSPITAL MANAGEMENT ─────────────────────────────────────────── */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/60 flex flex-wrap justify-between items-center gap-3">
+
+          {/* Header + stats */}
+          <div className="px-6 py-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Hospital Management</h2>
-              <p className="text-slate-500 text-sm mt-0.5">Search, edit, and manage all hospital records.</p>
+              <h2 className="text-lg font-bold text-slate-800">Hospital Management</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Search, edit, and manage all hospital records.</p>
             </div>
-            {/* Stats */}
-            <div className="flex gap-3">
-              <div className="text-center px-4 py-2 bg-slate-100 rounded-xl border border-slate-200">
-                <p className="text-lg font-bold text-slate-800">{hospitalStats.total}</p>
-                <p className="text-xs text-slate-500 font-medium">Total</p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-baseline gap-1.5 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <span className="text-2xl font-bold text-slate-800 leading-none">{hospitalStats.total}</span>
+                <span className="text-xs text-slate-400 font-medium">total</span>
               </div>
-              <div className="text-center px-4 py-2 bg-emerald-50 rounded-xl border border-emerald-200">
-                <p className="text-lg font-bold text-emerald-700">{hospitalStats.active}</p>
-                <p className="text-xs text-emerald-600 font-medium">Active</p>
+              <div className="flex items-baseline gap-1.5 px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <span className="text-2xl font-bold text-emerald-600 leading-none">{hospitalStats.active}</span>
+                <span className="text-xs text-emerald-500 font-medium">active</span>
               </div>
-              <div className="text-center px-4 py-2 bg-slate-100 rounded-xl border border-slate-200">
-                <p className="text-lg font-bold text-slate-500">{hospitalStats.inactive}</p>
-                <p className="text-xs text-slate-400 font-medium">Inactive</p>
+              <div className="flex items-baseline gap-1.5 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                <span className="text-2xl font-bold text-slate-400 leading-none">{hospitalStats.inactive}</span>
+                <span className="text-xs text-slate-400 font-medium">inactive</span>
               </div>
+              <button
+                onClick={() => setShowAddHospital((v) => !v)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border ${showAddHospital ? "bg-teal-600 text-white border-teal-600" : "bg-white text-teal-700 border-teal-300 hover:bg-teal-50"}`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={showAddHospital ? "M6 18L18 6M6 6l12 12" : "M12 4v16m8-8H4"} />
+                </svg>
+                {showAddHospital ? "Cancel" : "Add Hospital"}
+              </button>
             </div>
           </div>
 
-          <div className="p-5">
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3 mb-4">
+          {/* Inline Add Hospital form */}
+          {showAddHospital && (
+            <div className="px-6 py-5 border-b border-slate-100 bg-teal-50/30">
+              {createHospMsg && <div className="mb-4"><Toast msg={createHospMsg} /></div>}
+              <form onSubmit={(e) => { void onCreateHospital(e); setShowAddHospital(false); }} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 items-end">
+                <div className="col-span-2 sm:col-span-3 lg:col-span-2">
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Hospital Name *</label>
+                  <input className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={newHospName} onChange={(e) => setNewHospName(e.target.value)} placeholder="e.g., Apollo Hospitals" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">City *</label>
+                  <input className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={newHospCity} onChange={(e) => setNewHospCity(e.target.value)} placeholder="Mumbai" required />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">State</label>
+                  <input className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={newHospState} onChange={(e) => setNewHospState(e.target.value)} placeholder="Maharashtra" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Phone</label>
+                  <input className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none font-mono" value={newHospPhone} onChange={(e) => setNewHospPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Email</label>
+                  <div className="flex gap-2">
+                    <input type="email" className="flex-1 min-w-0 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none" value={newHospEmail} onChange={(e) => setNewHospEmail(e.target.value)} placeholder="contact@hospital.com" />
+                    <button type="submit" disabled={createHospBusy} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5">
+                      {createHospBusy ? <span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
+                      Create
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Filters */}
+          <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/40 flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[220px]">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
               <input
-                className="flex-1 min-w-[200px] px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm"
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none text-sm"
                 value={hospitalSearch}
                 onChange={(e) => setHospitalSearch(e.target.value)}
-                placeholder="Search by name, city, state, or UUID..."
+                placeholder="Search by name, city, state, or UUID…"
               />
-              <select
-                className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm"
-                value={hospitalCityFilter}
-                onChange={(e) => setHospitalCityFilter(e.target.value)}
-              >
-                <option value="">All Cities</option>
-                {uniqueCities.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <select
-                className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none text-sm"
-                value={hospitalStatusFilter}
-                onChange={(e) => setHospitalStatusFilter(e.target.value as any)}
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active Only</option>
-                <option value="inactive">Inactive Only</option>
-              </select>
-              <span className="self-center text-xs text-slate-400 font-medium">
-                {filteredHospitals.length} result{filteredHospitals.length !== 1 ? "s" : ""}
-              </span>
-              {selectedHospitalIds.length > 0 && (
-                <button
-                  onClick={handlePopulateData}
-                  className="px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-sm transition flex items-center gap-2 font-medium"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                  </svg>
-                  Populate Data ({selectedHospitalIds.length})
-                </button>
-              )}
             </div>
-
-            {hospitalMgmtMsg && (
-              <div className="mb-4">
-                <Toast msg={hospitalMgmtMsg} />
-              </div>
+            <select
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm text-slate-700"
+              value={hospitalCityFilter}
+              onChange={(e) => setHospitalCityFilter(e.target.value)}
+            >
+              <option value="">All Cities</option>
+              {uniqueCities.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm text-slate-700"
+              value={hospitalStatusFilter}
+              onChange={(e) => setHospitalStatusFilter(e.target.value as any)}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <span className="text-xs text-slate-400 font-medium px-1">
+              {filteredHospitals.length} result{filteredHospitals.length !== 1 ? "s" : ""}
+            </span>
+            {selectedHospitalIds.length > 0 && (
+              <button
+                onClick={handlePopulateData}
+                className="ml-auto px-4 py-2 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-sm transition font-medium flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                Populate Data ({selectedHospitalIds.length})
+              </button>
             )}
+          </div>
 
-            {/* Table */}
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-left">
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap w-12 text-center">
+          {hospitalMgmtMsg && (
+            <div className="px-6 pt-4">
+              <Toast msg={hospitalMgmtMsg} />
+            </div>
+          )}
+
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left">
+                  <th className="px-4 py-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={toggleSelectAllHospitals}
+                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Hospital</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Location</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Contact</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {filteredHospitals.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-sm">
+                      No hospitals match your filters.
+                    </td>
+                  </tr>
+                )}
+                {filteredHospitals.map((h) => (
+                  <React.Fragment key={h.id}>
+                    <tr className={`group transition-colors ${selectedHospitalIds.includes(h.id) ? "bg-teal-50/40" : "hover:bg-slate-50/60"}`}>
+                      <td className="px-4 py-3.5 text-center">
                         <input
                           type="checkbox"
-                          checked={allFilteredSelected}
-                          onChange={toggleSelectAllHospitals}
+                          checked={selectedHospitalIds.includes(h.id)}
+                          onChange={() => toggleHospitalSelection(h.id)}
                           className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
                         />
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Hospital</th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">City / State</th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Phone</th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Email</th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">Status</th>
-                      <th className="px-4 py-3 font-semibold text-slate-600 whitespace-nowrap text-right">Actions</th>
+                      </td>
+                      <td className="px-4 py-3.5 max-w-[240px]">
+                        <p className="font-semibold text-slate-800 truncate">{h.name}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 truncate">{h.slug}</p>
+                        <button
+                          className="text-[10px] text-slate-300 font-mono mt-0.5 hover:text-teal-600 transition-colors"
+                          title={`UUID: ${h.id} — click to copy`}
+                          onClick={() => { void navigator.clipboard.writeText(h.id); }}
+                        >
+                          {h.id.slice(0, 8)}…
+                        </button>
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-slate-600">
+                        {h.city}
+                        {h.state ? <span className="text-slate-400">, {h.state}</span> : null}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <p className="text-xs text-slate-600 font-mono">{h.phone ?? <span className="text-slate-300">—</span>}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 truncate max-w-[160px]">{h.email ?? ""}</p>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge active={h.isActive} />
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-1 justify-end">
+                          <a
+                            href={`/hospitals/${h.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-all"
+                            title="View profile"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                          <button
+                            onClick={() => {
+                              setEditingHospitalId(editingHospitalId === h.id ? null : h.id);
+                              setEditHospitalDraft({ name: h.name, city: h.city, state: h.state ?? "", phone: h.phone ?? "", email: h.email ?? "" });
+                            }}
+                            className={`p-1.5 rounded-lg transition-all ${editingHospitalId === h.id ? "text-teal-700 bg-teal-100" : "text-slate-400 hover:text-teal-600 hover:bg-teal-50"}`}
+                            title="Edit"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => onToggleHospitalActive(h)}
+                            disabled={hospitalMgmtBusy}
+                            className={`p-1.5 rounded-lg transition-all disabled:opacity-50 ${h.isActive ? "text-amber-500 hover:bg-amber-50" : "text-emerald-500 hover:bg-emerald-50"}`}
+                            title={h.isActive ? "Deactivate" : "Activate"}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={h.isActive ? "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" : "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"} />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const deptList = h.specialties?.length
+                                ? ` — departments: ${h.specialties.slice(0, 8).join(", ")}`
+                                : " — departments: cardiology, general medicine, orthopaedics, neurology, oncology, gastroenterology, nephrology, urology";
+                              setAgentQuery(`Find full details, packages, doctors and services for: ${h.name}, ${h.city}${deptList}`);
+                              setActiveTab("ai_research");
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            title="AI Research & Enrich"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition-all text-sm leading-none"
+                          >
+                            🤖
+                          </button>
+                          <button
+                            onClick={() => onDeleteHospital(h)}
+                            disabled={hospitalMgmtBusy}
+                            className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredHospitals.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm italic">
-                          No hospitals match your filters.
+                    {/* Inline edit row */}
+                    {editingHospitalId === h.id && (
+                      <tr className="bg-teal-50/40">
+                        <td colSpan={6} className="px-6 py-5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Hospital Name</label>
+                              <input
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
+                                value={editHospitalDraft.name as string ?? ""}
+                                onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, name: e.target.value })}
+                                placeholder="Hospital name"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">City</label>
+                              <input
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
+                                value={editHospitalDraft.city as string ?? ""}
+                                onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, city: e.target.value })}
+                                placeholder="City"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">State</label>
+                              <input
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
+                                value={editHospitalDraft.state as string ?? ""}
+                                onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, state: e.target.value })}
+                                placeholder="State"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Phone</label>
+                              <input
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white font-mono"
+                                value={editHospitalDraft.phone as string ?? ""}
+                                onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, phone: e.target.value })}
+                                placeholder="+91 XXXXX XXXXX"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Email</label>
+                              <input
+                                type="email"
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
+                                value={editHospitalDraft.email as string ?? ""}
+                                onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, email: e.target.value })}
+                                placeholder="contact@hospital.com"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-500 mb-1.5 block">UUID</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  readOnly
+                                  value={h.id}
+                                  className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-slate-100 text-slate-500 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => { void navigator.clipboard.writeText(h.id); }}
+                                  className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs rounded-lg transition-colors"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
+                              <button
+                                onClick={() => onSaveHospital(h.id)}
+                                disabled={hospitalMgmtBusy}
+                                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {hospitalMgmtBusy ? "Saving…" : "Save Changes"}
+                              </button>
+                              <button
+                                onClick={() => { setEditingHospitalId(null); setEditHospitalDraft({}); }}
+                                className="px-5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     )}
-                    {filteredHospitals.map((h) => (
-                      <React.Fragment key={h.id}>
-                        <tr className={`hover:bg-slate-50/60 transition-colors group ${selectedHospitalIds.includes(h.id) ? "bg-teal-50/20" : ""}`}>
-                          <td className="px-4 py-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedHospitalIds.includes(h.id)}
-                              onChange={() => toggleHospitalSelection(h.id)}
-                              className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="font-semibold text-slate-800">{h.name}</p>
-                            <p className="text-xs text-slate-400 font-mono mt-0.5">{h.slug}</p>
-                            <button
-                              className="text-xs text-slate-300 font-mono mt-0.5 hover:text-teal-600 transition-colors text-left truncate max-w-[200px] block"
-                              title={`UUID: ${h.id} — click to copy`}
-                              onClick={() => { void navigator.clipboard.writeText(h.id); }}
-                            >
-                              {h.id.slice(0, 8)}…
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">
-                            {h.city}
-                            {h.state ? <span className="text-slate-400">, {h.state}</span> : null}
-                          </td>
-                          <td className="px-4 py-3 text-slate-500 font-mono text-xs">{h.phone ?? <span className="text-slate-300">—</span>}</td>
-                          <td className="px-4 py-3 text-slate-500 text-xs truncate max-w-[160px]">{h.email ?? <span className="text-slate-300">—</span>}</td>
-                          <td className="px-4 py-3">
-                            <StatusBadge active={h.isActive} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5 justify-end">
-                              <a
-                                href={`/hospitals/${h.slug}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-500 hover:text-teal-600 hover:border-teal-200 bg-white transition-all"
-                                title="View profile"
-                              >
-                                View
-                              </a>
-                              <button
-                                onClick={() => {
-                                  setEditingHospitalId(editingHospitalId === h.id ? null : h.id);
-                                  setEditHospitalDraft({ name: h.name, city: h.city, state: h.state ?? "", phone: h.phone ?? "", email: h.email ?? "" });
-                                }}
-                                className="px-2.5 py-1 text-xs border border-teal-200 rounded-lg text-teal-700 bg-teal-50 hover:bg-teal-100 font-medium transition-all"
-                              >
-                                {editingHospitalId === h.id ? "Cancel" : "Edit"}
-                              </button>
-                              <button
-                                onClick={() => onToggleHospitalActive(h)}
-                                disabled={hospitalMgmtBusy}
-                                className={`px-2.5 py-1 text-xs border rounded-lg font-medium transition-all disabled:opacity-50 ${
-                                  h.isActive
-                                    ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                                    : "border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                                }`}
-                              >
-                                {h.isActive ? "Deactivate" : "Activate"}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const deptList = h.specialties?.length
-                                    ? ` — departments: ${h.specialties.slice(0, 8).join(", ")}`
-                                    : " — departments: cardiology, general medicine, orthopaedics, neurology, oncology, gastroenterology, nephrology, urology";
-                                  setAgentQuery(`Find full details, packages, doctors and services for: ${h.name}, ${h.city}${deptList}`);
-                                  setActiveTab("ai_research");
-                                  window.scrollTo({ top: 0, behavior: "smooth" });
-                                }}
-                                title="AI Research & Enrich this hospital"
-                                className="px-2 py-1 text-xs border border-purple-200 rounded-md hover:bg-purple-50 text-purple-700 font-semibold"
-                              >
-                                🤖
-                              </button>
-                              <button
-                                onClick={() => onDeleteHospital(h)}
-                                disabled={hospitalMgmtBusy}
-                                className="px-2.5 py-1 text-xs border border-red-200 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-all disabled:opacity-50"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                        {/* Inline edit row */}
-                        {editingHospitalId === h.id && (
-                          <tr className="bg-teal-50/50">
-                            <td colSpan={7} className="px-4 py-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Hospital Name</label>
-                                  <input
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
-                                    value={editHospitalDraft.name as string ?? ""}
-                                    onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, name: e.target.value })}
-                                    placeholder="Hospital name"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">City</label>
-                                  <input
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
-                                    value={editHospitalDraft.city as string ?? ""}
-                                    onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, city: e.target.value })}
-                                    placeholder="City"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">State</label>
-                                  <input
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
-                                    value={editHospitalDraft.state as string ?? ""}
-                                    onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, state: e.target.value })}
-                                    placeholder="State"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Phone</label>
-                                  <input
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white font-mono"
-                                    value={editHospitalDraft.phone as string ?? ""}
-                                    onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, phone: e.target.value })}
-                                    placeholder="+91 XXXXX XXXXX"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Email</label>
-                                  <input
-                                    type="email"
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none bg-white"
-                                    value={editHospitalDraft.email as string ?? ""}
-                                    onChange={(e) => setEditHospitalDraft({ ...editHospitalDraft, email: e.target.value })}
-                                    placeholder="contact@hospital.com"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Hospital UUID</label>
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      readOnly
-                                      value={h.id}
-                                      className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono bg-slate-100 text-slate-500 outline-none select-all"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => { void navigator.clipboard.writeText(h.id); }}
-                                      className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-600 text-xs rounded-lg transition-colors whitespace-nowrap"
-                                      title="Copy UUID"
-                                    >
-                                      Copy
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="flex items-end gap-2">
-                                  <button
-                                    onClick={() => onSaveHospital(h.id)}
-                                    disabled={hospitalMgmtBusy}
-                                    className="flex-1 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
-                                  >
-                                    {hospitalMgmtBusy ? "Saving..." : "Save Changes"}
-                                  </button>
-                                  <button
-                                    onClick={() => { setEditingHospitalId(null); setEditHospitalDraft({}); }}
-                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition-colors"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Load More */}
+          {hospitalHasMore && (
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-center">
+              <button
+                type="button"
+                onClick={loadMoreHospitals}
+                disabled={hospitalLoadingMore}
+                className="px-5 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 hover:border-teal-300 transition-all disabled:opacity-50"
+              >
+                {hospitalLoadingMore ? "Loading…" : `Load more (showing ${hospitalList.length})`}
+              </button>
             </div>
-          </div>
-        {/* ── Load More Hospitals ─────────────────────────────────────────── */}
-        {hospitalHasMore && (
-          <div className="flex justify-center pt-2 pb-4">
-            <button
-              type="button"
-              onClick={loadMoreHospitals}
-              disabled={hospitalLoadingMore}
-              className="px-6 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-600 hover:bg-slate-50 hover:border-teal-300 transition-all disabled:opacity-50"
-            >
-              {hospitalLoadingMore ? "Loading…" : `Load more hospitals (showing ${hospitalList.length})`}
-            </button>
-          </div>
-        )}
+          )}
         </section>
 
-        {/* ── QUICK ADD HOSPITAL (inside hospitals tab) ────────────────────── */}
-        <article className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-            <h2 className="text-lg font-bold text-slate-800">Quick Add Hospital</h2>
-            <p className="text-slate-500 text-xs mt-0.5">Manually create a new hospital record.</p>
-          </div>
-          <div className="p-5">
-            {createHospMsg && <div className="mb-4"><Toast msg={createHospMsg} /></div>}
-            <form onSubmit={onCreateHospital} className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Hospital Name *</label>
-                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none" value={newHospName} onChange={(e) => setNewHospName(e.target.value)} placeholder="e.g., Apollo Hospitals" required />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">City *</label>
-                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none" value={newHospCity} onChange={(e) => setNewHospCity(e.target.value)} placeholder="e.g., Mumbai" required />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">State</label>
-                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none" value={newHospState} onChange={(e) => setNewHospState(e.target.value)} placeholder="e.g., Maharashtra" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Phone</label>
-                <input className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none font-mono" value={newHospPhone} onChange={(e) => setNewHospPhone(e.target.value)} placeholder="+91 XXXXX XXXXX" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Email</label>
-                <input type="email" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 outline-none" value={newHospEmail} onChange={(e) => setNewHospEmail(e.target.value)} placeholder="contact@hospital.com" />
-              </div>
-              <div className="col-span-2">
-                <button type="submit" disabled={createHospBusy} className="w-full px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                  {createHospBusy ? <><span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full" /> Creating...</> : "+ Add Hospital"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </article>
 
         </>)}
 
         {/* ── INGESTION TAB ────────────────────────────────────────────────── */}
-        {activeTab === "ingestion" && (<>
+        {activeTab === "ingestion" && (
+          <ScraperWorkspace hospitals={hospitalList} />
+        )}
 
-        {/* ── AI INGESTION TOOL ───────────────────────────────────────────── */}
+        {false && (<>
+
+        {/* ── AI INGESTION TOOL (legacy — kept for reference) ─────────────── */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50">
             <h2 className="text-xl font-bold text-slate-800">Smart AI Data Scraper</h2>
@@ -2917,7 +2871,7 @@ export default function AdminDashboardClient({ me, hospitals: initialHospitals, 
 
         {/* ── AI RESEARCH TAB ──────────────────────────────────────────────── */}
         {activeTab === "ai_research" && (
-          <ResearchWorkspace hospitals={hospitalList} />
+          <ResearchWorkspace hospitals={hospitalList} initialQuery={agentQuery} />
         )}
 
         {/* ── BROCHURE EXTRACTOR TAB ───────────────────────────────────────── */}
