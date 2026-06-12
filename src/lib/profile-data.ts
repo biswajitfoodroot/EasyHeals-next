@@ -22,7 +22,7 @@ export async function listHospitalsDirectory(limit = 100, offset = 0, q?: string
       isPrivate: hospitals.isPrivate,
       isActive: hospitals.isActive,
       // Correlated subquery avoids JOIN-fanout when a hospital has multiple agreements
-      networkTierCode: sql<string | null>`(SELECT tier_code FROM provider_agreements WHERE hospital_id = ${hospitals.id} AND status = 'accepted' LIMIT 1)`,
+      networkTierCode: sql<string | null>`(SELECT tier_code FROM provider_agreements WHERE hospital_id = hospitals.id AND status = 'accepted' LIMIT 1)`,
     })
     .from(hospitals)
     .where(and(
