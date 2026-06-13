@@ -11,7 +11,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "@/db/client";
 import { otpVerifications, patients } from "@/db/schema";
 import { AppError, withErrorHandler } from "@/lib/errors/app-error";
@@ -136,7 +136,7 @@ async function handleVerify(req: NextRequest): Promise<Response> {
     .select()
     .from(otpVerifications)
     .where(eq(otpVerifications.phoneHash, phoneHash))
-    .orderBy(otpVerifications.createdAt)
+    .orderBy(desc(otpVerifications.createdAt))
     .limit(1);
 
   if (!records.length) {

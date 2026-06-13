@@ -72,11 +72,11 @@ export default function LoginClient() {
 
       const json = (await res.json()) as {
         patientId?: string;
-        error?: { userMessage?: string };
+        error?: { message?: string };
       };
 
       if (!res.ok) {
-        setError(json?.error?.userMessage ?? "Google sign-in failed. Please try again.");
+        setError(json?.error?.message ?? "Google sign-in failed. Please try again.");
         return;
       }
 
@@ -103,10 +103,10 @@ export default function LoginClient() {
         body: JSON.stringify({ phone: phone.trim(), lang: "en" }),
       });
 
-      const json = (await res.json()) as { message?: string; error?: { userMessage?: string } };
+      const json = (await res.json()) as { message?: string; error?: { message?: string } };
 
       if (!res.ok) {
-        setError(json?.error?.userMessage ?? "Failed to send OTP. Please try again.");
+        setError(json?.error?.message ?? "Failed to send OTP. Please try again.");
         return;
       }
 
@@ -135,10 +135,10 @@ export default function LoginClient() {
         credentials: "include",
       });
 
-      const json = (await res.json()) as { patientId?: string; error?: { userMessage?: string } };
+      const json = (await res.json()) as { patientId?: string; error?: { message?: string } };
 
       if (!res.ok) {
-        setError(json?.error?.userMessage ?? "Incorrect OTP. Please try again.");
+        setError(json?.error?.message ?? "Incorrect OTP. Please try again.");
         return;
       }
 

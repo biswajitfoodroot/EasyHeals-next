@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BottomSheet } from "@/components/BottomSheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ interface Appointment {
   consultationFee: number | null;
   paymentStatus: string | null;
   meetingUrl: string | null;
+  // local UI state augmentation
+  _refundPending?: boolean;
 }
 
 type Tab = "upcoming" | "past" | "cancelled";
@@ -196,16 +198,26 @@ function BriefSection({ title, emoji, content, isSummary, urgent }: {
 function AppointmentCard({
   appt,
   onCancel,
+  onModify,
   onPay,
   cancelling,
+  modifying,
   paying,
 }: {
   appt: Appointment;
-  onCancel: (id: string) => void;
+  onCancel: (id: string, reason: string) => void;
+  onModify: (id: string, scheduledAt: string, notes: string) => void;
   onPay: (id: string) => void;
   cancelling: string | null;
+  modifying: string | null;
   paying: string | null;
 }) {
+  const [showCancelForm, setShowCancelForm] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("09:00");
+  const [rescheduleNotes, setRescheduleNotes] = useState(appt.patientNotes ?? "");
   const [showBrief, setShowBrief] = useState(false);
   const isRemote = appt.type === "audio_consultation" || appt.type === "video_consultation" || appt.type === "online_consultation";
   const isConfirmed = appt.status === "confirmed";
@@ -223,7 +235,7 @@ function AppointmentCard({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+    <div id={`appt-${appt.id}`} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3 transition-colors">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         {/* Left: info */}
         <div className="flex-1 min-w-0">
@@ -259,17 +271,114 @@ function AppointmentCard({
               {appt.type === "video_consultation" || appt.type === "online_consultation" ? "🎥" : "📞"} Join Session
             </a>
           )}
-          {isUpcoming && (
+          {/* Reschedule — only for requested status */}
+          {appt.status === "requested" && !showCancelForm && (
             <button
-              onClick={() => onCancel(appt.id)}
+              onClick={() => { setShowReschedule((v) => !v); }}
+              disabled={modifying === appt.id}
+              className="text-xs text-blue-500 hover:text-blue-700 transition disabled:opacity-50"
+            >
+              {showReschedule ? "Close" : "Reschedule"}
+            </button>
+          )}
+          {isUpcoming && !showReschedule && (
+            <button
+              onClick={() => { setShowCancelForm((v) => !v); setCancelReason(""); }}
               disabled={cancelling === appt.id}
               className="text-xs text-red-500 hover:text-red-700 transition disabled:opacity-50"
             >
-              {cancelling === appt.id ? "Cancelling..." : "Cancel"}
+              {cancelling === appt.id ? "Cancelling..." : (showCancelForm ? "Keep" : "Cancel")}
             </button>
           )}
         </div>
       </div>
+
+      {/* ── Cancel reason form ── */}
+      {showCancelForm && isUpcoming && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-2">
+          <p className="text-xs font-semibold text-red-700">Why are you cancelling?</p>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Please provide a reason (e.g. schedule conflict, feeling better)..."
+            rows={2}
+            className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400 bg-white resize-none"
+          />
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowCancelForm(false)}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700"
+            >Keep Appointment</button>
+            <button
+              onClick={() => { onCancel(appt.id, cancelReason); setShowCancelForm(false); }}
+              disabled={!cancelReason.trim() || cancelling === appt.id}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-50 transition"
+            >
+              {cancelling === appt.id ? "Cancelling..." : "Confirm Cancel"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reschedule form ── */}
+      {showReschedule && appt.status === "requested" && (
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl space-y-3">
+          <p className="text-xs font-semibold text-blue-700">Choose a new date & time</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Date</label>
+              <input
+                type="date"
+                value={newDate}
+                onChange={(e) => setNewDate(e.target.value)}
+                min={new Date(Date.now() + 3600000).toISOString().split("T")[0]}
+                className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Time</label>
+              <input
+                type="time"
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+                className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Updated notes (optional)</label>
+            <textarea
+              value={rescheduleNotes}
+              onChange={(e) => setRescheduleNotes(e.target.value)}
+              rows={2}
+              placeholder="Any additional info for the hospital..."
+              className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white resize-none"
+            />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowReschedule(false)} className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+            <button
+              onClick={() => {
+                if (!newDate) return;
+                const iso = new Date(`${newDate}T${newTime}:00`).toISOString();
+                onModify(appt.id, iso, rescheduleNotes);
+                setShowReschedule(false);
+              }}
+              disabled={!newDate || modifying === appt.id}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition"
+            >
+              {modifying === appt.id ? "Saving..." : "Confirm Reschedule"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Refund pending badge ── */}
+      {appt._refundPending && (
+        <div className="p-2.5 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-800 font-medium">
+          💰 Refund pending — our team will process your refund within 5–7 business days.
+        </div>
+      )}
 
       {/* Payment banner for pending remote consultations */}
       {needsPayment && (
@@ -340,10 +449,13 @@ function AppointmentCard({
 
 export default function AppointmentsClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("id");
   const [loading, setLoading] = useState(true);
   const [appointmentsList, setAppointmentsList] = useState<Appointment[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [modifying, setModifying] = useState<string | null>(null);
   const [paying, setPaying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -369,27 +481,82 @@ export default function AppointmentsClient() {
     void load();
   }, [router]);
 
-  async function handleCancel(id: string) {
-    if (!confirm("Are you sure you want to cancel this appointment?")) return;
+  useEffect(() => {
+    if (!loading && highlightId && appointmentsList.length > 0) {
+      // Find the tab the highlighted appointment belongs to and switch if needed
+      const appt = appointmentsList.find(a => a.id === highlightId);
+      if (appt) {
+        if (appt.status === "cancelled") setActiveTab("cancelled");
+        else if (["completed", "no_show"].includes(appt.status)) setActiveTab("past");
+        else setActiveTab("upcoming");
+
+        // Wait for render, then scroll
+        setTimeout(() => {
+          const el = document.getElementById(`appt-${highlightId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-emerald-500", "bg-emerald-50/30");
+            setTimeout(() => el.classList.remove("ring-2", "ring-emerald-500", "bg-emerald-50/30"), 2000);
+          }
+        }, 100);
+      }
+    }
+  }, [loading, highlightId, appointmentsList]);
+
+  async function handleCancel(id: string, reason: string) {
     setCancelling(id);
     try {
       const res = await fetch(`/api/v1/appointments/${id}/cancel`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Patient cancelled" }),
+        body: JSON.stringify({ reason }),
       });
+      const json = await res.json().catch(() => ({}) as { data?: { refundPending?: boolean }; error?: { message?: string } });
       if (res.ok) {
         setAppointmentsList((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a))
+          prev.map((a) =>
+            a.id === id
+              ? { ...a, status: "cancelled", _refundPending: json.data?.refundPending ?? false }
+              : a
+          )
         );
       } else {
-        alert("Could not cancel. Please try again.");
+        setError(json.error?.message ?? "Could not cancel. Please try again.");
       }
     } catch {
-      alert("Network error. Please try again.");
+      setError("Network error. Please try again.");
     } finally {
       setCancelling(null);
+    }
+  }
+
+  async function handleModify(id: string, scheduledAt: string, patientNotes: string) {
+    setModifying(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/appointments/${id}/modify`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledAt, patientNotes: patientNotes || undefined }),
+      });
+      const json = await res.json().catch(() => ({}) as { data?: { scheduledAt?: string }; error?: { message?: string } });
+      if (res.ok) {
+        setAppointmentsList((prev) =>
+          prev.map((a) =>
+            a.id === id
+              ? { ...a, scheduledAt: json.data?.scheduledAt ?? scheduledAt, status: "requested", patientNotes }
+              : a
+          )
+        );
+      } else {
+        setError(json.error?.message ?? "Could not reschedule. Please try again.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setModifying(null);
     }
   }
 
@@ -495,8 +662,10 @@ export default function AppointmentsClient() {
                 key={a.id}
                 appt={a}
                 onCancel={handleCancel}
+                onModify={handleModify}
                 onPay={handlePay}
                 cancelling={cancelling}
+                modifying={modifying}
                 paying={paying}
               />
             ))}

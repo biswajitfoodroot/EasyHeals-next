@@ -141,6 +141,8 @@ export const hospitals = sqliteTable(
     broadcastEnabled: integer("broadcast_enabled", { mode: "boolean" }).default(false),
     slotDurationMinutes: integer("slot_duration_minutes").default(15),
     maxDailyAppointments: integer("max_daily_appointments"),
+    // Minimum notice (hours) a patient must give before cancelling online; 0 = always allow; default 2h
+    cancellationWindowHours: integer("cancellation_window_hours").notNull().default(2),
     razorpayCustomerId: text("razorpay_customer_id"),
     consultationCoordinatorEnabled: integer("consultation_coordinator_enabled", { mode: "boolean" }).default(false),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).default(

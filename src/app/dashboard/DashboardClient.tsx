@@ -234,11 +234,17 @@ function AppointmentsTab({ appointments, loading }: { appointments: Appointment[
             </button>
           ))}
         </div>
-        <Link href="/hospitals"
-          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm transition"
-          style={{ background: "#1B8A4A" }}>
-          + Book New Appointment
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/dashboard/appointments"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 transition">
+            ⚙️ Manage All
+          </Link>
+          <Link href="/hospitals"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm transition"
+            style={{ background: "#1B8A4A" }}>
+            + Book New Appointment
+          </Link>
+        </div>
       </div>
 
       {loading ? (
@@ -308,9 +314,15 @@ function AppointmentsTab({ appointments, loading }: { appointments: Appointment[
                         </a>
                       )}
                       {needsPayment && (
-                        <Link href={`/dashboard/appointments`}
+                        <Link href={`/dashboard/appointments?id=${appt.id}`}
                           className="px-4 py-2 text-sm font-semibold text-amber-700 border border-amber-200 bg-amber-50 rounded-xl">
                           ₹{appt.consultationFee} — Pay Now
+                        </Link>
+                      )}
+                      {appt.status !== "completed" && appt.status !== "cancelled" && (
+                        <Link href={`/dashboard/appointments?id=${appt.id}`}
+                          className="px-4 py-2 text-sm font-semibold text-blue-700 border border-blue-200 bg-blue-50 rounded-xl">
+                          ⚙️ Manage
                         </Link>
                       )}
                       {appt.status === "completed" && (
@@ -3339,7 +3351,11 @@ export default function DashboardClient() {
   const [docsCount, setDocsCount] = useState(0);
   const [trial, setTrial] = useState<TrialStatus>({ inTrial: false, trialDaysLeft: 0, canUsePremium: false, tier: "free" });
   const [patientName, setPatientName] = useState("there");
-  const [preferredLang, setPreferredLang] = useState<string>(() => lsGet<string>(LS_PREFERRED_LANG, "en"));
+  const [preferredLang, setPreferredLang] = useState<string>("en");
+
+  useEffect(() => {
+    setPreferredLang(lsGet<string>(LS_PREFERRED_LANG, "en"));
+  }, []);
 
   function changeLang(lang: string) { setPreferredLang(lang); lsSet(LS_PREFERRED_LANG, lang); }
 
@@ -3441,6 +3457,11 @@ export default function DashboardClient() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 mt-2 shrink-0">
+            <Link href="/dashboard/appointments"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
+              <span className="text-base shrink-0">⚙️</span>
+              <span className="hidden lg:block">Manage Appointments</span>
+            </Link>
             <Link href="/dashboard/consent"
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all">
               <span className="text-base shrink-0">🔒</span>
@@ -3588,10 +3609,16 @@ export default function DashboardClient() {
                       <p className="text-sm text-slate-500">{nextAppt.hospitalName ?? "Hospital TBC"}</p>
                       <p className="text-sm text-slate-600 mt-1"><TypeBadge type={nextAppt.type} /> <span className="ml-1">{formatDT(nextAppt.scheduledAt)}</span></p>
                     </div>
-                    <button onClick={() => switchTab("appointments")}
-                      className="text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition">
-                      View All →
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={() => switchTab("appointments")}
+                        className="text-sm font-semibold px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition text-center">
+                        Overview →
+                      </button>
+                      <Link href={`/dashboard/appointments?id=${nextAppt.id}`}
+                        className="text-sm font-semibold px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition text-center">
+                        ⚙️ Manage
+                      </Link>
+                    </div>
                   </div>
                 </div>
               ) : (
